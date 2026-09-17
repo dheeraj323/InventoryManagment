@@ -1,0 +1,38 @@
+import { Order, LedgerEntry } from '../types';
+
+export type AuthStackParamList = {
+  Login: undefined;
+  RoleSelect: undefined;
+};
+
+export type VendorTabParamList = {
+  VendorDashboard: undefined;
+  ProductCatalog: undefined;
+  Cart: undefined;
+  VendorOrders: undefined;
+  VendorOrderDetail: { orderId: string };
+  VendorLedger: undefined;
+  VendorProfile: undefined;
+};
+
+export type StaffTabParamList = {
+  StaffDashboard: undefined;
+  TodayDeliveries: undefined;
+  DeliveryDetail: { orderId: string };
+  ActualPayment: { orderId: string };
+  CashSettlement: undefined;
+  StaffProfile: undefined;
+};
+
+export type AdminTabParamList = {
+  AdminDashboard: undefined;
+  VendorList: undefined;
+  VendorDetail: { vendorId: string };
+  AdminOrders: undefined;
+  AdminOrderDetail: { orderId: string };
+  Inventory: undefined;
+  AdminFinance: undefined;
+  AuditHistory: undefined;
+  StaffSettlements: undefined;
+  AdminSettings: undefined;
+};

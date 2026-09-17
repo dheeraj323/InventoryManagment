@@ -1,0 +1,118 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        getUserData().role == 'ADMIN' ||
+        request.auth.token.role == 'ADMIN'
+      );
+    }
+
+    function isStaff() {
+      return isAuthenticated() && (
+        getUserData().role == 'STAFF' ||
+        request.auth.token.role == 'STAFF'
+      );
+    }
+
+    function isVendor() {
+      return isAuthenticated() && (
+        getUserData().role == 'VENDOR' ||
+        request.auth.token.role == 'VENDOR'
+      );
+    }
+
+    // USERS Collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAdmin() || (
+        request.auth.uid == userId &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // VENDORS Collection
+    match /vendors/{vendorId} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isVendor() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['preferredPaymentMode', 'phone', 'address', 'updatedAt'])
+      );
+    }
+
+    // PRODUCTS Collection
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isStaff();
+    }
+
+    // SUPPLIERS Collection
+    match /suppliers/{supplierId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ORDERS Collection
+    match /orders/{orderId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() || isStaff() || (
+        isVendor() &&
+        resource.data.vendorId == getUserData().vendorId &&
+        resource.data.status == 'PENDING'
+      );
+      allow delete: if isAdmin();
+    }
+
+    // PAYMENTS Collection
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    // LEDGER ENTRIES Collection (Immutable audit trail)
+    match /ledgerEntries/{entryId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() || isStaff();
+      allow update: if isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasAny(['editedAt', 'editedBy', 'editReason', 'amount']);
+      allow delete: if false; // Immutable ledger
+    }
+
+    // CASH SETTLEMENTS Collection
+    match /cashSettlements/{settlementId} {
+      allow read: if isAuthenticated();
+      allow create: if isStaff() || isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // NOTIFICATIONS Collection
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // AUDIT LOGS Collection (Immutable)
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false; // Immutable audit log
+    }
+  }
+}

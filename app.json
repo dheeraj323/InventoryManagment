@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "Distributor Management System",
+    "slug": "distributor-management-system",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {},
+    "web": {},
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}

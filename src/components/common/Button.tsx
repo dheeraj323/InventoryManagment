@@ -1,0 +1,148 @@
+import React from 'react';
+import {
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  ViewStyle,
+  TextStyle,
+} from 'react-native';
+import { colors, typography, spacing, shadows } from '../../theme';
+
+export interface ButtonProps {
+  title: string;
+  onPress: () => void;
+  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost';
+  size?: 'sm' | 'md' | 'lg';
+  loading?: boolean;
+  disabled?: boolean;
+  icon?: React.ReactNode;
+  style?: ViewStyle;
+  textStyle?: TextStyle;
+  fullWidth?: boolean;
+}
+
+export const Button: React.FC<ButtonProps> = ({
+  title,
+  onPress,
+  variant = 'primary',
+  size = 'md',
+  loading = false,
+  disabled = false,
+  icon,
+  style,
+  textStyle,
+  fullWidth = true,
+}) => {
+  const getContainerStyle = (): ViewStyle => {
+    let base: ViewStyle = {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: spacing.borderRadiusMd,
+    };
+
+    if (fullWidth) {
+      base.width = '100%';
+    }
+
+    // Size variations
+    if (size === 'sm') {
+      base.paddingVertical = spacing.sm;
+      base.paddingHorizontal = spacing.md;
+    } else if (size === 'lg') {
+      base.paddingVertical = spacing.lg;
+      base.paddingHorizontal = spacing.xxl;
+    } else {
+      base.paddingVertical = spacing.md;
+      base.paddingHorizontal = spacing.lg;
+    }
+
+    // Variant variations
+    switch (variant) {
+      case 'secondary':
+        base.backgroundColor = colors.surfaceSubtle;
+        base.borderWidth = 1;
+        base.borderColor = colors.border;
+        break;
+      case 'outline':
+        base.backgroundColor = 'transparent';
+        base.borderWidth = 1.5;
+        base.borderColor = colors.primary;
+        break;
+      case 'danger':
+        base.backgroundColor = colors.danger;
+        break;
+      case 'ghost':
+        base.backgroundColor = 'transparent';
+        break;
+      case 'primary':
+      default:
+        base.backgroundColor = colors.primary;
+        break;
+    }
+
+    if (disabled) {
+      base.opacity = 0.5;
+    }
+
+    return base;
+  };
+
+  const getTextStyle = (): TextStyle => {
+    let textBase: TextStyle = {
+      ...typography.bodyBold,
+      textAlign: 'center',
+    };
+
+    if (size === 'sm') {
+      textBase.fontSize = 13;
+    } else if (size === 'lg') {
+      textBase.fontSize = 16;
+    }
+
+    switch (variant) {
+      case 'secondary':
+        textBase.color = colors.textPrimary;
+        break;
+      case 'outline':
+        textBase.color = colors.primary;
+        break;
+      case 'danger':
+        textBase.color = colors.textInverse;
+        break;
+      case 'ghost':
+        textBase.color = colors.primary;
+        break;
+      case 'primary':
+      default:
+        textBase.color = colors.textInverse;
+        break;
+    }
+
+    return textBase;
+  };
+
+  return (
+    <TouchableOpacity
+      style={[getContainerStyle(), style]}
+      onPress={onPress}
+      disabled={disabled || loading}
+      activeOpacity={0.7}
+    >
+      {loading ? (
+        <ActivityIndicator
+          size="small"
+          color={variant === 'outline' || variant === 'secondary' || variant === 'ghost' ? colors.primary : colors.textInverse}
+        />
+      ) : (
+        <>
+          {icon && <React.Fragment>{icon}</React.Fragment>}
+          <Text style={[getTextStyle(), icon ? { marginLeft: spacing.sm } : null, textStyle]}>
+            {title}
+          </Text>
+        </>
+      )}
+    </TouchableOpacity>
+  );
+};

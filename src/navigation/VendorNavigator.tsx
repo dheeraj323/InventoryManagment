@@ -1,0 +1,94 @@
+import React from 'react';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
+import { VendorDashboardScreen } from '../screens/vendor/VendorDashboardScreen';
+import { ProductCatalogScreen } from '../screens/vendor/ProductCatalogScreen';
+import { CartScreen } from '../screens/vendor/CartScreen';
+import { CheckoutScreen } from '../screens/vendor/CheckoutScreen';
+import { VendorOrdersScreen } from '../screens/vendor/VendorOrdersScreen';
+import { VendorOrderDetailScreen } from '../screens/vendor/VendorOrderDetailScreen';
+import { VendorLedgerScreen } from '../screens/vendor/VendorLedgerScreen';
+import { ProfileScreen } from '../screens/vendor/ProfileScreen';
+import { colors, typography } from '../theme';
+
+const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+
+const VendorHomeStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="VendorDashboard" component={VendorDashboardScreen} />
+    <Stack.Screen name="ProductCatalog" component={ProductCatalogScreen} />
+    <Stack.Screen name="Cart" component={CartScreen} />
+    <Stack.Screen name="CheckoutScreen" component={CheckoutScreen} />
+    <Stack.Screen name="VendorOrderDetail" component={VendorOrderDetailScreen} />
+    <Stack.Screen name="VendorLedger" component={VendorLedgerScreen} />
+    <Stack.Screen name="VendorOrders" component={VendorOrdersScreen} />
+  </Stack.Navigator>
+);
+
+const VendorOrdersStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="VendorOrdersMain" component={VendorOrdersScreen} />
+    <Stack.Screen name="VendorOrderDetail" component={VendorOrderDetailScreen} />
+  </Stack.Navigator>
+);
+
+export const VendorNavigator: React.FC = () => {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          ...typography.captionBold,
+          fontSize: 10,
+        },
+        tabBarIcon: ({ color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap = 'home-outline';
+          if (route.name === 'VendorDashboardTab') iconName = 'home-outline';
+          else if (route.name === 'ProductCatalogTab') iconName = 'storefront-outline';
+          else if (route.name === 'VendorOrdersTab') iconName = 'receipt-outline';
+          else if (route.name === 'VendorLedgerTab') iconName = 'book-outline';
+          else if (route.name === 'VendorProfileTab') iconName = 'person-outline';
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+      })}
+    >
+      <Tab.Screen
+        name="VendorDashboardTab"
+        component={VendorHomeStack}
+        options={{ title: 'Home' }}
+      />
+      <Tab.Screen
+        name="ProductCatalogTab"
+        component={ProductCatalogScreen}
+        options={{ title: 'Catalog' }}
+      />
+      <Tab.Screen
+        name="VendorOrdersTab"
+        component={VendorOrdersStack}
+        options={{ title: 'Orders' }}
+      />
+      <Tab.Screen
+        name="VendorLedgerTab"
+        component={VendorLedgerScreen}
+        options={{ title: 'Ledger' }}
+      />
+      <Tab.Screen
+        name="VendorProfileTab"
+        component={ProfileScreen}
+        options={{ title: 'Profile' }}
+      />
+    </Tab.Navigator>
+  );
+};
