@@ -95,15 +95,15 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
           <View style={styles.metricGrid}>
             <View style={styles.metricTile}>
               <View style={[styles.metricIconWrap, { backgroundColor: colors.brandGreenLight }]}>
-                <Ionicons name="checkmark-circle" size={18} color={colors.brandGreen} />
+                <Ionicons name="checkmark-done-outline" size={18} color={colors.brandGreen} />
               </View>
               <Text style={styles.metricCount}>{completedDeliveries.length}</Text>
               <Text style={styles.metricSubLabel}>Delivered</Text>
             </View>
 
             <View style={styles.metricTile}>
-              <View style={[styles.metricIconWrap, { backgroundColor: '#FEF3C7' }]}>
-                <Ionicons name="time" size={18} color="#D97706" />
+              <View style={[styles.metricIconWrap, { backgroundColor: colors.statusPendingBg }]}>
+                <Ionicons name="time-outline" size={18} color="#D97706" />
               </View>
               <Text style={styles.metricCount}>{pendingDeliveries.length}</Text>
               <Text style={styles.metricSubLabel}>Pending</Text>
@@ -111,7 +111,7 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
 
             <View style={styles.metricTile}>
               <View style={[styles.metricIconWrap, { backgroundColor: colors.accentLight }]}>
-                <Ionicons name="navigate" size={18} color={colors.accent} />
+                <Ionicons name="map-outline" size={18} color={colors.accent} />
               </View>
               <Text style={styles.metricCount}>{assignedOrders.length}</Text>
               <Text style={styles.metricSubLabel}>Total Route</Text>
@@ -127,17 +127,24 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
                 ? 'All Deliveries Completed'
                 : `Start Deliveries (${pendingDeliveries.length} Pending)`
             }
-            onPress={() => navigation.navigate('TodayDeliveries')}
+            onPress={() => {
+              if (!isAllCompleted) {
+                navigation.navigate('TodayDeliveries');
+              }
+            }}
             icon={
               <Ionicons
-                name={isAllCompleted ? 'checkmark-done-circle' : 'bicycle'}
+                name={isAllCompleted ? 'checkmark-done-outline' : 'bicycle-outline'}
                 size={20}
                 color={colors.textInverse}
               />
             }
             size="lg"
-            disabled={assignedOrders.length === 0}
-            style={styles.primaryCtaBtn}
+            disabled={assignedOrders.length === 0 || isAllCompleted}
+            style={{
+              ...styles.primaryCtaBtn,
+              ...(isAllCompleted ? { backgroundColor: colors.brandGreen, opacity: 0.85 } : {}),
+            }}
           />
         </View>
 
