@@ -66,15 +66,13 @@ export const vendorService = {
     });
   },
 
-  // Update Vendor Credit Limit and Pay Later eligibility (Admin action)
-  updateCreditLimit: async (
+  // Update Vendor Pay Later eligibility (Admin action)
+  updatePayLaterAccess: async (
     vendorId: string,
-    newCreditLimit: number,
     payLaterEligible: boolean
   ): Promise<void> => {
     const vendorRef = doc(db, VENDORS_COLLECTION, vendorId);
     await updateDoc(vendorRef, {
-      creditLimit: newCreditLimit,
       payLaterEligible,
       payLaterEnabled: payLaterEligible,
       updatedAt: serverTimestamp(),
@@ -107,7 +105,6 @@ export const vendorService = {
       phone: vendorData.phone || '',
       address: vendorData.address || '',
       area: vendorData.area || '',
-      creditLimit: vendorData.creditLimit || 5000,
       currentBalance: vendorData.currentBalance || 0,
       currentOutstanding: vendorData.currentBalance || 0,
       payLaterEligible: vendorData.payLaterEligible ?? true,

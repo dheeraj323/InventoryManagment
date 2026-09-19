@@ -44,23 +44,16 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     phone: '',
     address: '',
     area: '',
-    creditLimit: 10000,
     currentBalance: 0,
     payLaterEligible: true,
     preferredPaymentMode: 'PAY_LATER' as const,
   };
 
   const runningBalance = getPartyRunningBalance(vendor.id);
-  const creditLimit = vendor.creditLimit || BUSINESS_RULES.DEFAULT_CREDIT_LIMIT;
-  const utilizedCredit = Math.max(0, runningBalance);
-  const remainingCredit = Math.max(0, creditLimit - utilizedCredit);
-
   const totalUnits = getItemCount();
   const subtotal = getSubtotal();
   const tax = getTax();
   const total = getTotal();
-
-  const exceedsCredit = total > remainingCredit;
 
   // Helper to lookup product SKU by productId
   const getProductSku = (productId: string) => {
@@ -189,25 +182,20 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </View>
         </Card>
 
-        {/* ── 4. Financial Status & Credit Check ──────────────────── */}
+        {/* ── 4. Financial Khata Account Summary ─────────────────── */}
         <Card
-          style={[styles.card, exceedsCredit ? styles.exceedsCard : null]}
+          style={styles.card}
           outlined
           elevation="sm"
         >
           <View style={styles.creditHeader}>
             <Ionicons
-              name={exceedsCredit ? 'alert-circle' : 'shield-checkmark-outline'}
+              name="book-outline"
               size={18}
-              color={exceedsCredit ? colors.danger : colors.brandGreen}
+              color={colors.primary}
             />
-            <Text
-              style={[
-                styles.creditTitle,
-                exceedsCredit ? styles.creditTitleDanger : null,
-              ]}
-            >
-              Vendor Khata & Credit Line
+            <Text style={styles.creditTitle}>
+              Vendor Khata Account
             </Text>
           </View>
 
@@ -225,21 +213,12 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </View>
 
             <View style={styles.creditMetaCol}>
-              <Text style={styles.creditMetaLabel}>Available Credit</Text>
-              <Text style={[styles.creditMetaVal, { color: colors.textPrimary }]}>
-                ₹{remainingCredit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <Text style={styles.creditMetaLabel}>Account Status</Text>
+              <Text style={[styles.creditMetaVal, { color: runningBalance > 0 ? colors.warning : colors.brandGreen }]}>
+                {runningBalance > 0 ? 'Pending Dues' : 'Settled'}
               </Text>
             </View>
           </View>
-
-          {exceedsCredit && (
-            <View style={styles.errorBox}>
-              <Ionicons name="warning-outline" size={15} color={colors.danger} />
-              <Text style={styles.errorText}>
-                Order amount exceeds available credit line (₹{remainingCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). Pay Later mode will be locked at checkout; please settle via Cash or Online UPI.
-              </Text>
-            </View>
-          )}
         </Card>
 
         <View style={{ height: spacing.xxl }} />

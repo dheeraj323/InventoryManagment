@@ -36,7 +36,6 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
     phone: '',
     address: '',
     area: '',
-    creditLimit: 10000,
     currentBalance: 0,
     payLaterEligible: true,
     preferredPaymentMode: 'PAY_LATER' as const,

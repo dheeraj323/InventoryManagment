@@ -56,7 +56,6 @@ export const MOCK_VENDORS: Vendor[] = [
     phone: '+91 99887 76655',
     address: 'Shop #12, Central Market, Sector 14, City',
     area: 'Sector 14',
-    creditLimit: 10000,
     currentBalance: 3450, // Vendor owes $3,450
     payLaterEligible: true,
     preferredPaymentMode: 'PAY_LATER',
@@ -68,7 +67,6 @@ export const MOCK_VENDORS: Vendor[] = [
     phone: '+91 99112 23344',
     address: 'Plot 45, Main Road, Indiranagar',
     area: 'Indiranagar',
-    creditLimit: 5000,
     currentBalance: 1200,
     payLaterEligible: true,
     preferredPaymentMode: 'CASH',
@@ -80,9 +78,8 @@ export const MOCK_VENDORS: Vendor[] = [
     phone: '+91 98223 34455',
     address: '88 Station Road, Old Town',
     area: 'Old Town',
-    creditLimit: 2500,
-    currentBalance: 2500, // At max limit
-    payLaterEligible: false, // Suspended due to overdue balance
+    currentBalance: 2500,
+    payLaterEligible: false,
     preferredPaymentMode: 'ONLINE',
   },
 ];

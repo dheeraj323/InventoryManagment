@@ -78,12 +78,12 @@ export const orderService = {
     });
   },
 
-  // Create Order with Credit Limit validation & atomic stock decrement in Firestore Transaction
+  // Create Order with atomic stock decrement in Firestore Transaction
   createOrder: async (orderData: Omit<Order, 'id' | 'orderNumber'>): Promise<Order> => {
     const newOrderRef = doc(collection(db, ORDERS_COLLECTION));
 
     return await runTransaction(db, async (transaction) => {
-      // 1. Fetch Vendor Document to validate Pay Later eligibility & Credit Limit (READ)
+      // 1. Fetch Vendor Document to validate account status
       const vendorRef = doc(db, VENDORS_COLLECTION, orderData.vendorId);
       const vendorSnap = await transaction.get(vendorRef);
 
@@ -92,12 +92,6 @@ export const orderService = {
         if (orderData.preferredPaymentMode === 'PAY_LATER') {
           if (!vendor.payLaterEligible && !vendor.payLaterEnabled) {
             throw new Error('Pay Later is not enabled for this vendor account.');
-          }
-          const projectedBalance = (vendor.currentBalance || 0) + orderData.totalAmount;
-          if (projectedBalance > vendor.creditLimit) {
-            throw new Error(
-              `Credit Limit Exceeded! Current Outstanding: $${vendor.currentBalance || 0}, Order: $${orderData.totalAmount}, Limit: $${vendor.creditLimit}`
-            );
           }
         }
       }

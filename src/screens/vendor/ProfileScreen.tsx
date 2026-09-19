@@ -25,7 +25,6 @@ export const ProfileScreen: React.FC = () => {
     phone: currentUser?.phone || '+91 99887 76655',
     address: 'Shop #12, Central Market, Sector 14, City',
     area: 'Sector 14',
-    creditLimit: 10000,
     currentBalance: 0,
     payLaterEligible: true,
     preferredPaymentMode: 'PAY_LATER' as const,
@@ -67,22 +66,18 @@ export const ProfileScreen: React.FC = () => {
           </View>
         </Card>
 
-        {/* Credit Line Terms */}
+        {/* Payment & Khata Terms */}
         <Card style={styles.card} outlined elevation="sm">
-          <Text style={styles.cardTitle}>CREDIT LINE TERMS</Text>
+          <Text style={styles.cardTitle}>PAYMENT & KHATA TERMS</Text>
           <View style={styles.statRow}>
-            <Text style={styles.statLabel}>Configured Credit Limit</Text>
-            <Text style={styles.statVal}>₹{vendor.creditLimit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
-          </View>
-          <View style={styles.statRow}>
-            <Text style={styles.statLabel}>Pay Later Eligibility</Text>
+            <Text style={styles.statLabel}>Pay Later / Khata Option</Text>
             <Text
               style={[
                 styles.statVal,
                 { color: vendor.payLaterEligible ? colors.success : colors.danger },
               ]}
             >
-              {vendor.payLaterEligible ? 'Eligible' : 'Suspended by Admin'}
+              {vendor.payLaterEligible ? 'Enabled' : 'Disabled'}
             </Text>
           </View>
           <View style={styles.statRow}>

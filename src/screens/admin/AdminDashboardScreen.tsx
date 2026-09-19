@@ -50,7 +50,7 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
       iconColor: colors.accent,
       iconBg: colors.accentLight,
       title: 'Vendors',
-      subtitle: 'Credit lines & shop directory',
+      subtitle: 'Vendor directory & Khata accounts',
       route: 'VendorList',
     },
     {

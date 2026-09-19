@@ -35,13 +35,11 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     phone: '+91 99887 76655',
     address: 'Shop #12, Central Market, Sector 14, City',
     area: 'Sector 14',
-    creditLimit: 10000,
     currentBalance: 3450,
     payLaterEligible: true,
     preferredPaymentMode: 'PAY_LATER' as const,
   };
   const runningBalance = getPartyRunningBalance(vendor.id);
-  const remainingCredit = Math.max(0, vendor.creditLimit - runningBalance);
 
   const totalAmount = getTotal();
   const subtotal = getSubtotal();
@@ -54,13 +52,11 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
   const [deliveryDate, setDeliveryDate] = useState(defaultDeliveryDate);
   const [selectedPaymentMode, setSelectedPaymentMode] = useState<PaymentMethod>(
-    vendor.payLaterEligible && totalAmount <= remainingCredit ? 'PAY_LATER' : 'CASH'
+    vendor.payLaterEligible ? 'PAY_LATER' : 'CASH'
   );
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const exceedsCredit = totalAmount > remainingCredit;
 
   const handlePlaceOrder = async () => {
     setErrorMsg('');
@@ -69,20 +65,6 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     if (!deliveryDate.trim()) {
       setErrorMsg('Please enter a valid delivery date.');
       return;
-    }
-
-    // Pay Later credit restriction check
-    if (selectedPaymentMode === 'PAY_LATER') {
-      if (!vendor.payLaterEligible) {
-        setErrorMsg('Pay Later credit line is currently suspended for your shop.');
-        return;
-      }
-      if (exceedsCredit) {
-        setErrorMsg(
-          `Order total (₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}) exceeds remaining credit (₹${remainingCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). Please choose Cash or Online transfer.`
-        );
-        return;
-      }
     }
 
     setLoading(true);
@@ -194,8 +176,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
           {(['PAY_LATER', 'CASH', 'ONLINE'] as PaymentMethod[]).map((mode) => {
             const isSelected = selectedPaymentMode === mode;
-            const isPayLaterDisabled =
-              mode === 'PAY_LATER' && (!vendor.payLaterEligible || exceedsCredit);
+            const isPayLaterDisabled = mode === 'PAY_LATER' && !vendor.payLaterEligible;
 
             return (
               <TouchableOpacity
@@ -226,8 +207,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                   </Text>
                   {mode === 'PAY_LATER' && (
                     <Text style={styles.paymentSubtext}>
-                    Available Credit: ₹{remainingCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      {exceedsCredit ? ' (Exceeded)' : ''}
+                      Add to shop Khata balance for periodic settlement.
                     </Text>
                   )}
                   {mode === 'CASH' && (

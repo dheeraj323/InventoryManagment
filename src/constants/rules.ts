@@ -2,14 +2,12 @@ export const BUSINESS_RULES = {
   ORDER_CUTOFF_HOUR: 17, // 5:00 PM (17:00)
   ORDER_CUTOFF_LABEL: 'Order before 5:00 PM for Next-Day Delivery',
   TAX_RATE: 0.05, // 5% GST/Tax
-  DEFAULT_CREDIT_LIMIT: 5000,
-  ALLOW_OVER_CREDIT: false,
 };
 
 export const PAYMENT_METHOD_LABELS = {
   CASH: 'Cash Collection',
   ONLINE: 'Online Transfer / UPI',
-  PAY_LATER: 'Pay Later (Vendor Credit)',
+  PAY_LATER: 'Pay Later (Khata / On Account)',
   PARTIALLY_PAID: 'Partially Paid',
   PENDING: 'Payment Pending',
 };

@@ -8,7 +8,7 @@ interface VendorState {
   subscribeVendors: () => () => void;
   fetchVendors: () => Promise<void>;
   getVendorById: (id: string) => Vendor | undefined;
-  updateCreditLimit: (vendorId: string, limit: number, payLaterEligible: boolean) => Promise<void>;
+  updatePayLaterAccess: (vendorId: string, payLaterEligible: boolean) => Promise<void>;
 }
 
 export const useVendorStore = create<VendorState>((set, get) => ({
@@ -38,19 +38,19 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     return get().vendors.find((v) => v.id === id || v.vendorId === id);
   },
 
-  updateCreditLimit: async (vendorId, limit, payLaterEligible) => {
+  updatePayLaterAccess: async (vendorId, payLaterEligible) => {
     set({
       vendors: get().vendors.map((v) =>
         v.id === vendorId || v.vendorId === vendorId
-          ? { ...v, creditLimit: limit, payLaterEligible, payLaterEnabled: payLaterEligible }
+          ? { ...v, payLaterEligible, payLaterEnabled: payLaterEligible }
           : v
       ),
     });
 
     try {
-      await vendorService.updateCreditLimit(vendorId, limit, payLaterEligible);
+      await vendorService.updatePayLaterAccess(vendorId, payLaterEligible);
     } catch (err) {
-      console.error('Error updating vendor credit limit in Firestore:', err);
+      console.error('Error updating vendor pay later access in Firestore:', err);
     }
   },
 }));

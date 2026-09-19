@@ -26,7 +26,7 @@ export interface Vendor {
   address: string;
   area: string;
   assignedStaffId?: string;
-  creditLimit: number;
+  creditLimit?: number;
   currentBalance: number; // Positive = Receivable (Vendor owes us), Negative = Advance paid
   currentOutstanding?: number;
   payLaterEligible: boolean;

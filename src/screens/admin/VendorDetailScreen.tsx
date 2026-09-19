@@ -25,7 +25,7 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
   navigation,
 }) => {
   const { vendorId } = route.params || {};
-  const { getVendorById, updateCreditLimit } = useVendorStore();
+  const { getVendorById, updatePayLaterAccess } = useVendorStore();
   const { getLedgerForParty, getPartyRunningBalance, adjustLedgerManual } = useLedgerStore();
   const { currentUser } = useAuthStore();
 
@@ -36,13 +36,11 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
     phone: '',
     address: '',
     area: '',
-    creditLimit: 5000,
     currentBalance: 0,
     payLaterEligible: true,
     preferredPaymentMode: 'CASH' as const,
   };
 
-  const [creditLimitStr, setCreditLimitStr] = useState(vendor.creditLimit.toString());
   const [payLaterEligible, setPayLaterEligible] = useState(vendor.payLaterEligible);
   const [selectedLedgerEntry, setSelectedLedgerEntry] = useState<LedgerEntry | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -52,15 +50,12 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
   const entries = getLedgerForParty(vendor.id);
   const runningBalance = getPartyRunningBalance(vendor.id);
 
-  const handleUpdateCreditTerms = async () => {
-    const newLimit = parseFloat(creditLimitStr);
-    if (isNaN(newLimit) || newLimit < 0) return;
-
+  const handleUpdatePaymentTerms = async () => {
     setLoading(true);
-    await updateCreditLimit(vendor.id, newLimit, payLaterEligible);
+    await updatePayLaterAccess(vendor.id, payLaterEligible);
     setLoading(false);
 
-    setUpdateMsg('Credit terms updated successfully!');
+    setUpdateMsg('Payment & Khata access updated successfully!');
     setTimeout(() => setUpdateMsg(''), 3000);
   };
 
@@ -95,23 +90,15 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
           creditLabel="Total Collected"
         />
 
-        {/* Credit Limit & Pay Later Controls */}
+        {/* Pay Later & Khata Access Controls */}
         <Card style={styles.card} outlined elevation="sm">
-          <Text style={styles.cardTitle}>CREDIT LIMIT & PAY LATER CONTROL</Text>
-
-          <Input
-            label="Vendor Credit Limit (₹)"
-            value={creditLimitStr}
-            onChangeText={setCreditLimitStr}
-            keyboardType="numeric"
-            prefix="₹"
-          />
+          <Text style={styles.cardTitle}>PAY LATER / KHATA ACCESS CONTROL</Text>
 
           <View style={styles.switchRow}>
             <View style={styles.switchTextCol}>
-              <Text style={styles.switchLabel}>Pay Later Eligibility</Text>
+              <Text style={styles.switchLabel}>Pay Later / Khata Option</Text>
               <Text style={styles.switchSub}>
-                Allow vendor to select Pay Later payment mode at checkout.
+                Allow vendor to place orders on credit to be billed to their shop Khata balance.
               </Text>
             </View>
             <Switch
@@ -124,8 +111,8 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
           {updateMsg ? <Text style={styles.successMsg}>{updateMsg}</Text> : null}
 
           <Button
-            title="SAVE CREDIT TERMS"
-            onPress={handleUpdateCreditTerms}
+            title="SAVE ACCESS SETTINGS"
+            onPress={handleUpdatePaymentTerms}
             loading={loading}
             size="sm"
             style={styles.saveBtn}

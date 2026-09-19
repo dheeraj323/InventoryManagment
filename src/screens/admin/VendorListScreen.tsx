@@ -78,7 +78,7 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                   </Text>
                   <View style={styles.creditPill}>
                     <Text style={styles.creditPillText}>
-                      Limit: ₹{item.creditLimit.toLocaleString('en-IN')}
+                      {item.payLaterEligible ? 'Khata Enabled' : 'Cash Only'}
                     </Text>
                   </View>
                 </View>

@@ -37,18 +37,12 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
     phone: '+91 99887 76655',
     address: 'Shop #12, Central Market, Sector 14, City',
     area: 'Sector 14',
-    creditLimit: 10000,
     currentBalance: 3450,
     payLaterEligible: true,
     preferredPaymentMode: 'PAY_LATER' as const,
   };
 
   const runningBalance = getPartyRunningBalance(vendor.id);
-  const creditLimit = vendor.creditLimit || BUSINESS_RULES.DEFAULT_CREDIT_LIMIT;
-  const utilizedCredit = Math.max(0, runningBalance);
-  const remainingCredit = Math.max(0, creditLimit - utilizedCredit);
-  const creditUsedPct = Math.min(100, (utilizedCredit / creditLimit) * 100);
-
   const vendorOrders = getOrdersByVendor(vendor.id);
   const recentOrders = vendorOrders.slice(0, 3);
   const cartCount = getItemCount();
@@ -153,57 +147,7 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
           </View>
         </Card>
 
-        {/* ── 3. Credit Line Utilization Card ─────────────────────────── */}
-        <Card style={styles.creditCard} outlined elevation="sm">
-          <View style={styles.creditTopRow}>
-            <View style={styles.creditTitleBlock}>
-              <Ionicons name="card-outline" size={16} color={colors.accent} />
-              <Text style={styles.creditTitle}>Credit Line Availability</Text>
-            </View>
-            <Text style={styles.creditAvailableText}>
-              ₹{fmt(remainingCredit)} <Text style={styles.creditSubText}>available</Text>
-            </Text>
-          </View>
-
-          {/* Progress Bar Track */}
-          <View style={styles.trackBg}>
-            <View
-              style={[
-                styles.trackFill,
-                {
-                  width: `${creditUsedPct}%`,
-                  backgroundColor:
-                    creditUsedPct > 85
-                      ? colors.danger
-                      : creditUsedPct > 65
-                      ? colors.warning
-                      : colors.accent,
-                },
-              ]}
-            />
-          </View>
-
-          {/* Credit Details Breakdown */}
-          <View style={styles.creditMetaRow}>
-            <Text style={styles.creditMetaText}>
-              Utilized: ₹{fmt(utilizedCredit)} ({Math.round(creditUsedPct)}%)
-            </Text>
-            <Text style={styles.creditMetaLimit}>
-              Credit Limit: ₹{fmt(creditLimit)}
-            </Text>
-          </View>
-
-          {creditUsedPct > 85 && (
-            <View style={styles.creditWarningBanner}>
-              <Ionicons name="alert-circle" size={13} color={colors.danger} />
-              <Text style={styles.creditWarningText}>
-                Credit limit nearly exhausted. Settle pending dues to restore credit line.
-              </Text>
-            </View>
-          )}
-        </Card>
-
-        {/* ── 4. Primary Order CTA ────────────────────────────────────── */}
+        {/* ── 3. Primary Order CTA ────────────────────────────────────── */}
         <View style={styles.ctaContainer}>
           <Button
             title="Browse Catalogue & Place Order"
@@ -403,84 +347,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
 
-  // 3. Credit Line Card
-  creditCard: {
-    backgroundColor: colors.surface,
-    borderRadius: spacing.borderRadiusLg,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  creditTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.sm,
-  },
-  creditTitleBlock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  creditTitle: {
-    ...typography.captionBold,
-    color: colors.textPrimary,
-    fontSize: 13,
-  },
-  creditAvailableText: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13,
-  },
-  creditSubText: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 11,
-  },
-  trackBg: {
-    height: 6,
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginVertical: 4,
-  },
-  trackFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  creditMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  creditMetaText: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontSize: 11,
-  },
-  creditMetaLimit: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 11,
-  },
-  creditWarningBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.statusCancelledBg,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 5,
-    borderRadius: spacing.borderRadiusSm,
-    gap: 5,
-    marginTop: spacing.sm,
-  },
-  creditWarningText: {
-    ...typography.captionBold,
-    color: colors.danger,
-    fontSize: 10,
-    flex: 1,
-  },
-
-  // 4. CTA
+  // 3. CTA
   ctaContainer: {
     marginBottom: spacing.md,
   },
