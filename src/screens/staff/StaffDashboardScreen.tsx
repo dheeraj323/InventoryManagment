@@ -20,12 +20,12 @@ import { colors, typography, spacing } from '../../theme';
 export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { currentUser, switchRole, activeRole, activeStaffId } = useAuthStore();
   const { getOrdersByStaff, orders } = useOrderStore();
-  const { settlements } = useCashStore();
+  const { settlements, getStaffCashInHand } = useCashStore();
 
   const staff = {
     id: activeStaffId || 'staff-1',
     name: currentUser?.name || 'Suresh Kumar',
-    cashInHand: 4200,
+    cashInHand: getStaffCashInHand(activeStaffId || 'staff-1', orders),
   };
 
   // Get assigned orders (or all active orders if staffId matches)

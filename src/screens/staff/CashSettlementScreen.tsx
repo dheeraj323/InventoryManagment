@@ -5,52 +5,105 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
+  TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCashStore } from '../../store/useCashStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useOrderStore } from '../../store/useOrderStore';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { StatusBadge } from '../../components/common/StatusBadge';
+import {
+  ExpectedCashCard,
+  ReconciliationCard,
+  ConfirmationModal,
+  SettlementSuccessView,
+  SettlementDetailModal,
+} from '../../components/cash';
+import { CashSettlement } from '../../types';
 import { colors, typography, spacing } from '../../theme';
 
 export const CashSettlementScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { settlements, submitSettlement } = useCashStore();
+  const { settlements, submitSettlement, getStaffCashInHand } = useCashStore();
   const { activeStaffId, currentUser } = useAuthStore();
+  const { orders } = useOrderStore();
+
   const staff = {
     id: activeStaffId || 'staff-1',
     name: currentUser?.name || 'Suresh Kumar',
-    cashInHand: 4200,
   };
 
-  const staffSettlements = settlements.filter((s) => s.staffId === staff.id);
+  const expectedCash = getStaffCashInHand(staff.id, orders);
+  const staffSettlements = settlements
+    .filter((s) => s.staffId === staff.id)
+    .sort((a, b) => {
+      const timeA = a.createdAt
+        ? new Date(a.createdAt).getTime()
+        : a.id.startsWith('set-')
+        ? parseInt(a.id.replace('set-', ''), 10) || 0
+        : 0;
+      const timeB = b.createdAt
+        ? new Date(b.createdAt).getTime()
+        : b.id.startsWith('set-')
+        ? parseInt(b.id.replace('set-', ''), 10) || 0
+        : 0;
+      return timeB - timeA;
+    });
 
-  const [handedOverStr, setHandedOverStr] = useState(staff.cashInHand.toString());
+  const [handedOverStr, setHandedOverStr] = useState(expectedCash.toString());
   const [notes, setNotes] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [inputError, setInputError] = useState<string | null>(null);
 
-  const expectedCash = staff.cashInHand;
+  // Modals state machine
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [lastSubmittedNum, setLastSubmittedNum] = useState('');
+  const [selectedSettlement, setSelectedSettlement] = useState<CashSettlement | null>(null);
   const handedOverNum = parseFloat(handedOverStr) || 0;
-  const variance = handedOverNum - expectedCash;
 
-  const handleSubmit = async () => {
-    setLoading(true);
+  const handleInputChange = (val: string) => {
+    setHandedOverStr(val);
+    if (inputError) setInputError(null);
+  };
+
+  const handlePressSubmit = () => {
+    if (!handedOverStr.trim() || isNaN(handedOverNum) || handedOverNum <= 0) {
+      setInputError('Cash handover amount must be greater than ₹0.00');
+      return;
+    }
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    setSubmitting(true);
     try {
-      await submitSettlement(
+      const savedDoc = await submitSettlement(
         staff.id,
         staff.name,
         expectedCash,
         handedOverNum,
         notes.trim() || undefined
       );
-      setLoading(false);
-      navigation.goBack();
+      setSubmitting(false);
+      setShowConfirmModal(false);
+      setLastSubmittedNum(savedDoc.settlementNumber || 'STL-2026-10');
+      setShowSuccessModal(true);
     } catch (err) {
       console.error('Error submitting cash settlement:', err);
-      setLoading(false);
+      setSubmitting(false);
+      setShowConfirmModal(false);
+      Alert.alert('Submission Error', 'Failed to submit cash handover. Please try again.');
     }
+  };
+
+  const handleDoneSuccess = () => {
+    setShowSuccessModal(false);
+    navigation.goBack();
   };
 
   return (
@@ -64,92 +117,26 @@ export const CashSettlementScreen: React.FC<{ navigation: any }> = ({ navigation
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 1. Hero Expected Cash Card */}
-        <Card variant="flat" style={styles.heroCard}>
-          <View style={styles.heroHeader}>
-            <View style={styles.heroIconContainer}>
-              <Ionicons name="wallet-outline" size={24} color={colors.primary} />
-            </View>
-            <View style={styles.heroTextGroup}>
-              <Text style={styles.heroLabel}>EXPECTED CASH IN HAND</Text>
-              <Text style={styles.heroSubtext}>Calculated from today's order collections</Text>
-            </View>
-          </View>
-          <Text style={styles.heroAmount}>
-            ₹{expectedCash.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-          </Text>
-        </Card>
+        <ExpectedCashCard amount={expectedCash} />
 
-        {/* 2. Handover Form Card */}
+        {/* 2. Handover Entry Form Card */}
         <Card variant="flat" style={styles.formCard}>
           <Text style={styles.sectionHeaderTitle}>End of Day Handover</Text>
           <Text style={styles.sectionSubTitle}>
             Count your physical cash and enter the total amount to hand over to the admin.
           </Text>
 
-          <View style={styles.inputSpacing}>
-            <Input
-              label="Actual Cash Handed Over (₹)"
-              value={handedOverStr}
-              onChangeText={setHandedOverStr}
-              keyboardType="numeric"
-              prefix="₹"
-            />
-          </View>
+          <Input
+            label="Actual Cash Handed Over (₹)"
+            value={handedOverStr}
+            onChangeText={handleInputChange}
+            keyboardType="numeric"
+            prefix="₹"
+            error={inputError || undefined}
+          />
 
-          {/* Dynamic Variance Status Banner */}
-          <View
-            style={[
-              styles.varianceBanner,
-              variance === 0
-                ? styles.varianceMatchBanner
-                : variance > 0
-                ? styles.varianceExcessBanner
-                : styles.varianceShortageBanner,
-            ]}
-          >
-            <Ionicons
-              name={
-                variance === 0
-                  ? 'checkmark-circle'
-                  : variance > 0
-                  ? 'alert-circle'
-                  : 'warning'
-              }
-              size={20}
-              color={
-                variance === 0
-                  ? colors.brandGreen
-                  : variance > 0
-                  ? '#D97706'
-                  : colors.danger
-              }
-            />
-            <View style={styles.varianceTextGroup}>
-              <Text
-                style={[
-                  styles.varianceBannerTitle,
-                  variance === 0
-                    ? { color: colors.brandGreen }
-                    : variance > 0
-                    ? { color: '#D97706' }
-                    : { color: colors.danger },
-                ]}
-              >
-                {variance === 0
-                  ? 'Exact Match (₹0.00)'
-                  : variance > 0
-                  ? `Excess Cash: +₹${variance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-                  : `Shortage: -₹${Math.abs(variance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
-              </Text>
-              <Text style={styles.varianceBannerSub}>
-                {variance === 0
-                  ? 'Physical cash matches the expected order collection exactly.'
-                  : variance > 0
-                  ? 'Handed over amount is higher than expected collections.'
-                  : 'Handed over amount is less than expected collections.'}
-              </Text>
-            </View>
-          </View>
+          {/* Real-time Reconciliation Card */}
+          <ReconciliationCard expected={expectedCash} handedOver={handedOverNum} />
 
           <Input
             label="Notes / Bag Identifier (Optional)"
@@ -162,8 +149,8 @@ export const CashSettlementScreen: React.FC<{ navigation: any }> = ({ navigation
 
           <Button
             title="Submit Cash Handover"
-            onPress={handleSubmit}
-            loading={loading}
+            onPress={handlePressSubmit}
+            disabled={handedOverNum <= 0}
             size="lg"
             style={styles.submitBtn}
           />
@@ -180,8 +167,10 @@ export const CashSettlementScreen: React.FC<{ navigation: any }> = ({ navigation
             const itemVariance = item.variance || item.difference || 0;
 
             return (
-              <View
+              <TouchableOpacity
                 key={item.id}
+                activeOpacity={0.7}
+                onPress={() => setSelectedSettlement(item)}
                 style={[
                   styles.historyRow,
                   index < staffSettlements.length - 1 && styles.historyDivider,
@@ -192,7 +181,7 @@ export const CashSettlementScreen: React.FC<{ navigation: any }> = ({ navigation
                     <View
                       style={[
                         styles.statusDot,
-                        { backgroundColor: isVerified ? colors.brandGreen : colors.amber },
+                        { backgroundColor: isVerified ? colors.brandGreen : '#D97706' },
                       ]}
                     />
                     <Text style={styles.historyNum}>{item.settlementNumber}</Text>
@@ -242,11 +231,39 @@ export const CashSettlementScreen: React.FC<{ navigation: any }> = ({ navigation
                     <Text style={styles.notesText}>{item.notes}</Text>
                   </View>
                 ) : null}
-              </View>
+              </TouchableOpacity>
             );
           })}
         </Card>
       </ScrollView>
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        visible={showConfirmModal}
+        staffName={staff.name}
+        expectedCash={expectedCash}
+        handedOverCash={handedOverNum}
+        notes={notes}
+        loading={submitting}
+        onConfirm={handleConfirmSubmit}
+        onCancel={() => setShowConfirmModal(false)}
+      />
+
+      {/* Success Celebration Modal */}
+      <SettlementSuccessView
+        visible={showSuccessModal}
+        settlementNumber={lastSubmittedNum}
+        handedOverCash={handedOverNum}
+        onDone={handleDoneSuccess}
+        onViewHistory={() => setShowSuccessModal(false)}
+      />
+
+      {/* Item Details Inspection Modal */}
+      <SettlementDetailModal
+        visible={!!selectedSettlement}
+        settlement={selectedSettlement}
+        onClose={() => setSelectedSettlement(null)}
+      />
     </SafeAreaView>
   );
 };
@@ -259,43 +276,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: spacing.screenPadding,
     paddingBottom: spacing.xxl,
-  },
-  heroCard: {
-    padding: spacing.lg,
-    marginBottom: spacing.md,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.brandGreen,
-  },
-  heroHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  heroIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.brandGreenLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-  },
-  heroTextGroup: {
-    flex: 1,
-  },
-  heroLabel: {
-    ...typography.label,
-    color: colors.textMuted,
-  },
-  heroSubtext: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 1,
-  },
-  heroAmount: {
-    ...typography.hero,
-    color: colors.textPrimary,
-    marginTop: spacing.xs,
   },
   formCard: {
     padding: spacing.lg,
@@ -311,43 +291,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
     marginBottom: spacing.md,
   },
-  inputSpacing: {
-    marginBottom: spacing.xs,
-  },
-  varianceBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: spacing.md,
-    borderRadius: spacing.borderRadiusMd,
-    marginVertical: spacing.md,
-    borderWidth: 1,
-  },
-  varianceMatchBanner: {
-    backgroundColor: colors.brandGreenLight,
-    borderColor: '#A7F3D0',
-  },
-  varianceExcessBanner: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FDE68A',
-  },
-  varianceShortageBanner: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#FCA5A5',
-  },
-  varianceTextGroup: {
-    marginLeft: spacing.sm,
-    flex: 1,
-  },
-  varianceBannerTitle: {
-    ...typography.bodyBold,
-    fontSize: 14,
-  },
-  varianceBannerSub: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
   submitBtn: {
+    backgroundColor: colors.navy,
     marginTop: spacing.md,
     borderRadius: spacing.borderRadiusXl,
   },
@@ -433,4 +378,5 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
 });
+
 

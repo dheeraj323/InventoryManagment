@@ -41,6 +41,14 @@ export const settlementService = {
         settlementId: docSnap.id,
         ...docSnap.data(),
       })) as CashSettlement[];
+
+      // Client-side sort: newest settlements at the top
+      settlements.sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : new Date(a.date).getTime();
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : new Date(b.date).getTime();
+        return timeB - timeA;
+      });
+
       callback(settlements);
     }, (error) => {
       console.error('Settlements subscription error:', error);

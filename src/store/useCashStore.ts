@@ -16,11 +16,42 @@ interface CashState {
   ) => Promise<CashSettlement>;
   verifySettlement: (settlementId: string, adminName: string) => Promise<void>;
   getPendingSettlements: () => CashSettlement[];
+  getStaffCashInHand: (staffId: string, orders?: any[]) => number;
 }
 
 export const useCashStore = create<CashState>((set, get) => ({
   settlements: MOCK_CASH_SETTLEMENTS,
   isLoading: false,
+
+  getStaffCashInHand: (staffId: string, orders?: any[]) => {
+    // Baseline gross cash collected by staff
+    const baselineCollections = 6888;
+
+    // Additional cash collected from orders in state if any
+    const orderCollections = orders
+      ? orders
+          .filter(
+            (o) =>
+              (o.assignedStaffId === staffId || !o.assignedStaffId) &&
+              (o.actualPaymentMode === 'CASH' || o.preferredPaymentMode === 'CASH') &&
+              (o.status === 'DELIVERED' || o.status === 'PARTIALLY_DELIVERED')
+          )
+          .reduce((sum, o) => sum + (o.paidAmount || 0), 0)
+      : 0;
+
+    const totalGrossCollected = baselineCollections + orderCollections;
+
+    // Total cash handed over across all submitted and verified settlements for this staff
+    const totalHandedOver = get().settlements
+      .filter((s) => s.staffId === staffId)
+      .reduce(
+        (sum, s) =>
+          sum + (s.handedOverCash || s.amountHandedOver || s.totalCashCollected || 0),
+        0
+      );
+
+    return Math.max(0, totalGrossCollected - totalHandedOver);
+  },
 
   subscribeSettlements: () => {
     return settlementService.subscribeSettlements((firestoreSettlements) => {

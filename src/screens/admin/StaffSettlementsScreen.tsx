@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
   FlatList,
+  TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCashStore } from '../../store/useCashStore';
@@ -14,11 +15,14 @@ import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { EmptyState } from '../../components/common/EmptyState';
+import { SettlementDetailModal } from '../../components/cash';
+import { CashSettlement } from '../../types';
 import { colors, typography, spacing } from '../../theme';
 
 export const StaffSettlementsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { settlements, verifySettlement } = useCashStore();
   const { currentUser } = useAuthStore();
+  const [selectedSettlement, setSelectedSettlement] = useState<CashSettlement | null>(null);
 
   const pendingCount = settlements.filter((s) => s.status === 'PENDING_VERIFICATION').length;
 
@@ -26,11 +30,25 @@ export const StaffSettlementsScreen: React.FC<{ navigation: any }> = ({ navigati
     verifySettlement(id, currentUser?.name || 'Admin Rajesh');
   };
 
+  const sortedSettlements = [...settlements].sort((a, b) => {
+    const timeA = a.createdAt
+      ? new Date(a.createdAt).getTime()
+      : a.id.startsWith('set-')
+      ? parseInt(a.id.replace('set-', ''), 10) || 0
+      : 0;
+    const timeB = b.createdAt
+      ? new Date(b.createdAt).getTime()
+      : b.id.startsWith('set-')
+      ? parseInt(b.id.replace('set-', ''), 10) || 0
+      : 0;
+    return timeB - timeA;
+  });
+
   const renderHeader = () => (
     <View style={styles.summaryBar}>
       <View style={styles.summaryPill}>
         <Ionicons name="documents-outline" size={16} color={colors.primary} />
-        <Text style={styles.summaryText}>{settlements.length} Total Handovers</Text>
+        <Text style={styles.summaryText}>{sortedSettlements.length} Total Handovers</Text>
       </View>
       {pendingCount > 0 ? (
         <View style={[styles.summaryPill, styles.pendingPill]}>
@@ -53,7 +71,7 @@ export const StaffSettlementsScreen: React.FC<{ navigation: any }> = ({ navigati
       />
 
       <FlatList
-        data={settlements}
+        data={sortedSettlements}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={renderHeader}
@@ -65,84 +83,89 @@ export const StaffSettlementsScreen: React.FC<{ navigation: any }> = ({ navigati
           const initial = item.staffName ? item.staffName.charAt(0).toUpperCase() : 'S';
 
           return (
-            <Card variant="flat" style={styles.card}>
-              <View style={styles.headerRow}>
-                <View style={styles.staffInfoGroup}>
-                  <View style={styles.avatarCircle}>
-                    <Text style={styles.avatarText}>{initial}</Text>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setSelectedSettlement(item)}
+            >
+              <Card variant="flat" style={styles.card}>
+                <View style={styles.headerRow}>
+                  <View style={styles.staffInfoGroup}>
+                    <View style={styles.avatarCircle}>
+                      <Text style={styles.avatarText}>{initial}</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.staffNameText}>{item.staffName}</Text>
+                      <Text style={styles.metaText}>
+                        {item.settlementNumber} • {item.date}
+                      </Text>
+                    </View>
                   </View>
-                  <View>
-                    <Text style={styles.staffNameText}>{item.staffName}</Text>
-                    <Text style={styles.metaText}>
-                      {item.settlementNumber} • {item.date}
+
+                  <StatusBadge
+                    customLabel={isPending ? 'Pending Audit' : 'Verified'}
+                    customBg={isPending ? '#FEF3C7' : colors.brandGreenLight}
+                    customColor={isPending ? '#D97706' : colors.brandGreen}
+                    size="sm"
+                  />
+                </View>
+
+                <View style={styles.metricsGrid}>
+                  <View style={styles.metricCol}>
+                    <Text style={styles.metricLabel}>EXPECTED</Text>
+                    <Text style={styles.metricVal}>
+                      ₹{expected.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </Text>
+                  </View>
+
+                  <View style={styles.metricDivider} />
+
+                  <View style={styles.metricCol}>
+                    <Text style={styles.metricLabel}>HANDED OVER</Text>
+                    <Text style={styles.metricValBold}>
+                      ₹{handedOver.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </Text>
+                  </View>
+
+                  <View style={styles.metricDivider} />
+
+                  <View style={styles.metricCol}>
+                    <Text style={styles.metricLabel}>VARIANCE</Text>
+                    <Text
+                      style={[
+                        styles.metricValBold,
+                        variance === 0
+                          ? { color: colors.brandGreen }
+                          : variance > 0
+                          ? { color: '#D97706' }
+                          : { color: colors.danger },
+                      ]}
+                    >
+                      {variance === 0
+                        ? '₹0.00'
+                        : variance > 0
+                        ? `+₹${variance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+                        : `-₹${Math.abs(variance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
                     </Text>
                   </View>
                 </View>
 
-                <StatusBadge
-                  customLabel={isPending ? 'Pending Audit' : 'Verified'}
-                  customBg={isPending ? '#FEF3C7' : colors.brandGreenLight}
-                  customColor={isPending ? '#D97706' : colors.brandGreen}
-                  size="sm"
-                />
-              </View>
+                {item.notes ? (
+                  <View style={styles.notesBox}>
+                    <Ionicons name="document-text-outline" size={14} color={colors.textMuted} />
+                    <Text style={styles.notesText}>{item.notes}</Text>
+                  </View>
+                ) : null}
 
-              <View style={styles.metricsGrid}>
-                <View style={styles.metricCol}>
-                  <Text style={styles.metricLabel}>EXPECTED</Text>
-                  <Text style={styles.metricVal}>
-                    ₹{expected.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </Text>
-                </View>
-
-                <View style={styles.metricDivider} />
-
-                <View style={styles.metricCol}>
-                  <Text style={styles.metricLabel}>HANDED OVER</Text>
-                  <Text style={styles.metricValBold}>
-                    ₹{handedOver.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </Text>
-                </View>
-
-                <View style={styles.metricDivider} />
-
-                <View style={styles.metricCol}>
-                  <Text style={styles.metricLabel}>VARIANCE</Text>
-                  <Text
-                    style={[
-                      styles.metricValBold,
-                      variance === 0
-                        ? { color: colors.brandGreen }
-                        : variance > 0
-                        ? { color: '#D97706' }
-                        : { color: colors.danger },
-                    ]}
-                  >
-                    {variance === 0
-                      ? '₹0.00'
-                      : variance > 0
-                      ? `+₹${variance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-                      : `-₹${Math.abs(variance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
-                  </Text>
-                </View>
-              </View>
-
-              {item.notes ? (
-                <View style={styles.notesBox}>
-                  <Ionicons name="document-text-outline" size={14} color={colors.textMuted} />
-                  <Text style={styles.notesText}>{item.notes}</Text>
-                </View>
-              ) : null}
-
-              {isPending && (
-                <Button
-                  title="Verify & Approve Settlement"
-                  onPress={() => handleVerify(item.id)}
-                  size="md"
-                  style={styles.verifyBtn}
-                />
-              )}
-            </Card>
+                {isPending && (
+                  <Button
+                    title="Verify & Approve Settlement"
+                    onPress={() => handleVerify(item.id)}
+                    size="md"
+                    style={styles.verifyBtn}
+                  />
+                )}
+              </Card>
+            </TouchableOpacity>
           );
         }}
         ListEmptyComponent={
@@ -152,6 +175,12 @@ export const StaffSettlementsScreen: React.FC<{ navigation: any }> = ({ navigati
             description="No staff cash settlements have been submitted yet."
           />
         }
+      />
+
+      <SettlementDetailModal
+        visible={!!selectedSettlement}
+        settlement={selectedSettlement}
+        onClose={() => setSelectedSettlement(null)}
       />
     </SafeAreaView>
   );
@@ -274,6 +303,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   verifyBtn: {
+    backgroundColor: colors.navy,
     marginTop: spacing.md,
     borderRadius: spacing.borderRadiusLg,
   },

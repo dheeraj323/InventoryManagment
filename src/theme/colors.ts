@@ -1,7 +1,8 @@
 export const colors = {
   // Brand & Foundation
-  primary: '#0F172A', // Slate 900
-  primaryLight: '#1E293B', // Slate 800
+  primary: '#10182B', // Deep Navy
+  primaryLight: '#1E293B', // Slate Navy 800
+  navy: '#10182B', // Deep Navy for submit actions
   accent: '#2563EB', // Blue 600
   accentLight: '#EFF6FF', // Blue 50
 
