@@ -30,6 +30,7 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
 
   // Get assigned orders (or all active orders if staffId matches)
   const assignedOrders = getOrdersByStaff(staff.id).length > 0 ? getOrdersByStaff(staff.id) : orders;
+  const completedDeliveries = assignedOrders.filter((o) => o.status === 'DELIVERED');
   const pendingDeliveries = assignedOrders.filter(
     (o) => o.status !== 'DELIVERED' && o.status !== 'CANCELLED'
   );
@@ -37,6 +38,8 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
   const pendingSettlement = settlements.find(
     (s) => s.staffId === staff.id && s.status === 'PENDING_VERIFICATION'
   );
+
+  const isAllCompleted = assignedOrders.length > 0 && pendingDeliveries.length === 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -47,54 +50,118 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
         onRoleSwitch={() => switchRole('ADMIN')}
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Cash In Hand Summary Banner */}
-        <Card style={styles.cashCard} outlined elevation="md">
-          <View style={styles.cashRow}>
-            <View>
-              <Text style={styles.cashLabel}>UNSETTLED CASH IN HAND</Text>
-              <Text style={styles.cashVal}>₹{staff.cashInHand.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 1. Refined Unsettled Cash In Hand Card */}
+        <View style={styles.cashCard}>
+          <View style={styles.cashTopRow}>
+            <View style={styles.cashLeftBlock}>
+              <View style={styles.cashLabelRow}>
+                <View style={styles.walletIconCircle}>
+                  <Ionicons name="wallet-outline" size={14} color="#94A3B8" />
+                </View>
+                <Text style={styles.cashLabel}>UNSETTLED CASH IN HAND</Text>
+              </View>
+              <Text style={styles.cashVal}>
+                ₹{staff.cashInHand.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </Text>
             </View>
-            <Button
-              title="Settle Cash"
+
+            <TouchableOpacity
+              style={styles.settleCashButton}
               onPress={() => navigation.navigate('CashSettlement')}
-              size="sm"
-              variant="outline"
-              fullWidth={false}
-              style={styles.settleBtn}
-            />
+              activeOpacity={0.8}
+            >
+              <Text style={styles.settleCashButtonText}>Settle Cash</Text>
+              <Ionicons name="chevron-forward" size={14} color={colors.textInverse} />
+            </TouchableOpacity>
           </View>
+
           {pendingSettlement && (
             <View style={styles.pendingSettlementBadge}>
-              <Ionicons name="time-outline" size={14} color={colors.statusPendingText} />
-              <Text style={styles.pendingSettlementText}>
-                Settlement {pendingSettlement.settlementNumber} awaiting Admin verification.
+              <Ionicons name="time" size={14} color="#F59E0B" />
+              <Text style={styles.pendingSettlementText} numberOfLines={1}>
+                {pendingSettlement.settlementNumber} awaiting Admin audit verification
               </Text>
             </View>
           )}
-        </Card>
+        </View>
 
-        {/* Primary Delivery Action */}
+        {/* 2. Today's Delivery Progress Metric Bar */}
+        <View style={styles.progressSection}>
+          <Text style={styles.sectionHeaderLabel}>TODAY'S DISPATCH PROGRESS</Text>
+          <View style={styles.metricGrid}>
+            <View style={styles.metricTile}>
+              <View style={[styles.metricIconWrap, { backgroundColor: colors.brandGreenLight }]}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.brandGreen} />
+              </View>
+              <Text style={styles.metricCount}>{completedDeliveries.length}</Text>
+              <Text style={styles.metricSubLabel}>Delivered</Text>
+            </View>
+
+            <View style={styles.metricTile}>
+              <View style={[styles.metricIconWrap, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="time" size={18} color="#D97706" />
+              </View>
+              <Text style={styles.metricCount}>{pendingDeliveries.length}</Text>
+              <Text style={styles.metricSubLabel}>Pending</Text>
+            </View>
+
+            <View style={styles.metricTile}>
+              <View style={[styles.metricIconWrap, { backgroundColor: colors.accentLight }]}>
+                <Ionicons name="navigate" size={18} color={colors.accent} />
+              </View>
+              <Text style={styles.metricCount}>{assignedOrders.length}</Text>
+              <Text style={styles.metricSubLabel}>Total Route</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* 3. Primary Delivery Action CTA */}
         <View style={styles.actionBox}>
           <Button
-            title={`Start Today's Deliveries (${pendingDeliveries.length} pending)`}
+            title={
+              isAllCompleted
+                ? 'All Deliveries Completed'
+                : `Start Deliveries (${pendingDeliveries.length} Pending)`
+            }
             onPress={() => navigation.navigate('TodayDeliveries')}
-            icon={<Ionicons name="bicycle" size={20} color={colors.textInverse} />}
+            icon={
+              <Ionicons
+                name={isAllCompleted ? 'checkmark-done-circle' : 'bicycle'}
+                size={20}
+                color={colors.textInverse}
+              />
+            }
             size="lg"
+            disabled={assignedOrders.length === 0}
+            style={styles.primaryCtaBtn}
           />
         </View>
 
-        {/* Assigned Orders List */}
+        {/* 4. Assigned Delivery Route List */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Assigned Delivery Route</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('TodayDeliveries')}>
+          <View style={styles.sectionTitleRow}>
+            <Text style={styles.sectionTitle}>Assigned Route</Text>
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>{assignedOrders.length}</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('TodayDeliveries')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Text style={styles.seeAllText}>View All</Text>
           </TouchableOpacity>
         </View>
 
         {assignedOrders.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyText}>No delivery routes assigned today.</Text>
+          <Card variant="flat" style={styles.emptyCard}>
+            <Ionicons name="cube-outline" size={32} color={colors.textMuted} />
+            <Text style={styles.emptyTitle}>No Deliveries Assigned</Text>
+            <Text style={styles.emptyText}>You currently have no delivery route assigned today.</Text>
           </Card>
         ) : (
           assignedOrders.map((order) => (
@@ -120,47 +187,131 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.screenPadding,
+    paddingBottom: 40,
   },
   cashCard: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryLight,
-    marginBottom: spacing.md,
+    backgroundColor: colors.navy,
+    borderRadius: spacing.borderRadiusLg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  cashRow: {
+  cashTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  cashLeftBlock: {
+    flex: 1,
+  },
+  cashLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  walletIconCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   cashLabel: {
-    ...typography.captionBold,
-    color: colors.textMuted,
-    fontSize: 10,
-    letterSpacing: 0.5,
+    ...typography.label,
+    color: '#94A3B8',
+    letterSpacing: 0.6,
   },
   cashVal: {
-    ...typography.currencyLarge,
-    color: colors.credit,
+    ...typography.hero,
+    color: '#FFFFFF',
+    fontSize: 26,
     marginTop: 2,
   },
-  settleBtn: {
-    borderColor: colors.textInverse,
+  settleCashButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: spacing.borderRadiusMd,
+    gap: 4,
+  },
+  settleCashButtonText: {
+    ...typography.captionBold,
+    color: colors.textInverse,
   },
   pendingSettlementBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-    padding: spacing.sm,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
     borderRadius: spacing.borderRadiusSm,
     marginTop: spacing.md,
+    gap: 6,
   },
   pendingSettlementText: {
     ...typography.caption,
-    color: colors.statusPendingBg,
+    color: '#FDE68A',
+    fontSize: 12,
+    flex: 1,
+  },
+  progressSection: {
+    marginBottom: spacing.lg,
+  },
+  sectionHeaderLabel: {
+    ...typography.label,
+    color: colors.textMuted,
+    marginBottom: spacing.xs + 2,
+    letterSpacing: 0.5,
+  },
+  metricGrid: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  metricTile: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    borderRadius: spacing.borderRadiusMd,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  metricIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  metricCount: {
+    ...typography.h3,
+    color: colors.textPrimary,
+  },
+  metricSubLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
     fontSize: 11,
-    marginLeft: spacing.xs,
+    marginTop: 1,
   },
   actionBox: {
     marginBottom: spacing.xl,
+  },
+  primaryCtaBtn: {
+    backgroundColor: colors.navy,
+    borderRadius: spacing.borderRadiusXl,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -168,9 +319,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: spacing.md,
   },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   sectionTitle: {
     ...typography.h3,
     color: colors.textPrimary,
+  },
+  countBadge: {
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
+  countBadgeText: {
+    ...typography.captionBold,
+    color: colors.textSecondary,
+    fontSize: 11,
   },
   seeAllText: {
     ...typography.captionBold,
@@ -179,9 +348,18 @@ const styles = StyleSheet.create({
   emptyCard: {
     padding: spacing.xl,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyTitle: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    marginTop: spacing.sm,
   },
   emptyText: {
-    ...typography.body,
+    ...typography.caption,
     color: colors.textMuted,
+    textAlign: 'center',
+    marginTop: 4,
   },
 });
+

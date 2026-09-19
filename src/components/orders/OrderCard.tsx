@@ -23,12 +23,14 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     year: 'numeric',
   });
 
+  const isPendingDelivery = order.status === 'OUT_FOR_DELIVERY' || order.status === 'PENDING' || order.status === 'APPROVED';
+
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
       {/* Top row: order number + date + status */}
       <View style={styles.headerRow}>
         <View style={styles.orderIdBlock}>
-          <Text style={styles.orderNum}>{order.orderNumber}</Text>
+          <Text style={styles.orderNum}>#{order.orderNumber}</Text>
           <Text style={styles.dateText}>{formattedDate}</Text>
         </View>
         <StatusBadge status={order.status} size="sm" />
@@ -36,22 +38,22 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
       {showVendorName && (
         <View style={styles.vendorRow}>
-          <Ionicons name="storefront-outline" size={13} color={colors.textMuted} />
+          <Ionicons name="storefront" size={14} color={colors.accent} />
           <Text style={styles.vendorName} numberOfLines={1}>
             {order.shopName} · {order.vendorName}
           </Text>
         </View>
       )}
 
-      {/* Items summary — pill style */}
-      <Text style={styles.itemsSummary} numberOfLines={1}>
+      {/* Items summary */}
+      <Text style={styles.itemsSummary} numberOfLines={2}>
         {order.items.map((i) => `${i.productName} ×${i.orderedQty}`).join('  ·  ')}
       </Text>
 
-      {/* Footer: total + arrow */}
+      {/* Footer: total + action pill */}
       <View style={styles.footerRow}>
         <View style={styles.totalBlock}>
-          <Text style={styles.totalLabel}>Total</Text>
+          <Text style={styles.totalLabel}>ORDER TOTAL</Text>
           <Text style={styles.totalAmount}>
             ₹{order.totalAmount.toLocaleString('en-IN', {
               minimumFractionDigits: 2,
@@ -59,9 +61,15 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             })}
           </Text>
         </View>
-        <View style={styles.viewPill}>
-          <Text style={styles.viewText}>View details</Text>
-          <Ionicons name="chevron-forward" size={13} color={colors.accent} />
+        <View style={[styles.viewPill, isPendingDelivery && styles.deliverNowPill]}>
+          <Text style={[styles.viewText, isPendingDelivery && styles.deliverNowText]}>
+            {isPendingDelivery ? 'Deliver Now' : 'View Details'}
+          </Text>
+          <Ionicons
+            name="chevron-forward"
+            size={13}
+            color={isPendingDelivery ? colors.brandGreen : colors.accent}
+          />
         </View>
       </View>
     </TouchableOpacity>
@@ -105,17 +113,17 @@ const styles = StyleSheet.create({
   vendorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     marginBottom: spacing.xs,
   },
   vendorName: {
-    ...typography.caption,
-    color: colors.textSecondary,
+    ...typography.captionBold,
+    color: colors.textPrimary,
     flex: 1,
   },
   itemsSummary: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: colors.textSecondary,
     marginBottom: spacing.md,
     lineHeight: 18,
   },
@@ -130,6 +138,7 @@ const styles = StyleSheet.create({
   totalBlock: {},
   totalLabel: {
     ...typography.label,
+    fontSize: 9,
     color: colors.textMuted,
     marginBottom: 1,
   },
@@ -141,11 +150,21 @@ const styles = StyleSheet.create({
   viewPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 5,
+    borderRadius: spacing.borderRadiusSm,
+    gap: 3,
+  },
+  deliverNowPill: {
+    backgroundColor: colors.brandGreenLight,
   },
   viewText: {
     ...typography.captionBold,
     color: colors.accent,
     fontSize: 12,
+  },
+  deliverNowText: {
+    color: colors.brandGreen,
   },
 });
