@@ -27,6 +27,7 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
   const isSm = size === 'sm';
   const isMin = quantity <= min;
   const isMax = max !== undefined && quantity >= max;
+  const isEditable = Boolean(onPressQuantity && !isLoading);
 
   return (
     <View style={[styles.container, isSm ? styles.containerSm : null]}>
@@ -35,22 +36,41 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
         onPress={onDecrease}
         disabled={isMin || isLoading}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Decrease quantity"
       >
         <Ionicons name="remove" size={isSm ? 14 : 18} color={isMin || isLoading ? colors.textMuted : colors.primary} />
       </TouchableOpacity>
 
       <TouchableOpacity
         onPress={onPressQuantity}
-        disabled={!onPressQuantity || isLoading}
-        style={styles.qtyContainer}
-        activeOpacity={0.7}
+        disabled={!isEditable}
+        style={[
+          styles.qtyContainer,
+          isSm ? styles.qtyContainerSm : null,
+          isEditable ? styles.qtyContainerEditable : null,
+        ]}
+        activeOpacity={0.65}
+        accessibilityRole="button"
+        accessibilityLabel={`Quantity: ${quantity}. Tap to type custom quantity`}
+        accessibilityHint="Opens wholesale keypad to enter exact bulk quantity"
       >
         {isLoading ? (
           <ActivityIndicator size="small" color={colors.primary} />
         ) : (
-          <Text style={[styles.qtyText, isSm ? styles.qtyTextSm : null]}>
-            {quantity}
-          </Text>
+          <View style={styles.qtyInner}>
+            <Text style={[styles.qtyText, isSm ? styles.qtyTextSm : null]}>
+              {quantity}
+            </Text>
+            {isEditable && (
+              <Ionicons
+                name="pencil"
+                size={isSm ? 9 : 11}
+                color={colors.primary}
+                style={styles.pencilIcon}
+              />
+            )}
+          </View>
         )}
       </TouchableOpacity>
 
@@ -63,6 +83,8 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
         onPress={onIncrease}
         disabled={isMax || isLoading}
         activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Increase quantity"
       >
         <Ionicons name="add" size={isSm ? 14 : 18} color={isMax || isLoading ? colors.textMuted : colors.primary} />
       </TouchableOpacity>
@@ -84,14 +106,14 @@ const styles = StyleSheet.create({
     height: 32,
   },
   button: {
-    width: 36,
+    width: 34,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
   },
   buttonSm: {
-    width: 28,
+    width: 26,
     height: 32,
   },
   disabledBtn: {
@@ -100,17 +122,37 @@ const styles = StyleSheet.create({
   qtyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 32,
+    minWidth: 44,
+    height: '100%',
+    paddingHorizontal: 6,
+    backgroundColor: colors.surfaceSubtle,
+  },
+  qtyContainerSm: {
+    minWidth: 38,
     paddingHorizontal: 4,
+  },
+  qtyContainerEditable: {
+    backgroundColor: colors.surface,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: colors.border,
+  },
+  qtyInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
   },
   qtyText: {
     ...typography.bodyBold,
     color: colors.textPrimary,
-    minWidth: 32,
     textAlign: 'center',
   },
   qtyTextSm: {
     fontSize: 13,
-    minWidth: 24,
+  },
+  pencilIcon: {
+    opacity: 0.8,
+    marginLeft: 1,
   },
 });

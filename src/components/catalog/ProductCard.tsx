@@ -1,8 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Product } from '../../types';
 import { Card } from '../common/Card';
-import { Button } from '../common/Button';
 import { QuantitySelector } from './QuantitySelector';
 import { colors, typography, spacing } from '../../theme';
 
@@ -11,6 +11,7 @@ export interface ProductCardProps {
   quantityInCart: number;
   onAddToCart: () => void;
   onUpdateQty: (delta: number) => void;
+  onPressQuantity?: () => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({
@@ -18,60 +19,100 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   quantityInCart,
   onAddToCart,
   onUpdateQty,
+  onPressQuantity,
 }) => {
-  const isLowStock = product.stockQty <= product.lowStockThreshold;
+  const isOutOfStock = product.stockQty === 0;
+  const isLowStock = !isOutOfStock && product.stockQty <= product.lowStockThreshold;
 
   return (
     <Card style={styles.card} outlined elevation="sm">
-      <View style={styles.row}>
-        {product.imageUrl ? (
-          <Image source={{ uri: product.imageUrl }} style={styles.image} />
-        ) : (
-          <View style={styles.imagePlaceholder}>
-            <Text style={styles.placeholderText}>
-              {product.name.charAt(0)}
+      {/* ── Top Metadata Row: Category & SKU ────────────────────── */}
+      <View style={styles.topMetaRow}>
+        <View style={styles.categoryChip}>
+          <Text style={styles.categoryText}>{product.category}</Text>
+        </View>
+        <View style={styles.skuChip}>
+          <Ionicons name="pricetag-outline" size={11} color={colors.textMuted} />
+          <Text style={styles.skuText}>{product.sku}</Text>
+        </View>
+      </View>
+
+      {/* ── Product Title & Packaging Unit ──────────────────────── */}
+      <View style={styles.contentBlock}>
+        <Text style={styles.productName} numberOfLines={2}>
+          {product.name}
+        </Text>
+        <Text style={styles.unitDetail}>
+          Packaging: <Text style={styles.unitValue}>{product.unit}</Text>
+        </Text>
+      </View>
+
+      {/* ── Divider ─────────────────────────────────────────────── */}
+      <View style={styles.cardDivider} />
+
+      {/* ── Bottom Row: Pricing, Stock & Action Button ──────────── */}
+      <View style={styles.bottomRow}>
+        <View style={styles.priceBlock}>
+          <View style={styles.priceLine}>
+            <Text style={styles.priceAmount}>
+              ₹{product.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
+            <Text style={styles.unitSuffix}>/ {product.unit.split(' ')[0] || 'unit'}</Text>
           </View>
-        )}
 
-        <View style={styles.detailsCol}>
-          <Text style={styles.category}>{product.category}</Text>
-          <Text style={styles.name} numberOfLines={2}>
-            {product.name}
-          </Text>
-          <Text style={styles.unit}>{product.unit}</Text>
-
-          <View style={styles.priceRow}>
-            <Text style={styles.price}>₹{product.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
-            {isLowStock ? (
-              <View style={styles.stockBadgeDanger}>
-                <Text style={styles.stockTextDanger}>Only {product.stockQty} left</Text>
-              </View>
-            ) : (
-              <Text style={styles.stockTextInStock}>In Stock ({product.stockQty})</Text>
-            )}
-          </View>
+          {/* Stock Status Badge */}
+          {isOutOfStock ? (
+            <View style={[styles.stockBadge, styles.stockBadgeOut]}>
+              <Text style={styles.stockTextOut}>Out of Stock</Text>
+            </View>
+          ) : isLowStock ? (
+            <View style={[styles.stockBadge, styles.stockBadgeLow]}>
+              <View style={[styles.stockDot, { backgroundColor: colors.warning }]} />
+              <Text style={styles.stockTextLow}>Low Stock ({product.stockQty} left)</Text>
+            </View>
+          ) : (
+            <View style={[styles.stockBadge, styles.stockBadgeIn]}>
+              <View style={[styles.stockDot, { backgroundColor: colors.brandGreen }]} />
+              <Text style={styles.stockTextIn}>In Stock ({product.stockQty})</Text>
+            </View>
+          )}
         </View>
 
-        <View style={styles.actionCol}>
+        {/* Action Area: Add button or Quantity controls */}
+        <View style={styles.actionBlock}>
           {quantityInCart > 0 ? (
             <QuantitySelector
               quantity={quantityInCart}
               onIncrease={() => onUpdateQty(1)}
               onDecrease={() => onUpdateQty(-1)}
+              onPressQuantity={onPressQuantity}
               max={product.stockQty}
               size="sm"
             />
           ) : (
-            <Button
-              title="ADD"
+            <TouchableOpacity
+              style={[styles.addBtn, isOutOfStock && styles.addBtnDisabled]}
               onPress={onAddToCart}
-              size="sm"
-              variant="outline"
-              disabled={product.stockQty === 0}
-              fullWidth={false}
-              style={styles.addBtn}
-            />
+              disabled={isOutOfStock}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={`Add ${product.name} to order`}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons
+                name="add"
+                size={16}
+                color={isOutOfStock ? colors.textMuted : colors.textInverse}
+              />
+              <Text
+                style={[
+                  styles.addBtnText,
+                  isOutOfStock && styles.addBtnTextDisabled,
+                ]}
+              >
+                ADD
+              </Text>
+            </TouchableOpacity>
           )}
         </View>
       </View>
@@ -83,82 +124,154 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: spacing.md,
     padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
   },
-  row: {
+  topMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs + 2,
   },
-  image: {
-    width: 64,
-    height: 64,
-    borderRadius: spacing.borderRadiusSm,
+  categoryChip: {
     backgroundColor: colors.surfaceSubtle,
-  },
-  imagePlaceholder: {
-    width: 64,
-    height: 64,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: spacing.borderRadiusSm,
-    backgroundColor: colors.surfaceSubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  placeholderText: {
-    ...typography.h2,
-    color: colors.textMuted,
-  },
-  detailsCol: {
-    flex: 1,
-    marginLeft: spacing.md,
-    marginRight: spacing.sm,
-  },
-  category: {
+  categoryText: {
     ...typography.captionBold,
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 10,
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
-  name: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    marginTop: 2,
-  },
-  unit: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  priceRow: {
+  skuChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    gap: 4,
   },
-  price: {
+  skuText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 11,
+    fontFamily: undefined,
+  },
+  contentBlock: {
+    marginVertical: 2,
+  },
+  productName: {
+    ...typography.bodyBold,
+    fontSize: 15,
+    lineHeight: 20,
+    color: colors.textPrimary,
+  },
+  unitDetail: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 3,
+    fontSize: 12,
+  },
+  unitValue: {
+    color: colors.textPrimary,
+    fontWeight: '500',
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.sm,
+    opacity: 0.8,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  priceBlock: {
+    flex: 1,
+  },
+  priceLine: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 3,
+  },
+  priceAmount: {
     ...typography.currency,
+    fontSize: 16,
     color: colors.primary,
+    fontWeight: '700',
   },
-  stockBadgeDanger: {
-    marginLeft: spacing.sm,
-    backgroundColor: colors.statusCancelledBg,
+  unitSuffix: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 11,
+  },
+  stockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginTop: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+    gap: 4,
   },
-  stockTextDanger: {
+  stockBadgeIn: {
+    backgroundColor: colors.brandGreenLight,
+  },
+  stockBadgeLow: {
+    backgroundColor: '#FEF3C7',
+  },
+  stockBadgeOut: {
+    backgroundColor: colors.surfaceSubtle,
+  },
+  stockDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  stockTextIn: {
     ...typography.captionBold,
     fontSize: 10,
-    color: colors.danger,
+    color: colors.brandGreen,
   },
-  stockTextInStock: {
-    ...typography.caption,
+  stockTextLow: {
+    ...typography.captionBold,
+    fontSize: 10,
+    color: '#B45309',
+  },
+  stockTextOut: {
+    ...typography.captionBold,
     fontSize: 10,
     color: colors.textMuted,
-    marginLeft: spacing.sm,
   },
-  actionCol: {
+  actionBlock: {
+    marginLeft: spacing.md,
     alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   addBtn: {
-    paddingHorizontal: spacing.md,
-    height: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: spacing.borderRadiusMd,
+    gap: 4,
+    minHeight: 34,
+  },
+  addBtnDisabled: {
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  addBtnText: {
+    ...typography.captionBold,
+    color: colors.textInverse,
+    fontSize: 12,
+  },
+  addBtnTextDisabled: {
+    color: colors.textMuted,
   },
 });

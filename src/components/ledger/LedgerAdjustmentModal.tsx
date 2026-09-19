@@ -59,11 +59,11 @@ export const LedgerAdjustmentModal: React.FC<LedgerAdjustmentModalProps> = ({
     >
       <View style={styles.formContainer}>
         <Input
-          label="New Amount ($)"
+          label="New Amount (₹)"
           value={amountStr}
           onChangeText={setAmountStr}
           keyboardType="numeric"
-          prefix="$"
+          prefix="₹"
         />
         <Input
           label="Mandatory Audit Reason"

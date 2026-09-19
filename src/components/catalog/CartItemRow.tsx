@@ -1,37 +1,64 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { OrderItem } from '../../types';
 import { QuantitySelector } from './QuantitySelector';
 import { colors, typography, spacing } from '../../theme';
 
 export interface CartItemRowProps {
   item: OrderItem;
+  sku?: string;
+  max?: number;
   onUpdateQty: (delta: number) => void;
+  onRemove?: () => void;
+  onPressQuantity?: () => void;
 }
 
 export const CartItemRow: React.FC<CartItemRowProps> = ({
   item,
+  sku,
+  max,
   onUpdateQty,
+  onRemove,
+  onPressQuantity,
 }) => {
   return (
     <View style={styles.container}>
+      {/* Left Details */}
       <View style={styles.leftCol}>
-        <Text style={styles.name}>{item.productName}</Text>
+        <Text style={styles.name} numberOfLines={2}>
+          {item.productName}
+        </Text>
         <Text style={styles.unit}>
-          {item.unit} • ₹{item.unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })} / unit
+          {sku ? `${sku} · ` : ''}{item.unit} • ₹{item.unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / unit
+        </Text>
+        <Text style={styles.lineTotal}>
+          Line Total: <Text style={styles.lineTotalVal}>₹{(item.orderedQty * item.unitPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
         </Text>
       </View>
 
+      {/* Right Controls & Remove */}
       <View style={styles.rightCol}>
         <QuantitySelector
           quantity={item.orderedQty}
           onIncrease={() => onUpdateQty(1)}
           onDecrease={() => onUpdateQty(-1)}
+          onPressQuantity={onPressQuantity}
+          max={max}
           size="sm"
         />
-        <Text style={styles.totalText}>
-          ₹{(item.orderedQty * item.unitPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-        </Text>
+        {onRemove && (
+          <TouchableOpacity
+            style={styles.removeBtn}
+            onPress={onRemove}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityLabel={`Remove ${item.productName} from order`}
+            accessibilityRole="button"
+          >
+            <Ionicons name="trash-outline" size={15} color={colors.danger} />
+            <Text style={styles.removeText}>Remove</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -52,20 +79,41 @@ const styles = StyleSheet.create({
   },
   name: {
     ...typography.bodyBold,
+    fontSize: 14,
     color: colors.textPrimary,
   },
   unit: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: colors.textSecondary,
     marginTop: 2,
+    fontSize: 11,
+  },
+  lineTotal: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: 4,
+    fontSize: 11,
+  },
+  lineTotalVal: {
+    ...typography.captionBold,
+    color: colors.primary,
+    fontSize: 12,
   },
   rightCol: {
     alignItems: 'flex-end',
+    gap: 6,
   },
-  totalText: {
-    ...typography.currency,
-    fontSize: 14,
-    color: colors.textPrimary,
-    marginTop: 4,
+  removeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+  },
+  removeText: {
+    ...typography.captionBold,
+    color: colors.danger,
+    fontSize: 10,
   },
 });
+

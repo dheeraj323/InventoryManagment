@@ -12,7 +12,7 @@ import { useCartStore } from '../../store/useCartStore';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useLedgerStore } from '../../store/useLedgerStore';
-import { MOCK_VENDORS } from '../../constants/mockData';
+import { useVendorStore } from '../../store/useVendorStore';
 import { PAYMENT_METHOD_LABELS, BUSINESS_RULES } from '../../constants/rules';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
@@ -26,8 +26,20 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const { createOrder } = useOrderStore();
   const { activeVendorId } = useAuthStore();
   const { getPartyRunningBalance, addEntry } = useLedgerStore();
+  const { getVendorById } = useVendorStore();
 
-  const vendor = MOCK_VENDORS.find((v) => v.id === activeVendorId) || MOCK_VENDORS[0];
+  const vendor = getVendorById(activeVendorId) || {
+    id: activeVendorId || 'vendor-1',
+    name: 'Amit Patel',
+    shopName: 'Apex Supermarket',
+    phone: '+91 99887 76655',
+    address: 'Shop #12, Central Market, Sector 14, City',
+    area: 'Sector 14',
+    creditLimit: 10000,
+    currentBalance: 3450,
+    payLaterEligible: true,
+    preferredPaymentMode: 'PAY_LATER' as const,
+  };
   const runningBalance = getPartyRunningBalance(vendor.id);
   const remainingCredit = Math.max(0, vendor.creditLimit - runningBalance);
 

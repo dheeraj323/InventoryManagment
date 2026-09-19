@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,62 +7,128 @@ import {
   FlatList,
   TouchableOpacity,
   ScrollView,
+  RefreshControl,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useInventoryStore } from '../../store/useInventoryStore';
 import { useCartStore } from '../../store/useCartStore';
 import { ProductCard } from '../../components/catalog/ProductCard';
+import { QuantityModal } from '../../components/catalog/QuantityModal';
 import { Input } from '../../components/common/Input';
 import { Header } from '../../components/common/Header';
-import { Button } from '../../components/common/Button';
+import { EmptyState } from '../../components/common/EmptyState';
+import { Product } from '../../types';
 import { colors, typography, spacing } from '../../theme';
 
 export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { products } = useInventoryStore();
-  const { items, addItem, updateQty, getTotal, getItemCount } = useCartStore();
+  const { products, fetchProducts } = useInventoryStore();
+  const { items, addItem, updateQty, setQty, getTotal, getSubtotal, getItemCount } = useCartStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectedProductForModal, setSelectedProductForModal] = useState<{
+    product: Product;
+    currentQty: number;
+  } | null>(null);
 
-  const categories = ['ALL', ...Array.from(new Set(products.map((p) => p.category)))];
+  const categories = useMemo(() => {
+    const uniqueCats = Array.from(new Set(products.map((p) => p.category))).filter(Boolean);
+    return ['ALL', ...uniqueCats];
+  }, [products]);
 
-  const filteredProducts = products.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      selectedCategory === 'ALL' || p.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { ALL: products.length };
+    products.forEach((p) => {
+      counts[p.category] = (counts[p.category] || 0) + 1;
+    });
+    return counts;
+  }, [products]);
+
+  const filteredProducts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return products.filter((p) => {
+      const matchesSearch =
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q);
+      const matchesCategory =
+        selectedCategory === 'ALL' || p.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, searchQuery, selectedCategory]);
 
   const getQtyInCart = (productId: string) => {
     const found = items.find((i) => i.productId === productId);
     return found ? found.orderedQty : 0;
   };
 
-  const totalCartCount = getItemCount();
+  const totalCartUnits = getItemCount();
+  const totalCartTypes = items.length;
   const totalCartPrice = getTotal();
+  const totalCartSubtotal = getSubtotal();
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchProducts();
+    setIsRefreshing(false);
+  };
+
+  const handleModalConfirm = (newQty: number) => {
+    if (!selectedProductForModal) return;
+    const { product } = selectedProductForModal;
+    if (newQty <= 0) {
+      setQty(product.id, 0);
+    } else {
+      setQty(product.id, newQty);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* ── Screen Header ───────────────────────────────────────── */}
       <Header
         title="Wholesale Catalog"
-        subtitle={`${products.length} Items Available`}
+        subtitle={`${products.length} Products Monitored`}
         showBack
         onBackPress={() => navigation.goBack()}
+        rightAction={
+          <TouchableOpacity
+            style={styles.cartIconBtn}
+            onPress={() => navigation.navigate('Cart')}
+            accessibilityLabel={`Order Crate with ${totalCartUnits} items`}
+            accessibilityRole="button"
+          >
+            <Ionicons name="cart-outline" size={22} color={colors.primary} />
+            {totalCartUnits > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{totalCartUnits}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        }
       />
 
-      {/* Search Input */}
-      <View style={styles.searchContainer}>
+      {/* ── Search Bar & Category Filter Chips ──────────────────── */}
+      <View style={styles.searchHeader}>
         <Input
-          placeholder="Search products by name or SKU..."
+          placeholder="Search product name or SKU..."
           value={searchQuery}
           onChangeText={setSearchQuery}
           leftIcon={<Ionicons name="search-outline" size={18} color={colors.textMuted} />}
+          rightIcon={
+            searchQuery ? (
+              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+            ) : undefined
+          }
           containerStyle={styles.searchInput}
         />
 
-        {/* Category Pills Horizontal Scroll */}
+        {/* Category Horizontal Filter Pills */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -70,59 +136,138 @@ export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation
         >
           {categories.map((cat) => {
             const isActive = selectedCategory === cat;
+            const count = categoryCounts[cat] || 0;
             return (
               <TouchableOpacity
                 key={cat}
-                style={[styles.categoryPill, isActive ? styles.categoryPillActive : null]}
+                style={[styles.categoryPill, isActive && styles.categoryPillActive]}
                 onPress={() => setSelectedCategory(cat)}
                 activeOpacity={0.8}
               >
                 <Text
                   style={[
                     styles.categoryPillText,
-                    isActive ? styles.categoryPillTextActive : null,
+                    isActive && styles.categoryPillTextActive,
                   ]}
                 >
-                  {cat}
+                  {cat === 'ALL' ? 'All Items' : cat}
                 </Text>
+                <View
+                  style={[
+                    styles.pillCountBadge,
+                    isActive && styles.pillCountBadgeActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.pillCountText,
+                      isActive && styles.pillCountTextActive,
+                    ]}
+                  >
+                    {count}
+                  </Text>
+                </View>
               </TouchableOpacity>
             );
           })}
         </ScrollView>
       </View>
 
-      {/* Product List */}
+      {/* ── Product FlatList (Optimized for 100+ items) ──────────── */}
       <FlatList
         data={filteredProducts}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          totalCartUnits > 0 ? styles.listContentWithBar : null,
+        ]}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === 'android'}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
         renderItem={({ item }) => (
           <ProductCard
             product={item}
             quantityInCart={getQtyInCart(item.id)}
             onAddToCart={() => addItem(item, 1)}
             onUpdateQty={(delta) => updateQty(item.id, delta)}
+            onPressQuantity={() =>
+              setSelectedProductForModal({
+                product: item,
+                currentQty: getQtyInCart(item.id),
+              })
+            }
           />
         )}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <EmptyState
+              iconName="search-outline"
+              title="No Products Found"
+              description={
+                searchQuery
+                  ? `No wholesale items matched "${searchQuery}". Check the spelling or clear the filter.`
+                  : `No products available under category "${selectedCategory}".`
+              }
+              actionTitle={searchQuery || selectedCategory !== 'ALL' ? 'Reset Filters' : undefined}
+              onAction={() => {
+                setSearchQuery('');
+                setSelectedCategory('ALL');
+              }}
+            />
+          </View>
+        }
       />
 
-      {/* Bottom Cart Bar */}
-      {totalCartCount > 0 && (
-        <View style={styles.cartBar}>
-          <View>
-            <Text style={styles.cartBarCount}>
-              {totalCartCount} Item{totalCartCount > 1 ? 's' : ''} in Cart
+      {/* ── Sticky Order Crate / Cart Bar ───────────────────────── */}
+      {totalCartUnits > 0 && (
+        <View style={styles.crateBar}>
+          <View style={styles.crateBarDetails}>
+            <View style={styles.crateMetaRow}>
+              <Ionicons name="cube-outline" size={14} color={colors.accent} />
+              <Text style={styles.crateBarCount}>
+                {totalCartTypes} SKU{totalCartTypes > 1 ? 's' : ''} ({totalCartUnits} unit{totalCartUnits > 1 ? 's' : ''})
+              </Text>
+            </View>
+            <Text style={styles.crateBarTotal}>
+              ₹{totalCartPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
-            <Text style={styles.cartBarTotal}>₹{totalCartPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
-          <Button
-            title="View Cart & Checkout"
+
+          <TouchableOpacity
+            style={styles.crateBarBtn}
             onPress={() => navigation.navigate('Cart')}
-            size="md"
-            fullWidth={false}
-            style={styles.cartBarBtn}
-          />
+            activeOpacity={0.85}
+            accessibilityLabel="View Order Crate and Checkout"
+            accessibilityRole="button"
+          >
+            <Text style={styles.crateBarBtnText}>View Order Crate</Text>
+            <Ionicons name="arrow-forward" size={16} color={colors.textInverse} />
+          </TouchableOpacity>
         </View>
+      )}
+
+      {/* ── Fast Bulk Quantity Keypad Modal ──────────────────────── */}
+      {selectedProductForModal && (
+        <QuantityModal
+          visible={!!selectedProductForModal}
+          productName={selectedProductForModal.product.name}
+          unit={selectedProductForModal.product.unit}
+          unitPrice={selectedProductForModal.product.price}
+          initialQty={selectedProductForModal.currentQty}
+          maxStock={selectedProductForModal.product.stockQty}
+          onConfirm={handleModalConfirm}
+          onClose={() => setSelectedProductForModal(null)}
+        />
       )}
     </SafeAreaView>
   );
@@ -133,9 +278,33 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  searchContainer: {
+  cartIconBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: colors.danger,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBadgeText: {
+    ...typography.captionBold,
+    color: colors.textInverse,
+    fontSize: 9,
+  },
+  searchHeader: {
     paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -144,16 +313,19 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   categoriesScroll: {
-    paddingBottom: spacing.md,
+    paddingBottom: spacing.sm + 2,
+    gap: 6,
   },
   categoryPill: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: spacing.borderRadiusFull,
     backgroundColor: colors.surfaceSubtle,
-    marginRight: spacing.xs,
     borderWidth: 1,
     borderColor: colors.border,
+    gap: 6,
   },
   categoryPillActive: {
     backgroundColor: colors.primary,
@@ -167,34 +339,88 @@ const styles = StyleSheet.create({
   categoryPillTextActive: {
     color: colors.textInverse,
   },
+  pillCountBadge: {
+    backgroundColor: colors.border,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 10,
+  },
+  pillCountBadgeActive: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  pillCountText: {
+    ...typography.captionBold,
+    fontSize: 9,
+    color: colors.textSecondary,
+  },
+  pillCountTextActive: {
+    color: colors.textInverse,
+  },
   listContent: {
     padding: spacing.screenPadding,
-    paddingBottom: 80,
+    paddingBottom: spacing.xxl,
   },
-  cartBar: {
+  listContentWithBar: {
+    paddingBottom: 96,
+  },
+  emptyContainer: {
+    paddingVertical: spacing.xxl,
+    alignItems: 'center',
+  },
+  crateBar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.primary,
-    padding: spacing.md,
-    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: 10,
+    paddingBottom: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderTopLeftRadius: spacing.borderRadiusLg,
-    borderTopRightRadius: spacing.borderRadiusLg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 8,
   },
-  cartBarCount: {
-    ...typography.caption,
-    color: colors.textMuted,
+  crateBarDetails: {
+    flex: 1,
+    marginRight: spacing.md,
   },
-  cartBarTotal: {
+  crateMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
+  },
+  crateBarCount: {
+    ...typography.captionBold,
+    color: colors.textSecondary,
+    fontSize: 11,
+  },
+  crateBarTotal: {
     ...typography.currency,
-    color: colors.textInverse,
     fontSize: 18,
+    color: colors.primary,
+    fontWeight: '700',
   },
-  cartBarBtn: {
-    backgroundColor: colors.accent,
+  crateBarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: spacing.borderRadiusLg,
+    gap: 6,
+  },
+  crateBarBtnText: {
+    ...typography.button,
+    color: colors.textInverse,
+    fontSize: 13,
   },
 });
+
