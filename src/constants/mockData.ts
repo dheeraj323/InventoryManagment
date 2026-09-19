@@ -317,34 +317,34 @@ export const MOCK_ORDERS: Order[] = [
 
 export const MOCK_LEDGER_ENTRIES: LedgerEntry[] = [
   {
-    id: 'led-1',
-    partyId: 'vendor-1',
-    partyName: 'Apex Supermarket',
-    partyType: 'VENDOR',
-    type: 'DEBIT', // You Gave / Invoice
-    amount: 2688,
-    runningBalance: 2688,
-    referenceNo: 'ORD-2026-100',
-    orderId: 'ord-100',
-    date: '2026-09-16T15:45:00Z',
-    note: 'Invoice for Order ORD-2026-100',
-    createdBy: 'System (Order Delivery)',
-    createdRole: 'STAFF',
-  },
-  {
     id: 'led-2',
     partyId: 'vendor-1',
     partyName: 'Apex Supermarket',
     partyType: 'VENDOR',
     type: 'CREDIT', // You Got / Cash Received
     amount: 2688,
-    runningBalance: 0,
+    runningBalance: 3450,
     referenceNo: 'RCPT-8841',
     orderId: 'ord-100',
     date: '2026-09-16T15:46:00Z',
     note: 'Cash collected by Suresh Kumar',
     paymentMethod: 'CASH',
     createdBy: 'Suresh Kumar',
+    createdRole: 'STAFF',
+  },
+  {
+    id: 'led-1',
+    partyId: 'vendor-1',
+    partyName: 'Apex Supermarket',
+    partyType: 'VENDOR',
+    type: 'DEBIT', // You Gave / Invoice
+    amount: 2688,
+    runningBalance: 6138,
+    referenceNo: 'ORD-2026-100',
+    orderId: 'ord-100',
+    date: '2026-09-16T15:45:00Z',
+    note: 'Invoice for Order ORD-2026-100',
+    createdBy: 'System (Order Delivery)',
     createdRole: 'STAFF',
   },
   {

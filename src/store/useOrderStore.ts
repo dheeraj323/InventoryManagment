@@ -146,7 +146,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   },
 
   getOrdersByStaff: (staffId: string) => {
-    return get().orders.filter((o) => o.assignedStaffId === staffId);
+    return get().orders.filter((o) => o.assignedStaffId === staffId && o.status !== 'PENDING');
   },
 
   getOrderById: (orderId: string) => {

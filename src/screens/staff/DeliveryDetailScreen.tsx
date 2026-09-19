@@ -32,12 +32,16 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
 
   const [items, setItems] = useState<OrderItem[]>(order ? order.items : []);
 
-  if (!order) {
+  if (!order || order.status === 'PENDING') {
     return (
       <SafeAreaView style={styles.container}>
         <Header title="Delivery Record" showBack onBackPress={() => navigation.goBack()} />
         <View style={styles.emptyContainer}>
-          <Text style={styles.errorText}>Order not found.</Text>
+          <Text style={styles.errorText}>
+            {!order
+              ? 'Order not found.'
+              : 'This order is pending admin approval and is not ready for delivery.'}
+          </Text>
         </View>
       </SafeAreaView>
     );

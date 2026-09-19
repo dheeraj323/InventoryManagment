@@ -58,6 +58,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
     const newEntry: LedgerEntry = {
       ...entryData,
       id: `led-${Date.now()}`,
+      date: entryData.date || new Date().toISOString(),
       runningBalance: newRunningBalance,
     };
 
@@ -112,7 +113,13 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
   },
 
   getLedgerForParty: (partyId: string) => {
-    return get().entries.filter((e) => e.partyId === partyId || e.accountId === partyId);
+    return get()
+      .entries.filter((e) => e.partyId === partyId || e.accountId === partyId)
+      .sort((a, b) => {
+        const timeA = new Date(a.date || a.createdAt || 0).getTime();
+        const timeB = new Date(b.date || b.createdAt || 0).getTime();
+        return timeB - timeA;
+      });
   },
 
   getPartyRunningBalance: (partyId: string) => {

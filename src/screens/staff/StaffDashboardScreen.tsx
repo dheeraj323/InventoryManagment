@@ -28,11 +28,15 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
     cashInHand: getStaffCashInHand(activeStaffId || 'staff-1', orders),
   };
 
-  // Get assigned orders (or all active orders if staffId matches)
-  const assignedOrders = getOrdersByStaff(staff.id).length > 0 ? getOrdersByStaff(staff.id) : orders;
+  // Get assigned orders (excluding pending approval orders)
+  const staffAssigned = getOrdersByStaff(staff.id);
+  const assignedOrders =
+    staffAssigned.length > 0
+      ? staffAssigned
+      : orders.filter((o) => o.status !== 'PENDING' && o.status !== 'CANCELLED');
   const completedDeliveries = assignedOrders.filter((o) => o.status === 'DELIVERED');
   const pendingDeliveries = assignedOrders.filter(
-    (o) => o.status !== 'DELIVERED' && o.status !== 'CANCELLED'
+    (o) => o.status !== 'DELIVERED' && o.status !== 'CANCELLED' && o.status !== 'PENDING'
   );
 
   const pendingSettlement = settlements.find(
