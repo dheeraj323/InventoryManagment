@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -15,9 +16,9 @@ import { useCartStore } from '../../store/useCartStore';
 import { useVendorStore } from '../../store/useVendorStore';
 import { BUSINESS_RULES } from '../../constants/rules';
 import { Header } from '../../components/common/Header';
+import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { OrderCard } from '../../components/orders/OrderCard';
-import { LedgerSummaryCard } from '../../components/ledger/LedgerSummaryCard';
 import { colors, typography, spacing } from '../../theme';
 
 export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -27,31 +28,49 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
   const { getItemCount } = useCartStore();
   const { getVendorById } = useVendorStore();
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const vendor = getVendorById(activeVendorId) || {
     id: activeVendorId || 'vendor-1',
     name: 'Amit Patel',
     shopName: 'Apex Supermarket',
-    phone: '',
-    address: '',
-    area: '',
+    phone: '+91 99887 76655',
+    address: 'Shop #12, Central Market, Sector 14, City',
+    area: 'Sector 14',
     creditLimit: 10000,
-    currentBalance: 0,
+    currentBalance: 3450,
     payLaterEligible: true,
     preferredPaymentMode: 'PAY_LATER' as const,
   };
 
   const runningBalance = getPartyRunningBalance(vendor.id);
-  const remainingCredit = Math.max(0, vendor.creditLimit - runningBalance);
-  const creditUsedPct = Math.min(100, (runningBalance / vendor.creditLimit) * 100);
+  const creditLimit = vendor.creditLimit || BUSINESS_RULES.DEFAULT_CREDIT_LIMIT;
+  const utilizedCredit = Math.max(0, runningBalance);
+  const remainingCredit = Math.max(0, creditLimit - utilizedCredit);
+  const creditUsedPct = Math.min(100, (utilizedCredit / creditLimit) * 100);
+
   const vendorOrders = getOrdersByVendor(vendor.id);
   const recentOrders = vendorOrders.slice(0, 3);
   const cartCount = getItemCount();
 
+  const isDue = runningBalance > 0;
+  const balanceAccentColor = isDue ? colors.debit : colors.brandGreen;
+  const balanceAccentBg = isDue ? colors.statusCancelledBg : colors.statusDeliveredBg;
+
   const fmt = (n: number) =>
     n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    // Simulate brief pull-to-refresh sync
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 600);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* ── Header ──────────────────────────────────────────────────── */}
       <Header
         title={vendor.shopName}
         subtitle={`Welcome, ${vendor.name}`}
@@ -61,6 +80,9 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
           <TouchableOpacity
             style={styles.cartBtn}
             onPress={() => navigation.navigate('Cart')}
+            accessibilityLabel={`Shopping cart with ${cartCount} items`}
+            accessibilityRole="button"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="cart-outline" size={22} color={colors.primary} />
             {cartCount > 0 && (
@@ -72,68 +94,197 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
         }
       />
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-
-        {/* ── Zone 1: Order window notice ─────────────────────────────── */}
-        <View style={styles.noticePill}>
-          <Ionicons name="time-outline" size={14} color={colors.statusPendingText} />
-          <Text style={styles.noticeText}>{BUSINESS_RULES.ORDER_CUTOFF_LABEL}</Text>
-        </View>
-
-        {/* ── Zone 2: Ledger Balance (hero section) ────────────────────── */}
-        <TouchableOpacity onPress={() => navigation.navigate('VendorLedger')} activeOpacity={0.9}>
-          <LedgerSummaryCard
-            currentBalance={runningBalance}
-            partyName={`${vendor.shopName} · Khata`}
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
           />
-        </TouchableOpacity>
-
-        {/* ── Zone 3: Credit Line ──────────────────────────────────────── */}
-        <View style={styles.creditSection}>
-          <View style={styles.creditTopRow}>
-            <Text style={styles.creditTitle}>Credit Line</Text>
-            <Text style={styles.creditValues}>
-              ₹{fmt(remainingCredit)} available
-              <Text style={styles.creditOf}> / ₹{fmt(vendor.creditLimit)}</Text>
-            </Text>
+        }
+      >
+        {/* ── 1. Order Cutoff & Next-Day Delivery Banner ──────────────── */}
+        <View style={styles.cutoffBanner}>
+          <View style={styles.cutoffIconWrap}>
+            <Ionicons name="time-outline" size={15} color="#B45309" />
           </View>
-          <View style={styles.trackBg}>
-            <View style={[styles.trackFill, {
-              width: `${creditUsedPct}%` as any,
-              backgroundColor: creditUsedPct > 80 ? colors.danger : colors.accent,
-            }]} />
-          </View>
-          {creditUsedPct > 80 && (
-            <Text style={styles.creditWarning}>
-              ⚠ Credit almost exhausted — pay outstanding dues to reorder
-            </Text>
-          )}
+          <Text style={styles.cutoffText}>{BUSINESS_RULES.ORDER_CUTOFF_LABEL}</Text>
         </View>
 
-        {/* ── Zone 4: Primary CTA ──────────────────────────────────────── */}
+        {/* ── 2. Net Outstanding Balance Card ─────────────────────────── */}
+        <Card
+          style={[styles.balanceCard, { borderLeftColor: balanceAccentColor }]}
+          outlined
+          elevation="sm"
+          onPress={() => navigation.navigate('VendorLedger')}
+        >
+          <View style={styles.balanceHeader}>
+            <View style={styles.balanceLabelCol}>
+              <Text style={styles.balanceSectionLabel}>
+                {isDue ? 'NET OUTSTANDING DUE' : 'ACCOUNT STATUS'}
+              </Text>
+              <Text style={styles.balanceShopName} numberOfLines={1}>
+                {vendor.shopName} · Khata
+              </Text>
+            </View>
+
+            <View style={[styles.balanceStatusChip, { backgroundColor: balanceAccentBg }]}>
+              <Text style={[styles.balanceStatusText, { color: balanceAccentColor }]}>
+                {isDue ? 'Pending Due' : 'Settled / Advance'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.amountRow}>
+            <Text style={[styles.heroAmount, { color: balanceAccentColor }]}>
+              ₹{fmt(Math.abs(runningBalance))}
+            </Text>
+            <TouchableOpacity
+              style={styles.viewLedgerBtn}
+              onPress={() => navigation.navigate('VendorLedger')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.viewLedgerText}>View Khata</Text>
+              <Ionicons name="arrow-forward" size={12} color={colors.accent} />
+            </TouchableOpacity>
+          </View>
+        </Card>
+
+        {/* ── 3. Credit Line Utilization Card ─────────────────────────── */}
+        <Card style={styles.creditCard} outlined elevation="sm">
+          <View style={styles.creditTopRow}>
+            <View style={styles.creditTitleBlock}>
+              <Ionicons name="card-outline" size={16} color={colors.accent} />
+              <Text style={styles.creditTitle}>Credit Line Availability</Text>
+            </View>
+            <Text style={styles.creditAvailableText}>
+              ₹{fmt(remainingCredit)} <Text style={styles.creditSubText}>available</Text>
+            </Text>
+          </View>
+
+          {/* Progress Bar Track */}
+          <View style={styles.trackBg}>
+            <View
+              style={[
+                styles.trackFill,
+                {
+                  width: `${creditUsedPct}%`,
+                  backgroundColor:
+                    creditUsedPct > 85
+                      ? colors.danger
+                      : creditUsedPct > 65
+                      ? colors.warning
+                      : colors.accent,
+                },
+              ]}
+            />
+          </View>
+
+          {/* Credit Details Breakdown */}
+          <View style={styles.creditMetaRow}>
+            <Text style={styles.creditMetaText}>
+              Utilized: ₹{fmt(utilizedCredit)} ({Math.round(creditUsedPct)}%)
+            </Text>
+            <Text style={styles.creditMetaLimit}>
+              Credit Limit: ₹{fmt(creditLimit)}
+            </Text>
+          </View>
+
+          {creditUsedPct > 85 && (
+            <View style={styles.creditWarningBanner}>
+              <Ionicons name="alert-circle" size={13} color={colors.danger} />
+              <Text style={styles.creditWarningText}>
+                Credit limit nearly exhausted. Settle pending dues to restore credit line.
+              </Text>
+            </View>
+          )}
+        </Card>
+
+        {/* ── 4. Primary Order CTA ────────────────────────────────────── */}
         <View style={styles.ctaContainer}>
           <Button
             title="Browse Catalogue & Place Order"
             onPress={() => navigation.navigate('ProductCatalog')}
             icon={<Ionicons name="storefront-outline" size={18} color={colors.textInverse} />}
             size="lg"
+            style={styles.primaryCta}
           />
         </View>
 
-        {/* ── Zone 5: Recent Orders ────────────────────────────────────── */}
+        {/* ── 5. Quick Navigation Tiles ───────────────────────────────── */}
+        <View style={styles.quickActionsGrid}>
+          <TouchableOpacity
+            style={styles.quickActionCard}
+            onPress={() => navigation.navigate('VendorOrders')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.quickIconWrap, { backgroundColor: colors.accentLight }]}>
+              <Ionicons name="receipt-outline" size={18} color={colors.accent} />
+            </View>
+            <Text style={styles.quickActionTitle}>Orders</Text>
+            <Text style={styles.quickActionSub}>{vendorOrders.length} placed</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionCard}
+            onPress={() => navigation.navigate('VendorLedger')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.quickIconWrap, { backgroundColor: colors.brandGreenLight }]}>
+              <Ionicons name="book-outline" size={18} color={colors.brandGreen} />
+            </View>
+            <Text style={styles.quickActionTitle}>Khata Ledger</Text>
+            <Text style={styles.quickActionSub}>Statement & due</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionCard}
+            onPress={() => navigation.navigate('VendorProfileTab')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.quickIconWrap, { backgroundColor: colors.surfaceSubtle }]}>
+              <Ionicons name="business-outline" size={18} color={colors.primary} />
+            </View>
+            <Text style={styles.quickActionTitle}>Store Profile</Text>
+            <Text style={styles.quickActionSub}>Terms & address</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── 6. Recent Orders Section ────────────────────────────────── */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Orders</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('VendorOrders')}>
-            <Text style={styles.seeAll}>See all ({vendorOrders.length})</Text>
+          <View style={styles.sectionTitleGroup}>
+            <Text style={styles.sectionTitle}>Recent Orders</Text>
+            {vendorOrders.length > 0 && (
+              <View style={styles.orderCountBadge}>
+                <Text style={styles.orderCountBadgeText}>{vendorOrders.length}</Text>
+              </View>
+            )}
+          </View>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('VendorOrders')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.seeAll}>See all</Text>
           </TouchableOpacity>
         </View>
 
         {recentOrders.length === 0 ? (
-          <View style={styles.emptyBox}>
+          <Card style={styles.emptyBox} outlined>
             <Ionicons name="receipt-outline" size={32} color={colors.textMuted} />
-            <Text style={styles.emptyTitle}>No orders yet</Text>
-            <Text style={styles.emptySubtitle}>Your orders will appear here once placed</Text>
-          </View>
+            <Text style={styles.emptyTitle}>No Orders Placed Yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Explore our dairy, staple, and wholesale catalog to place your first store order.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyCtaBtn}
+              onPress={() => navigation.navigate('ProductCatalog')}
+            >
+              <Text style={styles.emptyCtaText}>Browse Catalog</Text>
+            </TouchableOpacity>
+          </Card>
         ) : (
           recentOrders.map((order) => (
             <OrderCard
@@ -160,124 +311,302 @@ const styles = StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
   },
 
-  // Notice pill
-  noticePill: {
+  // 1. Cutoff Banner
+  cutoffBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     backgroundColor: colors.statusPendingBg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
     borderRadius: spacing.borderRadiusFull,
-    gap: 5,
-    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+    gap: 6,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
   },
-  noticeText: {
+  cutoffIconWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cutoffText: {
     ...typography.captionBold,
-    color: colors.statusPendingText,
+    color: '#92400E',
+    fontSize: 11,
+    flex: 1,
+  },
+
+  // 2. Net Outstanding Balance Card
+  balanceCard: {
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    borderLeftWidth: 4,
+  },
+  balanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  balanceLabelCol: {
+    flex: 1,
+  },
+  balanceSectionLabel: {
+    ...typography.label,
+    fontSize: 9,
+    letterSpacing: 0.6,
+    color: colors.textMuted,
+  },
+  balanceShopName: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+    fontSize: 12,
+  },
+  balanceStatusChip: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 4,
+    borderRadius: spacing.borderRadiusFull,
+  },
+  balanceStatusText: {
+    ...typography.captionBold,
+    fontSize: 10,
+  },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginTop: spacing.xs,
+  },
+  heroAmount: {
+    ...typography.hero,
+    fontSize: 26,
+    lineHeight: 32,
+  },
+  viewLedgerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.accentLight,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 5,
+    borderRadius: spacing.borderRadiusSm,
+  },
+  viewLedgerText: {
+    ...typography.captionBold,
+    color: colors.accent,
     fontSize: 11,
   },
 
-  // Credit section
-  creditSection: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.xs,
+  // 3. Credit Line Card
+  creditCard: {
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
   },
   creditTopRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: spacing.sm,
   },
-  creditTitle: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
+  creditTitleBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  creditValues: {
+  creditTitle: {
     ...typography.captionBold,
     color: colors.textPrimary,
+    fontSize: 13,
   },
-  creditOf: {
+  creditAvailableText: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 13,
+  },
+  creditSubText: {
+    ...typography.caption,
     color: colors.textMuted,
-    fontWeight: '400',
+    fontSize: 11,
   },
   trackBg: {
     height: 6,
     backgroundColor: colors.surfaceSubtle,
     borderRadius: 3,
     overflow: 'hidden',
+    marginVertical: 4,
   },
   trackFill: {
     height: '100%',
     borderRadius: 3,
   },
-  creditWarning: {
+  creditMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  creditMetaText: {
     ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 11,
+  },
+  creditMetaLimit: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 11,
+  },
+  creditWarningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.statusCancelledBg,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: spacing.borderRadiusSm,
+    gap: 5,
+    marginTop: spacing.sm,
+  },
+  creditWarningText: {
+    ...typography.captionBold,
     color: colors.danger,
-    marginTop: spacing.xs,
+    fontSize: 10,
+    flex: 1,
   },
 
-  // CTA
+  // 4. CTA
   ctaContainer: {
-    marginTop: spacing.sectionGap,
-    marginBottom: spacing.sectionGap,
+    marginBottom: spacing.md,
+  },
+  primaryCta: {
+    backgroundColor: colors.primary,
+    borderRadius: spacing.borderRadiusLg,
   },
 
-  // Section header
+  // 5. Quick Actions Grid
+  quickActionsGrid: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  quickActionCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusMd,
+    padding: spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  quickIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  quickActionTitle: {
+    ...typography.captionBold,
+    color: colors.textPrimary,
+    fontSize: 12,
+  },
+  quickActionSub: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 10,
+    marginTop: 1,
+  },
+
+  // 6. Section Header
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm + 2,
+  },
+  sectionTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   sectionTitle: {
     ...typography.h3,
+    fontSize: 16,
     color: colors.textPrimary,
+  },
+  orderCountBadge: {
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: spacing.borderRadiusFull,
+  },
+  orderCountBadgeText: {
+    ...typography.captionBold,
+    color: colors.textSecondary,
+    fontSize: 10,
   },
   seeAll: {
     ...typography.captionBold,
     color: colors.accent,
+    fontSize: 12,
   },
 
   // Empty state
   emptyBox: {
     alignItems: 'center',
-    paddingVertical: spacing.xxxl,
+    paddingVertical: spacing.xxl,
+    paddingHorizontal: spacing.lg,
     backgroundColor: colors.surface,
     borderRadius: spacing.borderRadiusLg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-    gap: spacing.xs,
   },
   emptyTitle: {
     ...typography.bodyBold,
-    color: colors.textSecondary,
+    color: colors.textPrimary,
     marginTop: spacing.sm,
   },
   emptySubtitle: {
     ...typography.caption,
     color: colors.textMuted,
     textAlign: 'center',
-    paddingHorizontal: spacing.xxl,
+    marginTop: 4,
+    marginBottom: spacing.md,
+    lineHeight: 18,
+  },
+  emptyCtaBtn: {
+    backgroundColor: colors.accentLight,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 8,
+    borderRadius: spacing.borderRadiusMd,
+  },
+  emptyCtaText: {
+    ...typography.captionBold,
+    color: colors.accent,
   },
 
   // Cart button
   cartBtn: {
-    padding: 6,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
     position: 'relative',
   },
   cartBadge: {
     position: 'absolute',
-    top: 1,
-    right: 1,
+    top: 2,
+    right: 2,
     backgroundColor: colors.danger,
     borderRadius: 8,
-    width: 16,
+    minWidth: 16,
     height: 16,
+    paddingHorizontal: 3,
     alignItems: 'center',
     justifyContent: 'center',
   },
