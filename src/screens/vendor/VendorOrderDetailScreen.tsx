@@ -124,37 +124,6 @@ export const VendorOrderDetailScreen: React.FC<{ route: any; navigation: any }> 
             </Text>
           </View>
         </Card>
-
-        {/* Delivery Details */}
-        <Card style={styles.card} outlined elevation="sm">
-          <Text style={styles.cardTitle}>DELIVERY & CONTACT DETAILS</Text>
-          <View style={styles.detailItem}>
-            <Ionicons name="calendar-outline" size={16} color={colors.accent} />
-            <Text style={styles.detailText}>
-              Delivery Date: {order.deliveryDate}
-            </Text>
-          </View>
-          <View style={styles.detailItem}>
-            <Ionicons name="location-outline" size={16} color={colors.accent} />
-            <Text style={styles.detailText}>
-              {order.shopName} ({order.address})
-            </Text>
-          </View>
-          {order.assignedStaffName && (
-            <View style={styles.detailItem}>
-              <Ionicons name="person-outline" size={16} color={colors.accent} />
-              <Text style={styles.detailText}>
-                Assigned Staff: {order.assignedStaffName}
-              </Text>
-            </View>
-          )}
-          {order.notes && (
-            <View style={styles.detailItem}>
-              <Ionicons name="document-text-outline" size={16} color={colors.textMuted} />
-              <Text style={styles.detailText}>Notes: {order.notes}</Text>
-            </View>
-          )}
-        </Card>
       </ScrollView>
     </SafeAreaView>
   );
@@ -222,16 +191,5 @@ const styles = StyleSheet.create({
   totalVal: {
     ...typography.currency,
     color: colors.primary,
-  },
-  detailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
-  detailText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginLeft: spacing.sm,
-    flex: 1,
   },
 });

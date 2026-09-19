@@ -10,9 +10,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useCartStore } from '../../store/useCartStore';
 import { useInventoryStore } from '../../store/useInventoryStore';
-import { useAuthStore } from '../../store/useAuthStore';
-import { useLedgerStore } from '../../store/useLedgerStore';
-import { useVendorStore } from '../../store/useVendorStore';
 import { BUSINESS_RULES } from '../../constants/rules';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
@@ -27,9 +24,6 @@ import { colors, typography, spacing } from '../../theme';
 export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { items, updateQty, setQty, removeItem, getSubtotal, getTax, getTotal, getItemCount, clearCart } = useCartStore();
   const { products } = useInventoryStore();
-  const { activeVendorId } = useAuthStore();
-  const { getPartyRunningBalance } = useLedgerStore();
-  const { getVendorById } = useVendorStore();
 
   const [showClearModal, setShowClearModal] = useState(false);
   const [selectedItemForModal, setSelectedItemForModal] = useState<{
@@ -37,19 +31,6 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     maxStock?: number;
   } | null>(null);
 
-  const vendor = getVendorById(activeVendorId) || {
-    id: activeVendorId || 'vendor-1',
-    name: 'Amit Patel',
-    shopName: 'Apex Supermarket',
-    phone: '',
-    address: '',
-    area: '',
-    currentBalance: 0,
-    payLaterEligible: true,
-    preferredPaymentMode: 'PAY_LATER' as const,
-  };
-
-  const runningBalance = getPartyRunningBalance(vendor.id);
   const totalUnits = getItemCount();
   const subtotal = getSubtotal();
   const tax = getTax();
@@ -65,15 +46,15 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     return (
       <SafeAreaView style={styles.container}>
         <Header
-          title="Order Crate"
-          subtitle="0 Items in Crate"
+          title="Order Cart"
+          subtitle="0 Items in Cart"
           showBack
           onBackPress={() => navigation.goBack()}
         />
         <View style={styles.emptyContainer}>
           <EmptyState
             iconName="cart-outline"
-            title="Your Order Crate is Empty"
+            title="Your Order Cart is Empty"
             description="Add wholesale products from our catalog to build your store order."
             actionTitle="Browse Wholesale Catalog"
             onAction={() => navigation.navigate('ProductCatalog')}
@@ -87,35 +68,29 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       {/* ── Header ──────────────────────────────────────────────── */}
       <Header
-        title="Order Crate"
-        subtitle={`${items.length} SKUs · ${totalUnits} Units`}
+        title="Order Cart"
+        subtitle={`${items.length} Products · ${totalUnits} Units`}
         showBack
         onBackPress={() => navigation.goBack()}
         rightAction={
           <TouchableOpacity
             style={styles.clearHeaderBtn}
             onPress={() => setShowClearModal(true)}
-            accessibilityLabel="Clear all items from crate"
+            accessibilityLabel="Clear all items from cart"
             accessibilityRole="button"
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="trash-outline" size={16} color={colors.danger} />
-            <Text style={styles.clearText}>Clear Crate</Text>
+            <Text style={styles.clearText}>Clear Cart</Text>
           </TouchableOpacity>
         }
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* ── 1. Cutoff Banner ────────────────────────────────────── */}
-        <View style={styles.cutoffBanner}>
-          <Ionicons name="time-outline" size={16} color="#B45309" />
-          <Text style={styles.cutoffText}>{BUSINESS_RULES.ORDER_CUTOFF_LABEL}</Text>
-        </View>
-
-        {/* ── 2. Itemized Order Crate Section ──────────────────────── */}
+        {/* ── 1. Itemized Order Cart Section ──────────────────────── */}
         <Card style={styles.card} outlined elevation="sm">
           <View style={styles.cardHeaderRow}>
-            <Text style={styles.cardTitle}>ORDERED ITEMS ({items.length} SKUs)</Text>
+            <Text style={styles.cardTitle}>ORDERED ITEMS ({items.length} Items)</Text>
             <TouchableOpacity
               style={styles.addMoreBtn}
               onPress={() => navigation.navigate('ProductCatalog')}
@@ -182,52 +157,13 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </View>
         </Card>
 
-        {/* ── 4. Financial Khata Account Summary ─────────────────── */}
-        <Card
-          style={styles.card}
-          outlined
-          elevation="sm"
-        >
-          <View style={styles.creditHeader}>
-            <Ionicons
-              name="book-outline"
-              size={18}
-              color={colors.primary}
-            />
-            <Text style={styles.creditTitle}>
-              Vendor Khata Account
-            </Text>
-          </View>
-
-          <View style={styles.creditMetaGrid}>
-            <View style={styles.creditMetaCol}>
-              <Text style={styles.creditMetaLabel}>Current Pending Due</Text>
-              <Text
-                style={[
-                  styles.creditMetaVal,
-                  { color: runningBalance > 0 ? colors.debit : colors.brandGreen },
-                ]}
-              >
-                ₹{Math.abs(runningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </Text>
-            </View>
-
-            <View style={styles.creditMetaCol}>
-              <Text style={styles.creditMetaLabel}>Account Status</Text>
-              <Text style={[styles.creditMetaVal, { color: runningBalance > 0 ? colors.warning : colors.brandGreen }]}>
-                {runningBalance > 0 ? 'Pending Dues' : 'Settled'}
-              </Text>
-            </View>
-          </View>
-        </Card>
-
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
 
       {/* ── Bottom Fixed Action Bar ─────────────────────────────── */}
       <View style={styles.footerContainer}>
         <Button
-          title="Proceed to Delivery & Checkout"
+          title="Proceed to Payment & Checkout"
           onPress={() => navigation.navigate('CheckoutScreen')}
           size="lg"
           icon={<Ionicons name="arrow-forward" size={18} color={colors.textInverse} />}
@@ -254,12 +190,12 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         />
       )}
 
-      {/* ── Discard / Clear Crate Confirmation Modal ────────────── */}
+      {/* ── Discard / Clear Cart Confirmation Modal ────────────── */}
       <ConfirmationModal
         visible={showClearModal}
-        title="Clear Order Crate?"
-        message="Are you sure you want to remove all wholesale items from your order crate? This action cannot be undone."
-        confirmTitle="Yes, Clear Crate"
+        title="Clear Order Cart?"
+        message="Are you sure you want to remove all wholesale items from your order cart? This action cannot be undone."
+        confirmTitle="Yes, Clear Cart"
         cancelTitle="Keep Items"
         variant="danger"
         onConfirm={() => {
@@ -296,24 +232,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.screenPadding,
-  },
-  cutoffBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.statusPendingBg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-    borderRadius: spacing.borderRadiusMd,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    gap: 6,
-  },
-  cutoffText: {
-    ...typography.captionBold,
-    color: '#92400E',
-    fontSize: 11,
-    flex: 1,
   },
   card: {
     marginBottom: spacing.md,
@@ -387,61 +305,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 20,
     fontWeight: '700',
-  },
-  exceedsCard: {
-    borderColor: '#FECACA',
-    backgroundColor: '#FEF2F2',
-  },
-  creditHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-    gap: 6,
-  },
-  creditTitle: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13,
-  },
-  creditTitleDanger: {
-    color: colors.danger,
-  },
-  creditMetaGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: spacing.borderRadiusSm,
-    padding: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  creditMetaCol: {
-    flex: 1,
-  },
-  creditMetaLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 10,
-    marginBottom: 2,
-  },
-  creditMetaVal: {
-    ...typography.captionBold,
-    fontSize: 12,
-  },
-  errorBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#FEE2E2',
-    padding: spacing.sm,
-    borderRadius: spacing.borderRadiusSm,
-    marginTop: spacing.xs,
-    gap: 6,
-  },
-  errorText: {
-    ...typography.caption,
-    color: colors.danger,
-    fontSize: 11,
-    flex: 1,
-    lineHeight: 16,
   },
   footerContainer: {
     paddingHorizontal: spacing.screenPadding,

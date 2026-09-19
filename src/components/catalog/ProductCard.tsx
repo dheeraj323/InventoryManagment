@@ -26,14 +26,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   return (
     <Card style={styles.card} outlined elevation="sm">
-      {/* ── Top Metadata Row: Category & SKU ────────────────────── */}
+      {/* ── Top Metadata Row: Category ─────────────────────────── */}
       <View style={styles.topMetaRow}>
         <View style={styles.categoryChip}>
           <Text style={styles.categoryText}>{product.category}</Text>
-        </View>
-        <View style={styles.skuChip}>
-          <Ionicons name="pricetag-outline" size={11} color={colors.textMuted} />
-          <Text style={styles.skuText}>{product.sku}</Text>
         </View>
       </View>
 

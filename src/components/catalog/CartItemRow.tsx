@@ -30,7 +30,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
           {item.productName}
         </Text>
         <Text style={styles.unit}>
-          {sku ? `${sku} · ` : ''}{item.unit} • ₹{item.unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / unit
+          {item.unit} • ₹{item.unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / unit
         </Text>
         <Text style={styles.lineTotal}>
           Line Total: <Text style={styles.lineTotalVal}>₹{(item.orderedQty * item.unitPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>

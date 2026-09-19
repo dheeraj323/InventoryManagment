@@ -14,7 +14,6 @@ import { useOrderStore } from '../../store/useOrderStore';
 import { useLedgerStore } from '../../store/useLedgerStore';
 import { useCartStore } from '../../store/useCartStore';
 import { useVendorStore } from '../../store/useVendorStore';
-import { BUSINESS_RULES } from '../../constants/rules';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
@@ -100,15 +99,7 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
           />
         }
       >
-        {/* ── 1. Order Cutoff & Next-Day Delivery Banner ──────────────── */}
-        <View style={styles.cutoffBanner}>
-          <View style={styles.cutoffIconWrap}>
-            <Ionicons name="time-outline" size={15} color="#B45309" />
-          </View>
-          <Text style={styles.cutoffText}>{BUSINESS_RULES.ORDER_CUTOFF_LABEL}</Text>
-        </View>
-
-        {/* ── 2. Net Outstanding Balance Card ─────────────────────────── */}
+        {/* ── 1. Net Outstanding Balance Card ─────────────────────────── */}
         <Card
           style={[styles.balanceCard, { borderLeftColor: balanceAccentColor }]}
           outlined
@@ -259,31 +250,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
   },
 
-  // 1. Cutoff Banner
-  cutoffBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.statusPendingBg,
-    borderRadius: spacing.borderRadiusFull,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 7,
-    gap: 6,
-    marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  cutoffIconWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cutoffText: {
-    ...typography.captionBold,
-    color: '#92400E',
-    fontSize: 11,
-    flex: 1,
-  },
-
-  // 2. Net Outstanding Balance Card
+  // 1. Net Outstanding Balance Card
   balanceCard: {
     backgroundColor: colors.surface,
     borderRadius: spacing.borderRadiusLg,

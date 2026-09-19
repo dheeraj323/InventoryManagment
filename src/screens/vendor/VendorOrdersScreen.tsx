@@ -78,6 +78,7 @@ export const VendorOrdersScreen: React.FC<{ navigation: any }> = ({ navigation }
           <OrderCard
             order={item}
             showVendorName={false}
+            showOrderId={true}
             onPress={() =>
               navigation.navigate('VendorOrderDetail', { orderId: item.id })
             }

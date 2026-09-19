@@ -13,11 +13,10 @@ import { useOrderStore } from '../../store/useOrderStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useLedgerStore } from '../../store/useLedgerStore';
 import { useVendorStore } from '../../store/useVendorStore';
-import { PAYMENT_METHOD_LABELS, BUSINESS_RULES } from '../../constants/rules';
+import { PAYMENT_METHOD_LABELS } from '../../constants/rules';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
-import { Input } from '../../components/common/Input';
 import { PaymentMethod } from '../../types';
 import { colors, typography, spacing } from '../../theme';
 
@@ -45,12 +44,6 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const subtotal = getSubtotal();
   const tax = getTax();
 
-  // Next business day calculation
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const defaultDeliveryDate = tomorrow.toISOString().split('T')[0];
-
-  const [deliveryDate, setDeliveryDate] = useState(defaultDeliveryDate);
   const [selectedPaymentMode, setSelectedPaymentMode] = useState<PaymentMethod>(
     vendor.payLaterEligible ? 'PAY_LATER' : 'CASH'
   );
@@ -60,13 +53,6 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
   const handlePlaceOrder = async () => {
     setErrorMsg('');
-
-    // Delivery date validation
-    if (!deliveryDate.trim()) {
-      setErrorMsg('Please enter a valid delivery date.');
-      return;
-    }
-
     setLoading(true);
 
     try {
@@ -86,7 +72,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         paidAmount: selectedPaymentMode === 'CASH' || selectedPaymentMode === 'ONLINE' ? totalAmount : 0,
         balanceDue: selectedPaymentMode === 'PAY_LATER' ? totalAmount : 0,
         orderDate: new Date().toISOString(),
-        deliveryDate,
+        deliveryDate: new Date().toISOString().split('T')[0],
         assignedStaffId: 'staff-1',
         assignedStaffName: 'Suresh Kumar',
         notes: notes.trim() || '',
@@ -130,46 +116,13 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   return (
     <SafeAreaView style={styles.container}>
       <Header
-        title="Delivery & Payment"
+        title="Payment & Checkout"
         subtitle="Finalize Wholesale Order"
         showBack
         onBackPress={() => navigation.goBack()}
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Cutoff Window Reminder */}
-        <View style={styles.cutoffBanner}>
-          <Ionicons name="time-outline" size={16} color={colors.statusPendingText} />
-          <Text style={styles.cutoffText}>{BUSINESS_RULES.ORDER_CUTOFF_LABEL}</Text>
-        </View>
-
-        {/* Delivery Details Section */}
-        <Card style={styles.card} outlined elevation="sm">
-          <Text style={styles.cardTitle}>DELIVERY SCHEDULE & ADDRESS</Text>
-          <Input
-            label="Requested Delivery Date (YYYY-MM-DD)"
-            value={deliveryDate}
-            onChangeText={setDeliveryDate}
-            placeholder="YYYY-MM-DD"
-            leftIcon={<Ionicons name="calendar-outline" size={18} color={colors.textMuted} />}
-          />
-          <View style={styles.addressBox}>
-            <Ionicons name="location-outline" size={18} color={colors.accent} />
-            <View style={styles.addressCol}>
-              <Text style={styles.addressTitle}>{vendor.shopName}</Text>
-              <Text style={styles.addressText}>{vendor.address}</Text>
-            </View>
-          </View>
-          <Input
-            label="Special Delivery Notes (Optional)"
-            placeholder="e.g. Call before arrival or back gate entry"
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={2}
-          />
-        </Card>
-
         {/* Payment Preferences Section */}
         <Card style={styles.card} outlined elevation="sm">
           <Text style={styles.cardTitle}>SELECT PAYMENT METHOD</Text>
@@ -263,19 +216,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: spacing.screenPadding,
   },
-  cutoffBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.statusPendingBg,
-    padding: spacing.md,
-    borderRadius: spacing.borderRadiusMd,
-    marginBottom: spacing.md,
-  },
-  cutoffText: {
-    ...typography.captionBold,
-    color: colors.statusPendingText,
-    marginLeft: spacing.sm,
-  },
   card: {
     marginBottom: spacing.md,
   },
@@ -285,27 +225,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 0.5,
     marginBottom: spacing.md,
-  },
-  addressBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: colors.surfaceSubtle,
-    padding: spacing.md,
-    borderRadius: spacing.borderRadiusSm,
-    marginBottom: spacing.md,
-  },
-  addressCol: {
-    marginLeft: spacing.sm,
-    flex: 1,
-  },
-  addressTitle: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-  },
-  addressText: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
   },
   paymentOption: {
     flexDirection: 'row',

@@ -9,6 +9,7 @@ export interface OrderCardProps {
   order: Order;
   onPress: () => void;
   showVendorName?: boolean;
+  showOrderId?: boolean;
   actionLabel?: string;
   showDeliverAction?: boolean;
 }
@@ -17,6 +18,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   order,
   onPress,
   showVendorName = true,
+  showOrderId = false,
   actionLabel,
   showDeliverAction = false,
 }) => {
@@ -38,12 +40,19 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
-      {/* Top row: order number + date + status */}
+      {/* Top row: order number / date + status */}
       <View style={styles.headerRow}>
-        <View style={styles.orderIdBlock}>
-          <Text style={styles.orderNum}>#{order.orderNumber}</Text>
-          <Text style={styles.dateText}>{formattedDate}</Text>
-        </View>
+        {showOrderId ? (
+          <View style={styles.orderIdBlock}>
+            <Text style={styles.orderNum}>#{order.orderNumber}</Text>
+            <Text style={styles.dateTextSmall}>{formattedDate}</Text>
+          </View>
+        ) : (
+          <View style={styles.dateBadge}>
+            <Ionicons name="calendar-outline" size={13} color={colors.textMuted} />
+            <Text style={styles.dateText}>{formattedDate}</Text>
+          </View>
+        )}
         <StatusBadge status={order.status} size="sm" />
       </View>
 
@@ -116,10 +125,21 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 14,
   },
-  dateText: {
+  dateTextSmall: {
     ...typography.caption,
     color: colors.textMuted,
     marginTop: 1,
+  },
+  dateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
+  },
+  dateText: {
+    ...typography.captionBold,
+    color: colors.textSecondary,
+    fontSize: 12,
   },
   vendorRow: {
     flexDirection: 'row',

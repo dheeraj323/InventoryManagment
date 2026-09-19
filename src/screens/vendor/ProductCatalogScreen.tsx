@@ -98,7 +98,7 @@ export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation
           <TouchableOpacity
             style={styles.cartIconBtn}
             onPress={() => navigation.navigate('Cart')}
-            accessibilityLabel={`Order Crate with ${totalCartUnits} items`}
+            accessibilityLabel={`Order Cart with ${totalCartUnits} items`}
             accessibilityRole="button"
           >
             <Ionicons name="cart-outline" size={22} color={colors.primary} />
@@ -114,7 +114,7 @@ export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation
       {/* ── Search Bar & Category Filter Chips ──────────────────── */}
       <View style={styles.searchHeader}>
         <Input
-          placeholder="Search product name or SKU..."
+          placeholder="Search products by name..."
           value={searchQuery}
           onChangeText={setSearchQuery}
           leftIcon={<Ionicons name="search-outline" size={18} color={colors.textMuted} />}
@@ -228,29 +228,29 @@ export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation
         }
       />
 
-      {/* ── Sticky Order Crate / Cart Bar ───────────────────────── */}
+      {/* ── Sticky Order Cart / Cart Bar ───────────────────────── */}
       {totalCartUnits > 0 && (
-        <View style={styles.crateBar}>
-          <View style={styles.crateBarDetails}>
-            <View style={styles.crateMetaRow}>
+        <View style={styles.cartBar}>
+          <View style={styles.cartBarDetails}>
+            <View style={styles.cartMetaRow}>
               <Ionicons name="cube-outline" size={14} color={colors.accent} />
-              <Text style={styles.crateBarCount}>
-                {totalCartTypes} SKU{totalCartTypes > 1 ? 's' : ''} ({totalCartUnits} unit{totalCartUnits > 1 ? 's' : ''})
+              <Text style={styles.cartBarCount}>
+                {totalCartTypes} Item{totalCartTypes > 1 ? 's' : ''} ({totalCartUnits} unit{totalCartUnits > 1 ? 's' : ''})
               </Text>
             </View>
-            <Text style={styles.crateBarTotal}>
+            <Text style={styles.cartBarTotal}>
               ₹{totalCartPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
           </View>
 
           <TouchableOpacity
-            style={styles.crateBarBtn}
+            style={styles.cartBarBtn}
             onPress={() => navigation.navigate('Cart')}
             activeOpacity={0.85}
-            accessibilityLabel="View Order Crate and Checkout"
+            accessibilityLabel="View Order Cart and Checkout"
             accessibilityRole="button"
           >
-            <Text style={styles.crateBarBtnText}>View Order Crate</Text>
+            <Text style={styles.cartBarBtnText}>View Order Cart</Text>
             <Ionicons name="arrow-forward" size={16} color={colors.textInverse} />
           </TouchableOpacity>
         </View>
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxl,
     alignItems: 'center',
   },
-  crateBar: {
+  cartBar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
@@ -387,28 +387,28 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 8,
   },
-  crateBarDetails: {
+  cartBarDetails: {
     flex: 1,
     marginRight: spacing.md,
   },
-  crateMetaRow: {
+  cartMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     marginBottom: 2,
   },
-  crateBarCount: {
+  cartBarCount: {
     ...typography.captionBold,
     color: colors.textSecondary,
     fontSize: 11,
   },
-  crateBarTotal: {
+  cartBarTotal: {
     ...typography.currency,
     fontSize: 18,
     color: colors.primary,
     fontWeight: '700',
   },
-  crateBarBtn: {
+  cartBarBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary,
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
     borderRadius: spacing.borderRadiusLg,
     gap: 6,
   },
-  crateBarBtnText: {
+  cartBarBtnText: {
     ...typography.button,
     color: colors.textInverse,
     fontSize: 13,
