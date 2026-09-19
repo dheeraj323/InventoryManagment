@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
             onPress={onBackPress}
             activeOpacity={0.7}
           >
-            <Ionicons name="arrow-back" size={24} color={colors.primary} />
+            <Ionicons name="arrow-back" size={22} color={colors.primary} />
           </TouchableOpacity>
         )}
         <View style={styles.titleContainer}>
@@ -61,7 +61,7 @@ export const Header: React.FC<HeaderProps> = ({
             onPress={onRoleSwitch}
             activeOpacity={0.8}
           >
-            <Ionicons name="person-circle-outline" size={14} color={colors.textInverse} />
+            <Ionicons name="swap-horizontal-outline" size={13} color={colors.textInverse} />
             <Text style={styles.roleText}>{activeRole}</Text>
           </TouchableOpacity>
         )}
@@ -73,14 +73,15 @@ export const Header: React.FC<HeaderProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.screenPadding,
+    paddingTop: 14,
+    paddingBottom: 12,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.divider,
   },
   leftRow: {
     flexDirection: 'row',
@@ -90,29 +91,33 @@ const styles = StyleSheet.create({
   backButton: {
     marginRight: spacing.sm,
     padding: 4,
+    marginLeft: -2,
   },
   titleContainer: {
     flex: 1,
   },
   title: {
-    ...typography.h3,
+    ...typography.h2,
     color: colors.textPrimary,
+    letterSpacing: -0.4,
   },
   subtitle: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: colors.textMuted,
+    marginTop: 1,
   },
   rightRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.sm,
   },
   roleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: spacing.borderRadiusFull,
-    marginRight: spacing.xs,
+    gap: 4,
   },
   roleAdmin: {
     backgroundColor: colors.primary,
@@ -121,12 +126,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
   },
   roleVendor: {
-    backgroundColor: colors.credit,
+    backgroundColor: colors.brandGreen,
   },
   roleText: {
     ...typography.captionBold,
     color: colors.textInverse,
     fontSize: 10,
-    marginLeft: 4,
+    letterSpacing: 0.4,
   },
 });

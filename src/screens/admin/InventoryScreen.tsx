@@ -87,7 +87,7 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                   <Text style={styles.skuText}>
                     SKU: {item.sku} • {item.unit}
                   </Text>
-                  <Text style={styles.priceText}>Price: ${item.price.toFixed(2)}</Text>
+                  <Text style={styles.priceText}>₹{item.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
                 </View>
 
                 <View style={styles.stockCol}>

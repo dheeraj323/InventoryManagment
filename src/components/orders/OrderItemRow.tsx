@@ -17,7 +17,7 @@ export const OrderItemRow: React.FC<OrderItemRowProps> = ({
       <View style={styles.infoCol}>
         <Text style={styles.name}>{item.productName}</Text>
         <Text style={styles.unit}>
-          {item.unit} • ${item.unitPrice.toFixed(2)} / unit
+          {item.unit} • ₹{item.unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })} / unit
         </Text>
       </View>
       <View style={styles.qtyCol}>
@@ -36,7 +36,7 @@ export const OrderItemRow: React.FC<OrderItemRowProps> = ({
       </View>
       <View style={styles.totalCol}>
         <Text style={styles.totalText}>
-          ${(item.deliveredQty * item.unitPrice).toFixed(2)}
+          ₹{(item.deliveredQty * item.unitPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
         </Text>
       </View>
     </View>

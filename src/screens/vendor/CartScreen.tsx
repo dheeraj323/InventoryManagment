@@ -57,7 +57,7 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             iconName="cart-outline"
             title="Your Cart is Empty"
             description="Add wholesale products from our catalog to start building your order."
-            actionTitle="BROWSE CATALOG"
+            actionTitle="Browse Catalogue"
             onAction={() => navigation.navigate('ProductCatalog')}
           />
         </View>
@@ -103,16 +103,16 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Text style={styles.cardTitle}>BILL SUMMARY</Text>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryVal}>${subtotal.toFixed(2)}</Text>
+            <Text style={styles.summaryVal}>₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Tax / GST (5%)</Text>
-            <Text style={styles.summaryVal}>${tax.toFixed(2)}</Text>
+            <Text style={styles.summaryVal}>₹{tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.summaryRow}>
             <Text style={styles.totalLabel}>Total Payable</Text>
-            <Text style={styles.totalVal}>${total.toFixed(2)}</Text>
+            <Text style={styles.totalVal}>₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
         </Card>
 
@@ -138,13 +138,12 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </Text>
           </View>
           <Text style={styles.creditDesc}>
-            Available Line of Credit: ${remainingCredit.toFixed(2)} (Credit Limit:${' '}
-            ${vendor.creditLimit.toFixed(2)})
+            Available Line of Credit: ₹{remainingCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })} (Limit: ₹{vendor.creditLimit.toLocaleString('en-IN', { minimumFractionDigits: 2 })})
           </Text>
           {exceedsCredit && (
             <View style={styles.errorBox}>
               <Text style={styles.errorText}>
-                Notice: Order total (${total.toFixed(2)}) exceeds your available credit line (${remainingCredit.toFixed(2)}). Pay Later payment option will be blocked at checkout unless settled via cash/online.
+                 Order total (₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}) exceeds your available credit line (₹{remainingCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). Pay Later will be blocked at checkout — settle via cash or online.
               </Text>
             </View>
           )}
@@ -154,7 +153,7 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       {/* Checkout Button */}
       <View style={styles.footerContainer}>
         <Button
-          title="PROCEED TO CHECKOUT"
+          title="Proceed to Checkout"
           onPress={() => navigation.navigate('CheckoutScreen')}
           size="lg"
         />

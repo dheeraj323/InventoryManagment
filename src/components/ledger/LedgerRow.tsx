@@ -2,7 +2,6 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LedgerEntry } from '../../types';
 import { colors, typography, spacing } from '../../theme';
-import { Ionicons } from '@expo/vector-icons';
 
 export interface LedgerRowProps {
   entry: LedgerEntry;
@@ -15,52 +14,69 @@ export const LedgerRow: React.FC<LedgerRowProps> = ({
   onPress,
   showPartyName = false,
 }) => {
-  const isDebit = entry.type === 'DEBIT'; // You Gave / Invoice
-  const dateFormatted = new Date(entry.date).toLocaleDateString('en-US', {
-    month: 'short',
+  const isDebit = entry.type === 'DEBIT'; // Distributor gave goods / credit extended
+  const accentColor = isDebit ? colors.debit : colors.brandGreen;
+
+  const dateFormatted = new Date(entry.date).toLocaleDateString('en-IN', {
     day: 'numeric',
+    month: 'short',
     hour: '2-digit',
     minute: '2-digit',
   });
 
   return (
     <TouchableOpacity
-      style={styles.container}
+      style={styles.row}
       onPress={onPress}
       disabled={!onPress}
-      activeOpacity={0.7}
+      activeOpacity={0.6}
     >
-      <View style={styles.leftCol}>
-        <View style={styles.titleRow}>
-          <Text style={styles.refNo}>{entry.referenceNo}</Text>
+      {/* Left indicator dot */}
+      <View style={[styles.dot, { backgroundColor: accentColor }]} />
+
+      {/* Content */}
+      <View style={styles.content}>
+        <View style={styles.topRow}>
+          <Text style={styles.refNo} numberOfLines={1}>
+            {entry.referenceNo}
+          </Text>
           {entry.editedAt && (
-            <View style={styles.editedBadge}>
-              <Ionicons name="create-outline" size={10} color={colors.textMuted} />
-              <Text style={styles.editedText}>Edited</Text>
+            <View style={styles.editedTag}>
+              <Text style={styles.editedText}>edited</Text>
             </View>
           )}
         </View>
+
         {showPartyName && (
           <Text style={styles.partyName} numberOfLines={1}>
             {entry.partyName}
           </Text>
         )}
+
         <Text style={styles.note} numberOfLines={1}>
           {entry.note}
         </Text>
+
         <Text style={styles.date}>{dateFormatted}</Text>
       </View>
 
+      {/* Right: amount + running balance */}
       <View style={styles.rightCol}>
-        <View style={styles.amountContainer}>
-          <Text style={styles.amountLabel}>{isDebit ? 'YOU GAVE' : 'YOU GOT'}</Text>
-          <Text style={[styles.amount, isDebit ? styles.debitText : styles.creditText]}>
-            {isDebit ? '-' : '+'}${entry.amount.toFixed(2)}
-          </Text>
-        </View>
-        <View style={styles.balanceContainer}>
+        <Text style={[styles.amountLabel, { color: accentColor }]}>
+          {isDebit ? 'YOU GAVE' : 'YOU GOT'}
+        </Text>
+        <Text style={[styles.amount, { color: accentColor }]}>
+          {isDebit ? '−' : '+'}₹{entry.amount.toLocaleString('en-IN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
+        </Text>
+        <View style={styles.balanceTag}>
           <Text style={styles.balanceText}>
-            Bal: ${entry.runningBalance.toFixed(2)}
+            Bal ₹{entry.runningBalance.toLocaleString('en-IN', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
           </Text>
         </View>
       </View>
@@ -69,44 +85,47 @@ export const LedgerRow: React.FC<LedgerRowProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.screenPadding,
     backgroundColor: colors.surface,
-    borderRadius: spacing.borderRadiusMd,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
   },
-  leftCol: {
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: spacing.md,
+    marginTop: 2,
+    flexShrink: 0,
+  },
+  content: {
     flex: 1,
     marginRight: spacing.md,
   },
-  titleRow: {
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.xs,
   },
   refNo: {
     ...typography.bodyBold,
     color: colors.textPrimary,
+    fontSize: 14,
   },
-  editedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: spacing.xs,
+  editedTag: {
     backgroundColor: colors.surfaceSubtle,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
     borderRadius: 4,
   },
   editedText: {
     ...typography.caption,
     fontSize: 9,
     color: colors.textMuted,
-    marginLeft: 2,
   },
   partyName: {
     ...typography.captionBold,
@@ -117,36 +136,29 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: 2,
+    lineHeight: 17,
   },
   date: {
     ...typography.caption,
     color: colors.textMuted,
     fontSize: 11,
-    marginTop: 2,
+    marginTop: 3,
   },
   rightCol: {
     alignItems: 'flex-end',
-  },
-  amountContainer: {
-    alignItems: 'flex-end',
+    flexShrink: 0,
   },
   amountLabel: {
-    ...typography.captionBold,
+    ...typography.label,
     fontSize: 9,
-    color: colors.textMuted,
-    letterSpacing: 0.5,
+    marginBottom: 2,
   },
   amount: {
-    ...typography.h3,
     fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 22,
   },
-  debitText: {
-    color: colors.debit,
-  },
-  creditText: {
-    color: colors.credit,
-  },
-  balanceContainer: {
+  balanceTag: {
     marginTop: 4,
     backgroundColor: colors.surfaceSubtle,
     paddingHorizontal: 6,
@@ -155,7 +167,7 @@ const styles = StyleSheet.create({
   },
   balanceText: {
     ...typography.captionBold,
-    fontSize: 11,
+    fontSize: 10,
     color: colors.textSecondary,
   },
 });

@@ -14,9 +14,17 @@ import { useInventoryStore } from '../../store/useInventoryStore';
 import { useCashStore } from '../../store/useCashStore';
 import { useOrderStore } from '../../store/useOrderStore';
 import { Header } from '../../components/common/Header';
-import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
 import { colors, typography, spacing } from '../../theme';
+
+type Module = {
+  icon: keyof typeof Ionicons.glyphMap;
+  iconColor: string;
+  iconBg: string;
+  title: string;
+  subtitle: string;
+  route: string;
+  badge?: number;
+};
 
 export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { switchRole, activeRole, currentUser } = useAuthStore();
@@ -33,168 +41,180 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
     .filter((e) => e.partyType === 'VENDOR' && e.type === 'DEBIT')
     .reduce((sum, e) => sum + e.amount, 0);
 
+  const fmt = (n: number) =>
+    n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const operationsModules: Module[] = [
+    {
+      icon: 'storefront-outline',
+      iconColor: colors.accent,
+      iconBg: colors.accentLight,
+      title: 'Vendors',
+      subtitle: 'Credit lines & shop directory',
+      route: 'VendorList',
+    },
+    {
+      icon: 'receipt-outline',
+      iconColor: colors.statusApprovedText,
+      iconBg: colors.statusApprovedBg,
+      title: 'Orders',
+      subtitle: 'Approve, assign & track',
+      route: 'AdminOrders',
+      badge: pendingOrdersCount > 0 ? pendingOrdersCount : undefined,
+    },
+    {
+      icon: 'cube-outline',
+      iconColor: colors.statusPendingText,
+      iconBg: colors.statusPendingBg,
+      title: 'Inventory',
+      subtitle: 'Stock levels & prices',
+      route: 'Inventory',
+      badge: lowStockItems.length > 0 ? lowStockItems.length : undefined,
+    },
+  ];
+
+  const financeModules: Module[] = [
+    {
+      icon: 'cash-outline',
+      iconColor: colors.statusDeliveredText,
+      iconBg: colors.statusDeliveredBg,
+      title: 'Cash Settlements',
+      subtitle: 'Verify staff daily cash handover',
+      route: 'StaffSettlements',
+      badge: pendingSettlements.length > 0 ? pendingSettlements.length : undefined,
+    },
+    {
+      icon: 'trending-up-outline',
+      iconColor: colors.debit,
+      iconBg: colors.debitLight,
+      title: 'Finance & Ledgers',
+      subtitle: 'Receivables & payables overview',
+      route: 'AdminFinance',
+    },
+    {
+      icon: 'shield-checkmark-outline',
+      iconColor: colors.primary,
+      iconBg: colors.surfaceSubtle,
+      title: 'Audit Trail',
+      subtitle: 'Immutable adjustment history',
+      route: 'AuditHistory',
+    },
+  ];
+
+  const renderModule = (mod: Module) => (
+    <TouchableOpacity
+      key={mod.route}
+      style={styles.moduleRow}
+      onPress={() => navigation.navigate(mod.route)}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.moduleIcon, { backgroundColor: mod.iconBg }]}>
+        <Ionicons name={mod.icon} size={20} color={mod.iconColor} />
+      </View>
+      <View style={styles.moduleText}>
+        <Text style={styles.moduleTitle}>{mod.title}</Text>
+        <Text style={styles.moduleSub}>{mod.subtitle}</Text>
+      </View>
+      <View style={styles.moduleRight}>
+        {mod.badge !== undefined && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{mod.badge}</Text>
+          </View>
+        )}
+        <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+      </View>
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <Header
-        title="Admin Control Center"
-        subtitle={`Welcome, ${currentUser?.name || 'Administrator'}`}
+        title="Dashboard"
+        subtitle={`${currentUser?.name || 'Administrator'} · Admin`}
         activeRole={activeRole}
         onRoleSwitch={() => switchRole('VENDOR')}
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Urgent Action Badges Bar */}
-        {pendingSettlements.length > 0 && (
-          <TouchableOpacity
-            style={styles.alertBannerWarning}
-            onPress={() => navigation.navigate('StaffSettlements')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="cash-outline" size={18} color={colors.statusPendingText} />
-            <Text style={styles.alertBannerText}>
-              {pendingSettlements.length} Staff Cash Settlement
-              {pendingSettlements.length > 1 ? 's' : ''} awaiting Admin verification.
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.statusPendingText} />
-          </TouchableOpacity>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+
+        {/* ── Alerts strip ─────────────────────────────────────────────── */}
+        {(pendingSettlements.length > 0 || lowStockItems.length > 0) && (
+          <View style={styles.alertsContainer}>
+            {pendingSettlements.length > 0 && (
+              <TouchableOpacity
+                style={[styles.alertRow, { borderLeftColor: colors.warning }]}
+                onPress={() => navigation.navigate('StaffSettlements')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="cash-outline" size={15} color={colors.statusPendingText} />
+                <Text style={[styles.alertText, { color: colors.statusPendingText }]}>
+                  {pendingSettlements.length} cash settlement{pendingSettlements.length > 1 ? 's' : ''} pending verification
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.statusPendingText} />
+              </TouchableOpacity>
+            )}
+            {lowStockItems.length > 0 && (
+              <TouchableOpacity
+                style={[styles.alertRow, { borderLeftColor: colors.danger }]}
+                onPress={() => navigation.navigate('Inventory')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="alert-circle-outline" size={15} color={colors.danger} />
+                <Text style={[styles.alertText, { color: colors.danger }]}>
+                  {lowStockItems.length} product{lowStockItems.length > 1 ? 's' : ''} below reorder level
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.danger} />
+              </TouchableOpacity>
+            )}
+          </View>
         )}
 
-        {lowStockItems.length > 0 && (
+        {/* ── Quick stat grid ───────────────────────────────────────────── */}
+        <View style={styles.statsGrid}>
           <TouchableOpacity
-            style={styles.alertBannerDanger}
-            onPress={() => navigation.navigate('Inventory')}
+            style={[styles.statCard, { borderTopColor: colors.debit }]}
+            onPress={() => navigation.navigate('AdminFinance')}
             activeOpacity={0.8}
           >
-            <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
-            <Text style={styles.alertBannerDangerText}>
-              {lowStockItems.length} Product
-              {lowStockItems.length > 1 ? 's' : ''} below reorder threshold.
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.danger} />
+            <Text style={styles.statLabel}>Vendor Receivables</Text>
+            <Text style={[styles.statValue, { color: colors.debit }]}>₹{fmt(totalReceivables)}</Text>
+            <Text style={styles.statLink}>View ledgers →</Text>
           </TouchableOpacity>
-        )}
 
-        {/* Financial Overview Grid (No Overcrowded Cards) */}
-        <View style={styles.metricsGrid}>
-          <Card style={[styles.metricCard, styles.cardReceivable]} outlined elevation="sm">
-            <Text style={styles.metricLabel}>TOTAL VENDOR RECEIVABLES</Text>
-            <Text style={styles.metricVal}>${totalReceivables.toFixed(2)}</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('AdminFinance')}>
-              <Text style={styles.metricAction}>View Ledgers →</Text>
-            </TouchableOpacity>
-          </Card>
-
-          <Card style={styles.metricCard} outlined elevation="sm">
-            <Text style={styles.metricLabel}>PENDING ORDERS</Text>
-            <Text style={styles.metricVal}>{pendingOrdersCount}</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('AdminOrders')}>
-              <Text style={styles.metricAction}>Manage Orders →</Text>
-            </TouchableOpacity>
-          </Card>
+          <TouchableOpacity
+            style={[styles.statCard, { borderTopColor: colors.accent }]}
+            onPress={() => navigation.navigate('AdminOrders')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.statLabel}>Pending Orders</Text>
+            <Text style={[styles.statValue, { color: colors.accent }]}>{pendingOrdersCount}</Text>
+            <Text style={styles.statLink}>Manage →</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Key Operational Modules Grid */}
-        <Text style={styles.sectionTitle}>Distributor Management Modules</Text>
+        {/* ── Operations modules ────────────────────────────────────────── */}
+        <Text style={styles.groupLabel}>Operations</Text>
+        <View style={styles.moduleGroup}>
+          {operationsModules.map((mod, idx) => (
+            <View key={mod.route}>
+              {renderModule(mod)}
+              {idx < operationsModules.length - 1 && <View style={styles.rowDivider} />}
+            </View>
+          ))}
+        </View>
 
-        <Card
-          style={styles.moduleCard}
-          onPress={() => navigation.navigate('VendorList')}
-          outlined
-          elevation="sm"
-        >
-          <View style={styles.moduleRow}>
-            <View style={[styles.iconCircle, { backgroundColor: colors.accentLight }]}>
-              <Ionicons name="storefront-outline" size={22} color={colors.accent} />
+        {/* ── Finance modules ───────────────────────────────────────────── */}
+        <Text style={[styles.groupLabel, { marginTop: spacing.sectionGap }]}>Finance & Compliance</Text>
+        <View style={styles.moduleGroup}>
+          {financeModules.map((mod, idx) => (
+            <View key={mod.route}>
+              {renderModule(mod)}
+              {idx < financeModules.length - 1 && <View style={styles.rowDivider} />}
             </View>
-            <View style={styles.moduleTextCol}>
-              <Text style={styles.moduleTitle}>Vendor Directory & Credit Lines</Text>
-              <Text style={styles.moduleSub}>
-                Manage shops, credit limits, Pay Later eligibility, and individual ledgers.
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </View>
-        </Card>
+          ))}
+        </View>
 
-        <Card
-          style={styles.moduleCard}
-          onPress={() => navigation.navigate('AdminOrders')}
-          outlined
-          elevation="sm"
-        >
-          <View style={styles.moduleRow}>
-            <View style={[styles.iconCircle, { backgroundColor: colors.statusApprovedBg }]}>
-              <Ionicons name="receipt-outline" size={22} color={colors.statusApprovedText} />
-            </View>
-            <View style={styles.moduleTextCol}>
-              <Text style={styles.moduleTitle}>Order Approval & Status Control</Text>
-              <Text style={styles.moduleSub}>
-                Approve, reject, assign staff delivery routes, and track fulfillment.
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </View>
-        </Card>
-
-        <Card
-          style={styles.moduleCard}
-          onPress={() => navigation.navigate('Inventory')}
-          outlined
-          elevation="sm"
-        >
-          <View style={styles.moduleRow}>
-            <View style={[styles.iconCircle, { backgroundColor: colors.statusPendingBg }]}>
-              <Ionicons name="cube-outline" size={22} color={colors.statusPendingText} />
-            </View>
-            <View style={styles.moduleTextCol}>
-              <Text style={styles.moduleTitle}>Stock & Product Inventory</Text>
-              <Text style={styles.moduleSub}>
-                Update stock on hand, track low stock alerts, and product prices.
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </View>
-        </Card>
-
-        <Card
-          style={styles.moduleCard}
-          onPress={() => navigation.navigate('StaffSettlements')}
-          outlined
-          elevation="sm"
-        >
-          <View style={styles.moduleRow}>
-            <View style={[styles.iconCircle, { backgroundColor: colors.statusDeliveredBg }]}>
-              <Ionicons name="cash-outline" size={22} color={colors.statusDeliveredText} />
-            </View>
-            <View style={styles.moduleTextCol}>
-              <Text style={styles.moduleTitle}>Staff Cash Settlement Verification</Text>
-              <Text style={styles.moduleSub}>
-                Verify daily cash handed over by delivery executives & variance logs.
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </View>
-        </Card>
-
-        <Card
-          style={styles.moduleCard}
-          onPress={() => navigation.navigate('AuditHistory')}
-          outlined
-          elevation="sm"
-        >
-          <View style={styles.moduleRow}>
-            <View style={[styles.iconCircle, { backgroundColor: colors.surfaceSubtle }]}>
-              <Ionicons name="shield-checkmark-outline" size={22} color={colors.primary} />
-            </View>
-            <View style={styles.moduleTextCol}>
-              <Text style={styles.moduleTitle}>Immutable Audit Trail</Text>
-              <Text style={styles.moduleSub}>
-                View complete history of manual ledger adjustments and credit line changes.
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-          </View>
-        </Card>
+        <View style={{ height: spacing.xxl }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -205,90 +225,106 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollContent: {
-    padding: spacing.screenPadding,
+  scroll: {
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: spacing.lg,
   },
-  alertBannerWarning: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.statusPendingBg,
-    padding: spacing.md,
-    borderRadius: spacing.borderRadiusMd,
-    marginBottom: spacing.sm,
-  },
-  alertBannerText: {
-    ...typography.captionBold,
-    color: colors.statusPendingText,
-    marginLeft: spacing.sm,
-    flex: 1,
-  },
-  alertBannerDanger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.statusCancelledBg,
-    padding: spacing.md,
-    borderRadius: spacing.borderRadiusMd,
-    marginBottom: spacing.md,
-  },
-  alertBannerDangerText: {
-    ...typography.captionBold,
-    color: colors.danger,
-    marginLeft: spacing.sm,
-    flex: 1,
-  },
-  metricsGrid: {
-    flexDirection: 'row',
-    marginHorizontal: -spacing.xs,
+
+  // Alerts
+  alertsContainer: {
     marginBottom: spacing.lg,
+    gap: spacing.sm,
   },
-  metricCard: {
-    flex: 1,
-    marginHorizontal: spacing.xs,
+  alertRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderRadius: spacing.borderRadiusMd,
+    borderLeftWidth: 3,
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  cardReceivable: {
-    borderLeftWidth: 4,
-    borderLeftColor: colors.debit,
-  },
-  metricLabel: {
+  alertText: {
     ...typography.captionBold,
+    flex: 1,
+    fontSize: 12,
+  },
+
+  // Stats grid
+  statsGrid: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sectionGap,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderTopWidth: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  statLabel: {
+    ...typography.label,
     color: colors.textMuted,
-    fontSize: 9,
-    letterSpacing: 0.5,
+    marginBottom: spacing.xs,
   },
-  metricVal: {
-    ...typography.currencyLarge,
-    color: colors.textPrimary,
-    marginVertical: 4,
+  statValue: {
+    ...typography.h2,
+    marginBottom: 4,
   },
-  metricAction: {
+  statLink: {
     ...typography.captionBold,
     color: colors.accent,
     fontSize: 11,
   },
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.textPrimary,
-    marginBottom: spacing.md,
-  },
-  moduleCard: {
+
+  // Module groups
+  groupLabel: {
+    ...typography.label,
+    color: colors.textMuted,
     marginBottom: spacing.sm,
-    padding: spacing.md,
+    paddingLeft: 2,
+  },
+  moduleGroup: {
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
   moduleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
   },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  moduleIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
+    flexShrink: 0,
   },
-  moduleTextCol: {
+  moduleText: {
     flex: 1,
-    marginRight: spacing.xs,
+    marginRight: spacing.sm,
   },
   moduleTitle: {
     ...typography.bodyBold,
@@ -296,8 +332,31 @@ const styles = StyleSheet.create({
   },
   moduleSub: {
     ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
-    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 1,
+  },
+  moduleRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  badge: {
+    backgroundColor: colors.danger,
+    borderRadius: spacing.borderRadiusFull,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    ...typography.captionBold,
+    color: colors.textInverse,
+    fontSize: 10,
+  },
+  rowDivider: {
+    height: 1,
+    backgroundColor: colors.divider,
+    marginLeft: 40 + spacing.md + spacing.lg, // align with text, past icon
   },
 });

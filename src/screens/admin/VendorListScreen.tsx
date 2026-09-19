@@ -74,11 +74,11 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                       balance > 0 ? styles.balanceDue : styles.balanceClear,
                     ]}
                   >
-                    ${balance.toFixed(2)}
+                    ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </Text>
                   <View style={styles.creditPill}>
                     <Text style={styles.creditPillText}>
-                      Limit: ${item.creditLimit}
+                      Limit: ₹{item.creditLimit.toLocaleString('en-IN')}
                     </Text>
                   </View>
                 </View>

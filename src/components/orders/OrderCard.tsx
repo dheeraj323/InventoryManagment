@@ -2,7 +2,6 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Order } from '../../types';
-import { Card } from '../common/Card';
 import { StatusBadge } from '../common/StatusBadge';
 import { colors, typography, spacing } from '../../theme';
 
@@ -18,16 +17,17 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   showVendorName = true,
 }) => {
   const itemCount = order.items.reduce((sum, i) => sum + i.orderedQty, 0);
-  const formattedDate = new Date(order.orderDate).toLocaleDateString('en-US', {
-    month: 'short',
+  const formattedDate = new Date(order.orderDate).toLocaleDateString('en-IN', {
     day: 'numeric',
+    month: 'short',
     year: 'numeric',
   });
 
   return (
-    <Card style={styles.card} onPress={onPress} outlined elevation="sm">
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
+      {/* Top row: order number + date + status */}
       <View style={styles.headerRow}>
-        <View style={styles.orderIdContainer}>
+        <View style={styles.orderIdBlock}>
           <Text style={styles.orderNum}>{order.orderNumber}</Text>
           <Text style={styles.dateText}>{formattedDate}</Text>
         </View>
@@ -36,104 +36,116 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
       {showVendorName && (
         <View style={styles.vendorRow}>
-          <Ionicons name="storefront-outline" size={14} color={colors.textSecondary} />
+          <Ionicons name="storefront-outline" size={13} color={colors.textMuted} />
           <Text style={styles.vendorName} numberOfLines={1}>
-            {order.shopName} ({order.vendorName})
+            {order.shopName} · {order.vendorName}
           </Text>
         </View>
       )}
 
-      <View style={styles.itemsSummary}>
-        <Text style={styles.itemSummaryText} numberOfLines={2}>
-          {order.items.map((i) => `${i.productName} (${i.orderedQty}x)`).join(', ')}
-        </Text>
-      </View>
+      {/* Items summary — pill style */}
+      <Text style={styles.itemsSummary} numberOfLines={1}>
+        {order.items.map((i) => `${i.productName} ×${i.orderedQty}`).join('  ·  ')}
+      </Text>
 
+      {/* Footer: total + arrow */}
       <View style={styles.footerRow}>
-        <View>
-          <Text style={styles.totalLabel}>Total Bill</Text>
-          <Text style={styles.totalAmount}>${order.totalAmount.toFixed(2)}</Text>
+        <View style={styles.totalBlock}>
+          <Text style={styles.totalLabel}>Total</Text>
+          <Text style={styles.totalAmount}>
+            ₹{order.totalAmount.toLocaleString('en-IN', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </Text>
         </View>
-        <View style={styles.actionPill}>
-          <Text style={styles.actionText}>View Details</Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+        <View style={styles.viewPill}>
+          <Text style={styles.viewText}>View details</Text>
+          <Ionicons name="chevron-forward" size={13} color={colors.accent} />
         </View>
       </View>
-    </Card>
+    </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
+    padding: spacing.lg,
     marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: spacing.xs,
   },
-  orderIdContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  orderIdBlock: {
+    flex: 1,
+    marginRight: spacing.sm,
   },
   orderNum: {
-    ...typography.h3,
-    fontSize: 15,
+    ...typography.bodyBold,
     color: colors.textPrimary,
+    fontSize: 14,
   },
   dateText: {
     ...typography.caption,
     color: colors.textMuted,
-    marginLeft: spacing.sm,
+    marginTop: 1,
   },
   vendorRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
     marginBottom: spacing.xs,
   },
   vendorName: {
-    ...typography.captionBold,
-    color: colors.textSecondary,
-    marginLeft: spacing.xs,
-  },
-  itemsSummary: {
-    backgroundColor: colors.surfaceSubtle,
-    padding: spacing.sm,
-    borderRadius: spacing.borderRadiusSm,
-    marginVertical: spacing.xs,
-  },
-  itemSummaryText: {
     ...typography.caption,
     color: colors.textSecondary,
+    flex: 1,
+  },
+  itemsSummary: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginBottom: spacing.md,
     lineHeight: 18,
   },
   footerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: spacing.sm,
     paddingTop: spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.divider,
   },
+  totalBlock: {},
   totalLabel: {
-    ...typography.caption,
+    ...typography.label,
     color: colors.textMuted,
-    fontSize: 10,
-    textTransform: 'uppercase',
+    marginBottom: 1,
   },
   totalAmount: {
     ...typography.currency,
     color: colors.textPrimary,
+    fontSize: 15,
   },
-  actionPill: {
+  viewPill: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 2,
   },
-  actionText: {
+  viewText: {
     ...typography.captionBold,
-    color: colors.primary,
-    marginRight: 2,
+    color: colors.accent,
+    fontSize: 12,
   },
 });

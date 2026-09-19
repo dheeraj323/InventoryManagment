@@ -122,15 +122,15 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
 
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryVal}>${order.subtotal.toFixed(2)}</Text>
+            <Text style={styles.summaryVal}>₹{order.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Tax / GST (5%)</Text>
-            <Text style={styles.summaryVal}>${order.tax.toFixed(2)}</Text>
+            <Text style={styles.summaryVal}>₹{order.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.totalLabel}>Total Bill</Text>
-            <Text style={styles.totalVal}>${order.totalAmount.toFixed(2)}</Text>
+            <Text style={styles.totalVal}>₹{order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
         </Card>
       </ScrollView>

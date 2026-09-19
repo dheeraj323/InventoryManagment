@@ -42,7 +42,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <Text style={styles.unit}>{product.unit}</Text>
 
           <View style={styles.priceRow}>
-            <Text style={styles.price}>${product.price.toFixed(2)}</Text>
+            <Text style={styles.price}>₹{product.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
             {isLowStock ? (
               <View style={styles.stockBadgeDanger}>
                 <Text style={styles.stockTextDanger}>Only {product.stockQty} left</Text>

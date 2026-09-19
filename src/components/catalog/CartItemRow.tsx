@@ -18,7 +18,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
       <View style={styles.leftCol}>
         <Text style={styles.name}>{item.productName}</Text>
         <Text style={styles.unit}>
-          {item.unit} • ${item.unitPrice.toFixed(2)} / unit
+          {item.unit} • ₹{item.unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })} / unit
         </Text>
       </View>
 
@@ -30,7 +30,7 @@ export const CartItemRow: React.FC<CartItemRowProps> = ({
           size="sm"
         />
         <Text style={styles.totalText}>
-          ${(item.orderedQty * item.unitPrice).toFixed(2)}
+          ₹{(item.orderedQty * item.unitPrice).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
         </Text>
       </View>
     </View>

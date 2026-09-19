@@ -113,10 +113,10 @@ export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation
             <Text style={styles.cartBarCount}>
               {totalCartCount} Item{totalCartCount > 1 ? 's' : ''} in Cart
             </Text>
-            <Text style={styles.cartBarTotal}>${totalCartPrice.toFixed(2)}</Text>
+            <Text style={styles.cartBarTotal}>₹{totalCartPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
           <Button
-            title="VIEW CART & CHECKOUT"
+            title="View Cart & Checkout"
             onPress={() => navigation.navigate('Cart')}
             size="md"
             fullWidth={false}

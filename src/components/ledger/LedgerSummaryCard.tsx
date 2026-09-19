@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Card } from '../common/Card';
 import { colors, typography, spacing } from '../../theme';
 
 export interface LedgerSummaryCardProps {
@@ -17,135 +16,128 @@ export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
   partyName,
 }) => {
   const isReceivable = currentBalance >= 0;
+  const accentColor = isReceivable ? colors.debit : colors.brandGreen;
+  const accentBg = isReceivable ? colors.debitLight : colors.brandGreenLight;
 
   return (
-    <Card style={styles.card} outlined elevation="md">
-      {partyName && <Text style={styles.partyTitle}>{partyName}</Text>}
-      <View style={styles.mainRow}>
-        <View>
-          <Text style={styles.label}>
-            {isReceivable ? "YOU'LL GET (RECEIVABLE)" : "YOU'LL GIVE (PAYABLE)"}
+    <View style={[styles.card, { borderLeftColor: accentColor }]}>
+      {/* Party name label */}
+      {partyName && (
+        <Text style={styles.partyName} numberOfLines={1}>
+          {partyName}
+        </Text>
+      )}
+
+      {/* Hero balance row */}
+      <View style={styles.heroRow}>
+        <View style={styles.heroLeft}>
+          <Text style={styles.heroLabel}>
+            {isReceivable ? 'Net Due' : 'Settled / Advance'}
           </Text>
-          <Text
-            style={[
-              styles.netBalance,
-              isReceivable ? styles.debitColor : styles.creditColor,
-            ]}
-          >
-            ${Math.abs(currentBalance).toFixed(2)}
+          <Text style={[styles.heroAmount, { color: accentColor }]}>
+            ₹{Math.abs(currentBalance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
         </View>
-        <View
-          style={[
-            styles.statusPill,
-            isReceivable ? styles.debitBg : styles.creditBg,
-          ]}
-        >
-          <Text
-            style={[
-              styles.statusPillText,
-              isReceivable ? styles.debitColor : styles.creditColor,
-            ]}
-          >
-            {isReceivable ? 'Pending Due' : 'Settled / Advance'}
+        <View style={[styles.statusChip, { backgroundColor: accentBg }]}>
+          <Text style={[styles.statusChipText, { color: accentColor }]}>
+            {isReceivable ? 'Pending Due' : 'Paid / Advance'}
           </Text>
         </View>
       </View>
 
+      {/* Divider + stats row — only shown when there's actual data */}
       {(totalGave > 0 || totalGot > 0) && (
-        <View style={styles.dividerRow}>
-          <View style={styles.subStat}>
-            <Text style={styles.subStatLabel}>Total You Gave (Debit)</Text>
-            <Text style={[styles.subStatVal, styles.debitColor]}>
-              ${totalGave.toFixed(2)}
+        <View style={styles.statsRow}>
+          <View style={styles.statBlock}>
+            <Text style={styles.statLabel}>Total Gave</Text>
+            <Text style={[styles.statAmount, { color: colors.debit }]}>
+              ₹{totalGave.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
           </View>
-          <View style={styles.verticalDivider} />
-          <View style={styles.subStat}>
-            <Text style={styles.subStatLabel}>Total You Got (Credit)</Text>
-            <Text style={[styles.subStatVal, styles.creditColor]}>
-              ${totalGot.toFixed(2)}
+          <View style={styles.statDivider} />
+          <View style={styles.statBlock}>
+            <Text style={styles.statLabel}>Total Got</Text>
+            <Text style={[styles.statAmount, { color: colors.brandGreen }]}>
+              ₹{totalGot.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
           </View>
         </View>
       )}
-    </Card>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primaryLight,
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
+    padding: spacing.xl,
+    borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    // Subtle shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  partyTitle: {
+  partyName: {
     ...typography.captionBold,
     color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
+    letterSpacing: 0.3,
   },
-  mainRow: {
+  heroRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  label: {
-    ...typography.captionBold,
+  heroLeft: {
+    flex: 1,
+    marginRight: spacing.md,
+  },
+  heroLabel: {
+    ...typography.label,
     color: colors.textMuted,
-    fontSize: 10,
-    letterSpacing: 0.5,
+    marginBottom: 4,
   },
-  netBalance: {
-    ...typography.currencyLarge,
-    color: colors.textInverse,
-    marginTop: 2,
+  heroAmount: {
+    ...typography.hero,
   },
-  debitColor: {
-    color: '#F87171', // Bright Red for Dark Card
-  },
-  creditColor: {
-    color: '#4ADE80', // Bright Green for Dark Card
-  },
-  statusPill: {
+  statusChip: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: spacing.borderRadiusFull,
   },
-  debitBg: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-  },
-  creditBg: {
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
-  },
-  statusPillText: {
+  statusChipText: {
     ...typography.captionBold,
     fontSize: 11,
   },
-  dividerRow: {
+  statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
+    marginTop: spacing.lg,
+    paddingTop: spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    borderTopColor: colors.divider,
   },
-  subStat: {
+  statBlock: {
     flex: 1,
   },
-  subStatLabel: {
-    ...typography.caption,
+  statLabel: {
+    ...typography.label,
     color: colors.textMuted,
-    fontSize: 11,
+    marginBottom: 3,
   },
-  subStatVal: {
+  statAmount: {
     ...typography.bodyBold,
-    marginTop: 2,
+    fontSize: 15,
   },
-  verticalDivider: {
+  statDivider: {
     width: 1,
-    height: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginHorizontal: spacing.sm,
+    height: 28,
+    backgroundColor: colors.divider,
+    marginHorizontal: spacing.lg,
   },
 });

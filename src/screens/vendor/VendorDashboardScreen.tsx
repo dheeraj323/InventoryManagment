@@ -15,7 +15,6 @@ import { useCartStore } from '../../store/useCartStore';
 import { useVendorStore } from '../../store/useVendorStore';
 import { BUSINESS_RULES } from '../../constants/rules';
 import { Header } from '../../components/common/Header';
-import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { OrderCard } from '../../components/orders/OrderCard';
 import { LedgerSummaryCard } from '../../components/ledger/LedgerSummaryCard';
@@ -43,9 +42,13 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
 
   const runningBalance = getPartyRunningBalance(vendor.id);
   const remainingCredit = Math.max(0, vendor.creditLimit - runningBalance);
+  const creditUsedPct = Math.min(100, (runningBalance / vendor.creditLimit) * 100);
   const vendorOrders = getOrdersByVendor(vendor.id);
   const recentOrders = vendorOrders.slice(0, 3);
   const cartCount = getItemCount();
+
+  const fmt = (n: number) =>
+    n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -56,10 +59,10 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
         onRoleSwitch={() => switchRole('STAFF')}
         rightAction={
           <TouchableOpacity
-            style={styles.cartIconBtn}
+            style={styles.cartBtn}
             onPress={() => navigation.navigate('Cart')}
           >
-            <Ionicons name="cart-outline" size={24} color={colors.primary} />
+            <Ionicons name="cart-outline" size={22} color={colors.primary} />
             {cartCount > 0 && (
               <View style={styles.cartBadge}>
                 <Text style={styles.cartBadgeText}>{cartCount}</Text>
@@ -69,64 +72,68 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
         }
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Ordering Cutoff Window Banner */}
-        <View style={styles.cutoffBanner}>
-          <Ionicons name="time-outline" size={18} color={colors.statusPendingText} />
-          <Text style={styles.cutoffText}>{BUSINESS_RULES.ORDER_CUTOFF_LABEL}</Text>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+
+        {/* ── Zone 1: Order window notice ─────────────────────────────── */}
+        <View style={styles.noticePill}>
+          <Ionicons name="time-outline" size={14} color={colors.statusPendingText} />
+          <Text style={styles.noticeText}>{BUSINESS_RULES.ORDER_CUTOFF_LABEL}</Text>
         </View>
 
-        {/* Ledger Balance Card (Khatabook Inspired) */}
-        <TouchableOpacity
-          onPress={() => navigation.navigate('VendorLedger')}
-          activeOpacity={0.9}
-        >
+        {/* ── Zone 2: Ledger Balance (hero section) ────────────────────── */}
+        <TouchableOpacity onPress={() => navigation.navigate('VendorLedger')} activeOpacity={0.9}>
           <LedgerSummaryCard
             currentBalance={runningBalance}
-            partyName={`${vendor.shopName} Ledger`}
+            partyName={`${vendor.shopName} · Khata`}
           />
         </TouchableOpacity>
 
-        {/* Credit Limit Gauge Bar */}
-        <Card style={styles.creditCard} outlined elevation="sm">
-          <View style={styles.creditRow}>
-            <Text style={styles.creditLabel}>Vendor Credit Line (Pay Later)</Text>
-            <Text style={styles.creditVal}>
-              ${remainingCredit.toFixed(2)} Available / ${vendor.creditLimit.toFixed(2)}
+        {/* ── Zone 3: Credit Line ──────────────────────────────────────── */}
+        <View style={styles.creditSection}>
+          <View style={styles.creditTopRow}>
+            <Text style={styles.creditTitle}>Credit Line</Text>
+            <Text style={styles.creditValues}>
+              ₹{fmt(remainingCredit)} available
+              <Text style={styles.creditOf}> / ₹{fmt(vendor.creditLimit)}</Text>
             </Text>
           </View>
-          <View style={styles.gaugeTrack}>
-            <View
-              style={[
-                styles.gaugeFill,
-                { width: `${Math.min(100, (runningBalance / vendor.creditLimit) * 100)}%` },
-              ]}
-            />
+          <View style={styles.trackBg}>
+            <View style={[styles.trackFill, {
+              width: `${creditUsedPct}%` as any,
+              backgroundColor: creditUsedPct > 80 ? colors.danger : colors.accent,
+            }]} />
           </View>
-        </Card>
+          {creditUsedPct > 80 && (
+            <Text style={styles.creditWarning}>
+              ⚠ Credit almost exhausted — pay outstanding dues to reorder
+            </Text>
+          )}
+        </View>
 
-        {/* Primary Action Button */}
-        <View style={styles.primaryActionContainer}>
+        {/* ── Zone 4: Primary CTA ──────────────────────────────────────── */}
+        <View style={styles.ctaContainer}>
           <Button
-            title="BROWSE CATALOG & PLACE ORDER"
+            title="Browse Catalogue & Place Order"
             onPress={() => navigation.navigate('ProductCatalog')}
-            icon={<Ionicons name="cart-outline" size={20} color={colors.textInverse} />}
+            icon={<Ionicons name="storefront-outline" size={18} color={colors.textInverse} />}
             size="lg"
           />
         </View>
 
-        {/* Recent Orders Section (Zomato Inspired) */}
+        {/* ── Zone 5: Recent Orders ────────────────────────────────────── */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Recent Orders</Text>
           <TouchableOpacity onPress={() => navigation.navigate('VendorOrders')}>
-            <Text style={styles.seeAllText}>See All ({vendorOrders.length})</Text>
+            <Text style={styles.seeAll}>See all ({vendorOrders.length})</Text>
           </TouchableOpacity>
         </View>
 
         {recentOrders.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyText}>No orders placed yet.</Text>
-          </Card>
+          <View style={styles.emptyBox}>
+            <Ionicons name="receipt-outline" size={32} color={colors.textMuted} />
+            <Text style={styles.emptyTitle}>No orders yet</Text>
+            <Text style={styles.emptySubtitle}>Your orders will appear here once placed</Text>
+          </View>
         ) : (
           recentOrders.map((order) => (
             <OrderCard
@@ -139,6 +146,8 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
             />
           ))
         )}
+
+        <View style={{ height: spacing.xxl }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -149,77 +158,75 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  cartIconBtn: {
-    padding: 6,
-    position: 'relative',
+  scroll: {
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: spacing.lg,
   },
-  cartBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: colors.danger,
-    borderRadius: 9,
-    width: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cartBadgeText: {
-    ...typography.captionBold,
-    color: colors.textInverse,
-    fontSize: 10,
-  },
-  scrollContent: {
-    padding: spacing.screenPadding,
-  },
-  cutoffBanner: {
+
+  // Notice pill
+  noticePill: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     backgroundColor: colors.statusPendingBg,
-    padding: spacing.md,
-    borderRadius: spacing.borderRadiusMd,
-    marginBottom: spacing.md,
-  },
-  cutoffText: {
-    ...typography.captionBold,
-    color: colors.statusPendingText,
-    marginLeft: spacing.sm,
-  },
-  creditCard: {
-    marginTop: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  creditRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xs,
-  },
-  creditLabel: {
-    ...typography.captionBold,
-    color: colors.textSecondary,
-    fontSize: 11,
-  },
-  creditVal: {
-    ...typography.captionBold,
-    color: colors.textPrimary,
-    fontSize: 11,
-  },
-  gaugeTrack: {
-    height: 8,
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginTop: 4,
-  },
-  gaugeFill: {
-    height: '100%',
-    backgroundColor: colors.accent,
-    borderRadius: 4,
-  },
-  primaryActionContainer: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: spacing.borderRadiusFull,
+    gap: 5,
     marginBottom: spacing.xl,
   },
+  noticeText: {
+    ...typography.captionBold,
+    color: colors.statusPendingText,
+    fontSize: 11,
+  },
+
+  // Credit section
+  creditSection: {
+    marginTop: spacing.xl,
+    marginBottom: spacing.xs,
+  },
+  creditTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  creditTitle: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+  },
+  creditValues: {
+    ...typography.captionBold,
+    color: colors.textPrimary,
+  },
+  creditOf: {
+    color: colors.textMuted,
+    fontWeight: '400',
+  },
+  trackBg: {
+    height: 6,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  trackFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  creditWarning: {
+    ...typography.caption,
+    color: colors.danger,
+    marginTop: spacing.xs,
+  },
+
+  // CTA
+  ctaContainer: {
+    marginTop: spacing.sectionGap,
+    marginBottom: spacing.sectionGap,
+  },
+
+  // Section header
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -230,16 +237,53 @@ const styles = StyleSheet.create({
     ...typography.h3,
     color: colors.textPrimary,
   },
-  seeAllText: {
+  seeAll: {
     ...typography.captionBold,
     color: colors.accent,
   },
-  emptyCard: {
-    padding: spacing.xl,
+
+  // Empty state
+  emptyBox: {
     alignItems: 'center',
+    paddingVertical: spacing.xxxl,
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    gap: spacing.xs,
   },
-  emptyText: {
-    ...typography.body,
+  emptyTitle: {
+    ...typography.bodyBold,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+  },
+  emptySubtitle: {
+    ...typography.caption,
     color: colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: spacing.xxl,
+  },
+
+  // Cart button
+  cartBtn: {
+    padding: 6,
+    position: 'relative',
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: 1,
+    right: 1,
+    backgroundColor: colors.danger,
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartBadgeText: {
+    ...typography.captionBold,
+    color: colors.textInverse,
+    fontSize: 9,
   },
 });

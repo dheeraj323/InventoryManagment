@@ -32,7 +32,7 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         ListHeaderComponent={
           <Card style={styles.headerCard} outlined elevation="md">
             <Text style={styles.headerLabel}>TOTAL SUPPLIER PAYABLES</Text>
-            <Text style={styles.headerVal}>${totalPayables.toFixed(2)}</Text>
+            <Text style={styles.headerVal}>₹{totalPayables.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </Card>
         }
         renderItem={({ item }) => (
@@ -46,7 +46,7 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
               <View style={styles.balanceCol}>
                 <Text style={styles.balanceLabel}>Payable Balance</Text>
-                <Text style={styles.balanceVal}>${item.balancePayable.toFixed(2)}</Text>
+                <Text style={styles.balanceVal}>₹{item.balancePayable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
               </View>
             </View>
           </Card>

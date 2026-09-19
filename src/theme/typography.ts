@@ -12,8 +12,8 @@ export const typography = {
     letterSpacing: -0.3,
   },
   h3: {
-    fontSize: 17,
-    lineHeight: 24,
+    fontSize: 16,
+    lineHeight: 22,
     fontWeight: '600' as const,
   },
   subtitle: {
@@ -41,6 +41,14 @@ export const typography = {
     lineHeight: 16,
     fontWeight: '600' as const,
   },
+  // Field labels — small, muted, uppercase. Use sparingly.
+  label: {
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '600' as const,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase' as const,
+  },
   currency: {
     fontSize: 16,
     lineHeight: 22,
@@ -50,5 +58,12 @@ export const typography = {
     fontSize: 22,
     lineHeight: 28,
     fontWeight: '800' as const,
+  },
+  // Hero amount — for ledger balance, finance totals
+  hero: {
+    fontSize: 30,
+    lineHeight: 36,
+    fontWeight: '800' as const,
+    letterSpacing: -0.5,
   },
 };

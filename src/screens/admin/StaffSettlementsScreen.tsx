@@ -6,6 +6,7 @@ import {
   SafeAreaView,
   FlatList,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useCashStore } from '../../store/useCashStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Header } from '../../components/common/Header';
@@ -19,15 +20,34 @@ export const StaffSettlementsScreen: React.FC<{ navigation: any }> = ({ navigati
   const { settlements, verifySettlement } = useCashStore();
   const { currentUser } = useAuthStore();
 
+  const pendingCount = settlements.filter((s) => s.status === 'PENDING_VERIFICATION').length;
+
   const handleVerify = (id: string) => {
     verifySettlement(id, currentUser?.name || 'Admin Rajesh');
   };
+
+  const renderHeader = () => (
+    <View style={styles.summaryBar}>
+      <View style={styles.summaryPill}>
+        <Ionicons name="documents-outline" size={16} color={colors.primary} />
+        <Text style={styles.summaryText}>{settlements.length} Total Handovers</Text>
+      </View>
+      {pendingCount > 0 ? (
+        <View style={[styles.summaryPill, styles.pendingPill]}>
+          <Ionicons name="time-outline" size={16} color="#D97706" />
+          <Text style={[styles.summaryText, { color: '#D97706' }]}>
+            {pendingCount} Pending Audit
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
       <Header
         title="Staff Cash Settlements"
-        subtitle={`${settlements.length} Handover Audit Logs`}
+        subtitle="Audit & verify end-of-day cash handovers"
         showBack
         onBackPress={() => navigation.goBack()}
       />
@@ -36,64 +56,89 @@ export const StaffSettlementsScreen: React.FC<{ navigation: any }> = ({ navigati
         data={settlements}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
+        ListHeaderComponent={renderHeader}
         renderItem={({ item }) => {
           const isPending = item.status === 'PENDING_VERIFICATION';
+          const handedOver = item.handedOverCash || item.amountHandedOver || 0;
+          const expected = item.totalCashCollected || item.amountCollected || 0;
+          const variance = item.variance || item.difference || 0;
+          const initial = item.staffName ? item.staffName.charAt(0).toUpperCase() : 'S';
 
           return (
-            <Card style={styles.card} outlined elevation="sm">
+            <Card variant="flat" style={styles.card}>
               <View style={styles.headerRow}>
-                <View>
-                  <Text style={styles.numText}>{item.settlementNumber}</Text>
-                  <Text style={styles.staffText}>
-                    Executive: {item.staffName} • {item.date}
-                  </Text>
+                <View style={styles.staffInfoGroup}>
+                  <View style={styles.avatarCircle}>
+                    <Text style={styles.avatarText}>{initial}</Text>
+                  </View>
+                  <View>
+                    <Text style={styles.staffNameText}>{item.staffName}</Text>
+                    <Text style={styles.metaText}>
+                      {item.settlementNumber} • {item.date}
+                    </Text>
+                  </View>
                 </View>
 
                 <StatusBadge
                   customLabel={isPending ? 'Pending Audit' : 'Verified'}
-                  customBg={isPending ? colors.statusPendingBg : colors.statusDeliveredBg}
-                  customColor={isPending ? colors.statusPendingText : colors.statusDeliveredText}
+                  customBg={isPending ? '#FEF3C7' : colors.brandGreenLight}
+                  customColor={isPending ? '#D97706' : colors.brandGreen}
                   size="sm"
                 />
               </View>
 
-              <View style={styles.metricsBox}>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>Expected Cash</Text>
+              <View style={styles.metricsGrid}>
+                <View style={styles.metricCol}>
+                  <Text style={styles.metricLabel}>EXPECTED</Text>
                   <Text style={styles.metricVal}>
-                    ${item.totalCashCollected.toFixed(2)}
+                    ₹{expected.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </Text>
                 </View>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>Actual Handed Over</Text>
-                  <Text style={styles.metricVal}>
-                    ${item.handedOverCash.toFixed(2)}
+
+                <View style={styles.metricDivider} />
+
+                <View style={styles.metricCol}>
+                  <Text style={styles.metricLabel}>HANDED OVER</Text>
+                  <Text style={styles.metricValBold}>
+                    ₹{handedOver.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </Text>
                 </View>
-                <View style={styles.metricItem}>
-                  <Text style={styles.metricLabel}>Variance</Text>
+
+                <View style={styles.metricDivider} />
+
+                <View style={styles.metricCol}>
+                  <Text style={styles.metricLabel}>VARIANCE</Text>
                   <Text
                     style={[
-                      styles.metricVal,
-                      item.variance === 0
-                        ? { color: colors.success }
+                      styles.metricValBold,
+                      variance === 0
+                        ? { color: colors.brandGreen }
+                        : variance > 0
+                        ? { color: '#D97706' }
                         : { color: colors.danger },
                     ]}
                   >
-                    ${item.variance.toFixed(2)}
+                    {variance === 0
+                      ? '₹0.00'
+                      : variance > 0
+                      ? `+₹${variance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+                      : `-₹${Math.abs(variance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
                   </Text>
                 </View>
               </View>
 
-              {item.notes && (
-                <Text style={styles.notesText}>Notes: {item.notes}</Text>
-              )}
+              {item.notes ? (
+                <View style={styles.notesBox}>
+                  <Ionicons name="document-text-outline" size={14} color={colors.textMuted} />
+                  <Text style={styles.notesText}>{item.notes}</Text>
+                </View>
+              ) : null}
 
               {isPending && (
                 <Button
-                  title="VERIFY CASH & APPROVE SETTLEMENT"
+                  title="Verify & Approve Settlement"
                   onPress={() => handleVerify(item.id)}
-                  size="sm"
+                  size="md"
                   style={styles.verifyBtn}
                 />
               )}
@@ -119,52 +164,118 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: spacing.screenPadding,
+    paddingBottom: spacing.xxl,
+  },
+  summaryBar: {
+    flexDirection: 'row',
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  summaryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: spacing.borderRadiusLg,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    gap: 6,
+  },
+  pendingPill: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
+  },
+  summaryText: {
+    ...typography.captionBold,
+    color: colors.textPrimary,
   },
   card: {
+    padding: spacing.lg,
     marginBottom: spacing.md,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
-  numText: {
+  staffInfoGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatarCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surfaceSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
+  avatarText: {
+    ...typography.bodyBold,
+    color: colors.primary,
+  },
+  staffNameText: {
     ...typography.bodyBold,
     color: colors.textPrimary,
   },
-  staffText: {
+  metaText: {
     ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
+    color: colors.textMuted,
+    marginTop: 1,
   },
-  metricsBox: {
+  metricsGrid: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: colors.surfaceSubtle,
     padding: spacing.md,
-    borderRadius: spacing.borderRadiusSm,
-    marginVertical: spacing.xs,
+    borderRadius: spacing.borderRadiusMd,
   },
-  metricItem: {
+  metricCol: {
+    flex: 1,
     alignItems: 'center',
   },
+  metricDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: colors.divider,
+  },
   metricLabel: {
-    ...typography.caption,
+    ...typography.label,
     fontSize: 9,
     color: colors.textMuted,
   },
   metricVal: {
+    ...typography.captionBold,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  metricValBold: {
     ...typography.bodyBold,
     marginTop: 2,
   },
+  notesBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    padding: spacing.sm,
+    borderRadius: spacing.borderRadiusSm,
+    marginTop: spacing.sm,
+    gap: 6,
+  },
   notesText: {
     ...typography.caption,
-    color: colors.textMuted,
-    marginTop: spacing.xs,
+    color: colors.textSecondary,
+    flex: 1,
   },
   verifyBtn: {
     marginTop: spacing.md,
+    borderRadius: spacing.borderRadiusLg,
   },
 });
+

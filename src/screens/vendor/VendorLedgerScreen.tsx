@@ -16,6 +16,14 @@ import { LedgerRow } from '../../components/ledger/LedgerRow';
 import { EmptyState } from '../../components/common/EmptyState';
 import { colors, typography, spacing } from '../../theme';
 
+type FilterType = 'ALL' | 'DEBIT' | 'CREDIT';
+
+const FILTERS: { key: FilterType; label: string }[] = [
+  { key: 'ALL', label: 'All' },
+  { key: 'DEBIT', label: 'You Gave' },
+  { key: 'CREDIT', label: 'You Got' },
+];
+
 export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { getLedgerForParty, getPartyRunningBalance } = useLedgerStore();
   const { activeVendorId } = useAuthStore();
@@ -37,7 +45,7 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
   const entries = getLedgerForParty(vendor.id);
   const runningBalance = getPartyRunningBalance(vendor.id);
 
-  const [filter, setFilter] = useState<'ALL' | 'DEBIT' | 'CREDIT'>('ALL');
+  const [filter, setFilter] = useState<FilterType>('ALL');
 
   const filteredEntries = entries.filter((e) => {
     if (filter === 'ALL') return true;
@@ -55,8 +63,8 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
   return (
     <SafeAreaView style={styles.container}>
       <Header
-        title={`${vendor.shopName} Ledger`}
-        subtitle="Khatabook Transaction History"
+        title="Khata"
+        subtitle={vendor.shopName}
         showBack
         onBackPress={() => navigation.goBack()}
       />
@@ -65,49 +73,55 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
         data={filteredEntries}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          <View style={styles.headerComponent}>
-            <LedgerSummaryCard
-              currentBalance={runningBalance}
-              totalGave={totalGave}
-              totalGot={totalGot}
-              partyName={vendor.shopName}
-            />
-
-            {/* Filter Tabs */}
-            <View style={styles.filterRow}>
-              {(['ALL', 'DEBIT', 'CREDIT'] as const).map((type) => {
-                const isActive = filter === type;
-                return (
-                  <TouchableOpacity
-                    key={type}
-                    style={[styles.chip, isActive ? styles.chipActive : null]}
-                    onPress={() => setFilter(type)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        isActive ? styles.chipTextActive : null,
-                      ]}
-                    >
-                      {type === 'ALL'
-                        ? 'All Txns'
-                        : type === 'DEBIT'
-                        ? 'You Gave (Debit)'
-                        : 'You Got (Credit)'}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+          <View>
+            {/* Summary card */}
+            <View style={styles.summaryWrap}>
+              <LedgerSummaryCard
+                currentBalance={runningBalance}
+                totalGave={totalGave}
+                totalGot={totalGot}
+                partyName={vendor.shopName}
+              />
             </View>
+
+            {/* Segmented control filter */}
+            <View style={styles.segmentContainer}>
+              <View style={styles.segment}>
+                {FILTERS.map((f) => {
+                  const isActive = filter === f.key;
+                  return (
+                    <TouchableOpacity
+                      key={f.key}
+                      style={[styles.segTab, isActive && styles.segTabActive]}
+                      onPress={() => setFilter(f.key)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.segTabText, isActive && styles.segTabTextActive]}>
+                        {f.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {/* Column labels */}
+            {filteredEntries.length > 0 && (
+              <View style={styles.columnLabels}>
+                <Text style={styles.colLabel}>TRANSACTION</Text>
+                <Text style={styles.colLabel}>AMOUNT</Text>
+              </View>
+            )}
           </View>
         }
         renderItem={({ item }) => <LedgerRow entry={item} />}
         ListEmptyComponent={
           <EmptyState
             iconName="book-outline"
-            title="No Transactions Found"
-            description="There are no transaction ledger records available for the selected filter."
+            title="No Transactions"
+            description="No records found for the selected filter."
           />
         }
       />
@@ -121,34 +135,61 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   listContent: {
-    padding: spacing.screenPadding,
+    paddingBottom: spacing.xxl,
   },
-  headerComponent: {
-    marginBottom: spacing.md,
+  summaryWrap: {
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.lg,
   },
-  filterRow: {
+
+  // Segmented control
+  segmentContainer: {
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing.sm,
+  },
+  segment: {
     flexDirection: 'row',
-    marginTop: spacing.md,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: spacing.borderRadiusLg,
+    padding: 3,
   },
-  chip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: spacing.borderRadiusFull,
+  segTab: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: spacing.borderRadiusMd,
+  },
+  segTabActive: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginRight: spacing.xs,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  chipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  chipText: {
+  segTabText: {
     ...typography.captionBold,
-    color: colors.textSecondary,
-    fontSize: 10,
+    color: colors.textMuted,
+    fontSize: 12,
   },
-  chipTextActive: {
-    color: colors.textInverse,
+  segTabTextActive: {
+    color: colors.textPrimary,
+  },
+
+  // Column labels
+  columnLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.screenPadding,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surfaceSubtle,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+  },
+  colLabel: {
+    ...typography.label,
+    color: colors.textMuted,
+    fontSize: 9,
   },
 });

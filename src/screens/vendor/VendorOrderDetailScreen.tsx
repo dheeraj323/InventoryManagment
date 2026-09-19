@@ -96,20 +96,20 @@ export const VendorOrderDetailScreen: React.FC<{ route: any; navigation: any }> 
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Subtotal</Text>
-            <Text style={styles.infoVal}>${order.subtotal.toFixed(2)}</Text>
+            <Text style={styles.infoVal}>₹{order.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Tax / GST (5%)</Text>
-            <Text style={styles.infoVal}>${order.tax.toFixed(2)}</Text>
+            <Text style={styles.infoVal}>₹{order.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
           <View style={[styles.infoRow, styles.totalRow]}>
             <Text style={styles.totalLabel}>Total Invoice Amount</Text>
-            <Text style={styles.totalVal}>${order.totalAmount.toFixed(2)}</Text>
+            <Text style={styles.totalVal}>₹{order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Amount Paid</Text>
             <Text style={[styles.infoVal, { color: colors.success }]}>
-              ${order.paidAmount.toFixed(2)}
+              ₹{order.paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </Text>
           </View>
           <View style={styles.infoRow}>
@@ -120,7 +120,7 @@ export const VendorOrderDetailScreen: React.FC<{ route: any; navigation: any }> 
                 { color: order.balanceDue > 0 ? colors.danger : colors.textSecondary },
               ]}
             >
-              ${order.balanceDue.toFixed(2)}
+              ₹{order.balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </Text>
           </View>
         </Card>

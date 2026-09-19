@@ -72,7 +72,7 @@ export const ProfileScreen: React.FC = () => {
           <Text style={styles.cardTitle}>CREDIT LINE TERMS</Text>
           <View style={styles.statRow}>
             <Text style={styles.statLabel}>Configured Credit Limit</Text>
-            <Text style={styles.statVal}>${vendor.creditLimit.toFixed(2)}</Text>
+            <Text style={styles.statVal}>₹{vendor.creditLimit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
           <View style={styles.statRow}>
             <Text style={styles.statLabel}>Pay Later Eligibility</Text>

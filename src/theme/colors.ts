@@ -6,11 +6,13 @@ export const colors = {
   accentLight: '#EFF6FF', // Blue 50
 
   // Backgrounds & Surface
-  background: '#F8FAFC', // Slate 50
+  background: '#F4F6F9', // Slightly warmer slate for less sterile look
   surface: '#FFFFFF',
+  surface2: '#F8FAFC', // Off-white for alternating section rows (Khatabook-style)
   surfaceSubtle: '#F1F5F9', // Slate 100
-  border: '#E2E8F0', // Slate 200
+  border: '#E8ECF0', // Slightly warmer border
   borderDark: '#CBD5E1', // Slate 300
+  divider: '#EEF1F4', // Hairline separators between list rows
 
   // Typography Colors
   textPrimary: '#0F172A',
@@ -23,6 +25,10 @@ export const colors = {
   debitLight: '#FEF2F2',
   credit: '#16A34A', // Green - You Got / Amount Received
   creditLight: '#F0FDF4',
+
+  // Brand green (Khatabook-inspired, used for positive ledger states)
+  brandGreen: '#12A454',
+  brandGreenLight: '#E6F7EE',
 
   // Status Badges
   statusPendingBg: '#FEF3C7',

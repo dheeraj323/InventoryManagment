@@ -53,10 +53,10 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
           <View style={styles.cashRow}>
             <View>
               <Text style={styles.cashLabel}>UNSETTLED CASH IN HAND</Text>
-              <Text style={styles.cashVal}>${staff.cashInHand.toFixed(2)}</Text>
+              <Text style={styles.cashVal}>₹{staff.cashInHand.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
             </View>
             <Button
-              title="SETTLE CASH"
+              title="Settle Cash"
               onPress={() => navigation.navigate('CashSettlement')}
               size="sm"
               variant="outline"
@@ -77,7 +77,7 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
         {/* Primary Delivery Action */}
         <View style={styles.actionBox}>
           <Button
-            title={`START TODAY'S DELIVERIES (${pendingDeliveries.length} PENDING)`}
+            title={`Start Today's Deliveries (${pendingDeliveries.length} pending)`}
             onPress={() => navigation.navigate('TodayDeliveries')}
             icon={<Ionicons name="bicycle" size={20} color={colors.textInverse} />}
             size="lg"

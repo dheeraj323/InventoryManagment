@@ -135,29 +135,29 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
           <Text style={styles.cardTitle}>RECALCULATED BILL TOTAL</Text>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Original Bill Total</Text>
-            <Text style={styles.summaryVal}>${order.totalAmount.toFixed(2)}</Text>
+            <Text style={styles.summaryVal}>₹{order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Actual Delivered Subtotal</Text>
-            <Text style={styles.summaryVal}>${calculatedSubtotal.toFixed(2)}</Text>
+            <Text style={styles.summaryVal}>₹{calculatedSubtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Tax / GST (5%)</Text>
-            <Text style={styles.summaryVal}>${calculatedTax.toFixed(2)}</Text>
+            <Text style={styles.summaryVal}>₹{calculatedTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.summaryRow}>
             <Text style={styles.totalLabel}>
               {hasMissingOrDamaged ? 'Partially Delivered Total' : 'Final Payable Total'}
             </Text>
-            <Text style={styles.totalVal}>${calculatedTotal.toFixed(2)}</Text>
+            <Text style={styles.totalVal}>₹{calculatedTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
         </Card>
       </ScrollView>
 
       <View style={styles.footerContainer}>
         <Button
-          title={`RECORD PAYMENT COLLECTION ($${calculatedTotal.toFixed(2)})`}
+          title={`Record Payment Collection  ₹${calculatedTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
           onPress={handleProceedToPayment}
           size="lg"
         />

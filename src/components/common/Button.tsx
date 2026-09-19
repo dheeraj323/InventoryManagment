@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   ViewStyle,
   TextStyle,
+  View,
 } from 'react-native';
 import { colors, typography, spacing, shadows } from '../../theme';
 
@@ -39,23 +40,25 @@ export const Button: React.FC<ButtonProps> = ({
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: spacing.borderRadiusMd,
     };
 
     if (fullWidth) {
       base.width = '100%';
     }
 
-    // Size variations
+    // Size variations — lg gets XL radius for a modern feel
     if (size === 'sm') {
       base.paddingVertical = spacing.sm;
       base.paddingHorizontal = spacing.md;
+      base.borderRadius = spacing.borderRadiusMd;
     } else if (size === 'lg') {
-      base.paddingVertical = spacing.lg;
+      base.paddingVertical = spacing.lg + 2;
       base.paddingHorizontal = spacing.xxl;
+      base.borderRadius = spacing.borderRadiusXl;
     } else {
       base.paddingVertical = spacing.md;
       base.paddingHorizontal = spacing.lg;
+      base.borderRadius = spacing.borderRadiusLg;
     }
 
     // Variant variations
@@ -79,11 +82,14 @@ export const Button: React.FC<ButtonProps> = ({
       case 'primary':
       default:
         base.backgroundColor = colors.primary;
+        if (size === 'lg') {
+          Object.assign(base, shadows.sm);
+        }
         break;
     }
 
     if (disabled) {
-      base.opacity = 0.5;
+      base.opacity = 0.45;
     }
 
     return base;
@@ -98,7 +104,9 @@ export const Button: React.FC<ButtonProps> = ({
     if (size === 'sm') {
       textBase.fontSize = 13;
     } else if (size === 'lg') {
-      textBase.fontSize = 16;
+      textBase.fontSize = 15;
+      textBase.fontWeight = '700';
+      textBase.letterSpacing = 0.2;
     }
 
     switch (variant) {
@@ -128,19 +136,21 @@ export const Button: React.FC<ButtonProps> = ({
       style={[getContainerStyle(), style]}
       onPress={onPress}
       disabled={disabled || loading}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
     >
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'outline' || variant === 'secondary' || variant === 'ghost' ? colors.primary : colors.textInverse}
+          color={
+            variant === 'outline' || variant === 'secondary' || variant === 'ghost'
+              ? colors.primary
+              : colors.textInverse
+          }
         />
       ) : (
         <>
-          {icon && <React.Fragment>{icon}</React.Fragment>}
-          <Text style={[getTextStyle(), icon ? { marginLeft: spacing.sm } : null, textStyle]}>
-            {title}
-          </Text>
+          {icon && <View style={{ marginRight: spacing.sm }}>{icon}</View>}
+          <Text style={[getTextStyle(), textStyle]}>{title}</Text>
         </>
       )}
     </TouchableOpacity>

@@ -67,7 +67,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       }
       if (exceedsCredit) {
         setErrorMsg(
-          `Order total ($${totalAmount.toFixed(2)}) exceeds remaining credit ($${remainingCredit.toFixed(2)}). Please choose Cash or Online transfer.`
+          `Order total (₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}) exceeds remaining credit (₹${remainingCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}). Please choose Cash or Online transfer.`
         );
         return;
       }
@@ -214,7 +214,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                   </Text>
                   {mode === 'PAY_LATER' && (
                     <Text style={styles.paymentSubtext}>
-                      Available Credit: ${remainingCredit.toFixed(2)}
+                    Available Credit: ₹{remainingCredit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       {exceedsCredit ? ' (Exceeded)' : ''}
                     </Text>
                   )}
@@ -238,7 +238,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         <Card style={styles.card} outlined elevation="sm">
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Grand Total Amount</Text>
-            <Text style={styles.totalVal}>${totalAmount.toFixed(2)}</Text>
+            <Text style={styles.totalVal}>₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
         </Card>
 
@@ -253,7 +253,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       {/* Place Order CTA Button */}
       <View style={styles.footerContainer}>
         <Button
-          title={`CONFIRM & PLACE ORDER ($${totalAmount.toFixed(2)})`}
+          title={`Confirm & Place Order  ₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
           onPress={handlePlaceOrder}
           loading={loading}
           size="lg"
