@@ -157,11 +157,11 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
         <Card style={styles.card} outlined elevation="sm">
           <Text style={styles.cardTitle}>COLLECTED AMOUNT RECORD</Text>
           <Input
-            label="Actual Cash/Online Amount Collected ($)"
+            label="Actual Cash/Online Amount Collected (₹)"
             value={amountCollectedStr}
             onChangeText={setAmountCollectedStr}
             keyboardType="numeric"
-            prefix="$"
+            prefix="₹"
           />
           <Input
             label="Proof / Transaction Ref / Delivery Notes"
@@ -184,10 +184,11 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
       {/* Confirm Delivery Button */}
       <View style={styles.footerContainer}>
         <Button
-          title="CONFIRM DELIVERY & RECORD PAYMENT"
+          title="Confirm Delivery & Record Payment"
           onPress={handleConfirmDeliveryAndPayment}
           loading={loading}
           size="lg"
+          style={styles.submitBtn}
         />
       </View>
     </SafeAreaView>
@@ -287,5 +288,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
+  },
+  submitBtn: {
+    backgroundColor: colors.navy,
+    borderRadius: spacing.borderRadiusXl,
   },
 });
