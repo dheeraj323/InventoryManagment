@@ -20,8 +20,8 @@ type FilterType = 'ALL' | 'DEBIT' | 'CREDIT';
 
 const FILTERS: { key: FilterType; label: string }[] = [
   { key: 'ALL', label: 'All' },
-  { key: 'DEBIT', label: 'You Gave' },
-  { key: 'CREDIT', label: 'You Got' },
+  { key: 'DEBIT', label: 'Billed (Orders)' },
+  { key: 'CREDIT', label: 'Paid (Payments)' },
 ];
 
 export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -52,11 +52,11 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
     return e.type === filter;
   });
 
-  const totalGave = entries
+  const totalBilled = entries
     .filter((e) => e.type === 'DEBIT')
     .reduce((sum, e) => sum + e.amount, 0);
 
-  const totalGot = entries
+  const totalPaid = entries
     .filter((e) => e.type === 'CREDIT')
     .reduce((sum, e) => sum + e.amount, 0);
 
@@ -80,8 +80,10 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
             <View style={styles.summaryWrap}>
               <LedgerSummaryCard
                 currentBalance={runningBalance}
-                totalGave={totalGave}
-                totalGot={totalGot}
+                totalGave={totalBilled}
+                totalGot={totalPaid}
+                debitLabel="Total Billed"
+                creditLabel="Total Paid"
                 partyName={vendor.shopName}
               />
             </View>
@@ -116,7 +118,7 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
             )}
           </View>
         }
-        renderItem={({ item }) => <LedgerRow entry={item} />}
+        renderItem={({ item }) => <LedgerRow entry={item} perspective="VENDOR" />}
         ListEmptyComponent={
           <EmptyState
             iconName="book-outline"

@@ -91,6 +91,8 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
         <LedgerSummaryCard
           currentBalance={runningBalance}
           partyName={`${vendor.shopName} Ledger`}
+          debitLabel="Total Billed"
+          creditLabel="Total Collected"
         />
 
         {/* Credit Limit & Pay Later Controls */}
@@ -98,11 +100,11 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
           <Text style={styles.cardTitle}>CREDIT LIMIT & PAY LATER CONTROL</Text>
 
           <Input
-            label="Vendor Credit Limit ($)"
+            label="Vendor Credit Limit (₹)"
             value={creditLimitStr}
             onChangeText={setCreditLimitStr}
             keyboardType="numeric"
-            prefix="$"
+            prefix="₹"
           />
 
           <View style={styles.switchRow}>
@@ -140,6 +142,7 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
           <LedgerRow
             key={entry.id}
             entry={entry}
+            perspective="ADMIN"
             onPress={() => {
               setSelectedLedgerEntry(entry);
               setShowModal(true);

@@ -3,10 +3,12 @@ import { View, Text, StyleSheet } from 'react-native';
 import { colors, typography, spacing } from '../../theme';
 
 export interface LedgerSummaryCardProps {
-  currentBalance: number; // Positive = Receivable (You will get), Negative = Advance (You will give)
+  currentBalance: number; // Positive = Receivable (Vendor owes), Negative = Advance (Prepaid)
   totalGave?: number;
   totalGot?: number;
   partyName?: string;
+  debitLabel?: string; // Defaults to 'Total Billed'
+  creditLabel?: string; // Defaults to 'Total Paid'
 }
 
 export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
@@ -14,6 +16,8 @@ export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
   totalGave = 0,
   totalGot = 0,
   partyName,
+  debitLabel = 'Total Billed',
+  creditLabel = 'Total Paid',
 }) => {
   const isReceivable = currentBalance >= 0;
   const accentColor = isReceivable ? colors.debit : colors.brandGreen;
@@ -32,7 +36,7 @@ export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
       <View style={styles.heroRow}>
         <View style={styles.heroLeft}>
           <Text style={styles.heroLabel}>
-            {isReceivable ? 'Net Due' : 'Settled / Advance'}
+            {isReceivable ? 'Net Outstanding Due' : 'Settled / Advance'}
           </Text>
           <Text style={[styles.heroAmount, { color: accentColor }]}>
             ₹{Math.abs(currentBalance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -49,14 +53,14 @@ export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
       {(totalGave > 0 || totalGot > 0) && (
         <View style={styles.statsRow}>
           <View style={styles.statBlock}>
-            <Text style={styles.statLabel}>Total Gave</Text>
+            <Text style={styles.statLabel}>{debitLabel}</Text>
             <Text style={[styles.statAmount, { color: colors.debit }]}>
               ₹{totalGave.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBlock}>
-            <Text style={styles.statLabel}>Total Got</Text>
+            <Text style={styles.statLabel}>{creditLabel}</Text>
             <Text style={[styles.statAmount, { color: colors.brandGreen }]}>
               ₹{totalGot.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>

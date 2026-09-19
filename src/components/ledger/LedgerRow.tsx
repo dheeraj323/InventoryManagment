@@ -7,14 +7,16 @@ export interface LedgerRowProps {
   entry: LedgerEntry;
   onPress?: () => void;
   showPartyName?: boolean;
+  perspective?: 'VENDOR' | 'ADMIN';
 }
 
 export const LedgerRow: React.FC<LedgerRowProps> = ({
   entry,
   onPress,
   showPartyName = false,
+  perspective = 'VENDOR',
 }) => {
-  const isDebit = entry.type === 'DEBIT'; // Distributor gave goods / credit extended
+  const isDebit = entry.type === 'DEBIT'; // Order / Invoice billed on credit
   const accentColor = isDebit ? colors.debit : colors.brandGreen;
 
   const dateFormatted = new Date(entry.date).toLocaleDateString('en-IN', {
@@ -23,6 +25,13 @@ export const LedgerRow: React.FC<LedgerRowProps> = ({
     hour: '2-digit',
     minute: '2-digit',
   });
+
+  const getTransactionLabel = () => {
+    if (perspective === 'VENDOR') {
+      return isDebit ? 'BILLED / ORDER' : 'PAYMENT PAID';
+    }
+    return isDebit ? 'GOODS GIVEN' : 'COLLECTED';
+  };
 
   return (
     <TouchableOpacity
@@ -63,17 +72,17 @@ export const LedgerRow: React.FC<LedgerRowProps> = ({
       {/* Right: amount + running balance */}
       <View style={styles.rightCol}>
         <Text style={[styles.amountLabel, { color: accentColor }]}>
-          {isDebit ? 'YOU GAVE' : 'YOU GOT'}
+          {getTransactionLabel()}
         </Text>
         <Text style={[styles.amount, { color: accentColor }]}>
-          {isDebit ? '−' : '+'}₹{entry.amount.toLocaleString('en-IN', {
+          ₹{entry.amount.toLocaleString('en-IN', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}
         </Text>
         <View style={styles.balanceTag}>
           <Text style={styles.balanceText}>
-            Bal ₹{entry.runningBalance.toLocaleString('en-IN', {
+            Due ₹{entry.runningBalance.toLocaleString('en-IN', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
