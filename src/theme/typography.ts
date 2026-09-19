@@ -66,4 +66,9 @@ export const typography = {
     fontWeight: '800' as const,
     letterSpacing: -0.5,
   },
+  button: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600' as const,
+  },
 };

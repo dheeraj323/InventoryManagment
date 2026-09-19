@@ -49,18 +49,23 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
       .join('');
 
   // SectionList data
-  const sections = [
+  const sections: {
+    title: string;
+    count: number;
+    data: any[];
+    type: 'vendor' | 'supplier';
+  }[] = [
     {
       title: 'Vendor Receivables',
       count: vendorBalances.length,
       data: vendorBalances,
-      type: 'vendor' as const,
+      type: 'vendor',
     },
     {
       title: 'Supplier Payables',
       count: suppliers.length,
       data: suppliers,
-      type: 'supplier' as const,
+      type: 'supplier',
     },
   ];
 
