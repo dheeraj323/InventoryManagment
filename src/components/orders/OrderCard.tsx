@@ -9,12 +9,16 @@ export interface OrderCardProps {
   order: Order;
   onPress: () => void;
   showVendorName?: boolean;
+  actionLabel?: string;
+  showDeliverAction?: boolean;
 }
 
 export const OrderCard: React.FC<OrderCardProps> = ({
   order,
   onPress,
   showVendorName = true,
+  actionLabel,
+  showDeliverAction = false,
 }) => {
   const itemCount = order.items.reduce((sum, i) => sum + i.orderedQty, 0);
   const formattedDate = new Date(order.orderDate).toLocaleDateString('en-IN', {
@@ -23,7 +27,14 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     year: 'numeric',
   });
 
-  const isPendingDelivery = order.status === 'OUT_FOR_DELIVERY' || order.status === 'PENDING' || order.status === 'APPROVED';
+  const isPendingDelivery =
+    showDeliverAction &&
+    (order.status === 'OUT_FOR_DELIVERY' ||
+      order.status === 'PENDING' ||
+      order.status === 'APPROVED');
+
+  const displayActionLabel =
+    actionLabel || (isPendingDelivery ? 'Deliver Now' : 'View Details');
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
@@ -63,7 +74,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         </View>
         <View style={[styles.viewPill, isPendingDelivery && styles.deliverNowPill]}>
           <Text style={[styles.viewText, isPendingDelivery && styles.deliverNowText]}>
-            {isPendingDelivery ? 'Deliver Now' : 'View Details'}
+            {displayActionLabel}
           </Text>
           <Ionicons
             name="chevron-forward"

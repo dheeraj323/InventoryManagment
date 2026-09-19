@@ -6,6 +6,7 @@ import {
   SafeAreaView,
   FlatList,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import { useOrderStore } from '../../store/useOrderStore';
 import { OrderCard } from '../../components/orders/OrderCard';
@@ -33,26 +34,33 @@ export const AdminOrdersScreen: React.FC<{ navigation: any }> = ({ navigation })
         onBackPress={() => navigation.goBack()}
       />
 
-      <View style={styles.filterRow}>
-        {filters.map((filter) => {
-          const isActive = selectedFilter === filter;
-          return (
-            <TouchableOpacity
-              key={filter}
-              style={[styles.filterChip, isActive ? styles.filterChipActive : null]}
-              onPress={() => setSelectedFilter(filter)}
-            >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  isActive ? styles.filterChipTextActive : null,
-                ]}
+      <View style={styles.filterWrapper}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {filters.map((filter) => {
+            const isActive = selectedFilter === filter;
+            return (
+              <TouchableOpacity
+                key={filter}
+                style={[styles.filterChip, isActive ? styles.filterChipActive : null]}
+                onPress={() => setSelectedFilter(filter)}
+                activeOpacity={0.8}
               >
-                {filter.replace(/_/g, ' ')}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    isActive ? styles.filterChipTextActive : null,
+                  ]}
+                >
+                  {filter.replace(/_/g, ' ')}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       <FlatList
@@ -85,13 +93,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  filterWrapper: {
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   filterRow: {
     flexDirection: 'row',
     paddingHorizontal: spacing.screenPadding,
     paddingVertical: spacing.md,
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
   filterChip: {
     paddingHorizontal: spacing.md,

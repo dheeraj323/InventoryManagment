@@ -36,6 +36,7 @@ export const TodayDeliveriesScreen: React.FC<{ navigation: any }> = ({ navigatio
           <OrderCard
             order={item}
             showVendorName
+            showDeliverAction
             onPress={() =>
               navigation.navigate('DeliveryDetail', { orderId: item.id })
             }

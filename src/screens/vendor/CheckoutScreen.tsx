@@ -95,7 +95,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         deliveryDate,
         assignedStaffId: 'staff-1',
         assignedStaffName: 'Suresh Kumar',
-        notes: notes.trim() || undefined,
+        notes: notes.trim() || '',
       });
 
       // If Pay Later, record ledger debit entry immediately

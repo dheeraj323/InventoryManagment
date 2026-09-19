@@ -17,21 +17,41 @@ import { LedgerEntry, AuditLog } from '../types';
 const LEDGER_COLLECTION = 'ledgerEntries';
 const AUDIT_LOGS_COLLECTION = 'auditLogs';
 
+function cleanFirestoreData<T extends Record<string, any>>(obj: T): T {
+  const cleaned: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        cleaned[key] = cleanFirestoreData(value);
+      } else if (Array.isArray(value)) {
+        cleaned[key] = value.map((item) =>
+          typeof item === 'object' && item !== null ? cleanFirestoreData(item) : item
+        );
+      } else {
+        cleaned[key] = value;
+      }
+    }
+  }
+  return cleaned;
+}
+
 export const ledgerService = {
   // Get ledger entries for a party (vendor or supplier)
   getLedgerForParty: async (partyId: string): Promise<LedgerEntry[]> => {
     try {
       const q = query(
         collection(db, LEDGER_COLLECTION),
-        where('partyId', '==', partyId),
-        orderBy('date', 'desc')
+        where('partyId', '==', partyId)
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((docSnap) => ({
+      const entries = snapshot.docs.map((docSnap) => ({
         id: docSnap.id,
         entryId: docSnap.id,
         ...docSnap.data(),
       })) as LedgerEntry[];
+      return entries.sort(
+        (a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime()
+      );
     } catch (error) {
       console.error(`Error fetching ledger for party ${partyId}:`, error);
       return [];
@@ -76,10 +96,10 @@ export const ledgerService = {
       createdAt: new Date().toISOString(),
     };
 
-    await setDoc(entryRef, {
+    await setDoc(entryRef, cleanFirestoreData({
       ...newEntry,
       createdAt: serverTimestamp(),
-    });
+    }));
 
     return newEntry;
   },

@@ -20,6 +20,24 @@ const VENDORS_COLLECTION = 'vendors';
 const PRODUCTS_COLLECTION = 'products';
 const LEDGER_COLLECTION = 'ledgerEntries';
 
+function cleanFirestoreData<T extends Record<string, any>>(obj: T): T {
+  const cleaned: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        cleaned[key] = cleanFirestoreData(value);
+      } else if (Array.isArray(value)) {
+        cleaned[key] = value.map((item) =>
+          typeof item === 'object' && item !== null ? cleanFirestoreData(item) : item
+        );
+      } else {
+        cleaned[key] = value;
+      }
+    }
+  }
+  return cleaned;
+}
+
 export const orderService = {
   // Fetch all orders
   getOrders: async (): Promise<Order[]> => {
@@ -65,7 +83,7 @@ export const orderService = {
     const newOrderRef = doc(collection(db, ORDERS_COLLECTION));
 
     return await runTransaction(db, async (transaction) => {
-      // 1. Fetch Vendor Document to validate Pay Later eligibility & Credit Limit
+      // 1. Fetch Vendor Document to validate Pay Later eligibility & Credit Limit (READ)
       const vendorRef = doc(db, VENDORS_COLLECTION, orderData.vendorId);
       const vendorSnap = await transaction.get(vendorRef);
 
@@ -84,7 +102,8 @@ export const orderService = {
         }
       }
 
-      // 2. Validate and reserve stock for each item
+      // 2. Fetch and validate stock for all items first (ALL READS)
+      const productUpdates: { ref: any; newStock: number }[] = [];
       for (const item of orderData.items) {
         const productRef = doc(db, PRODUCTS_COLLECTION, item.productId);
         const productSnap = await transaction.get(productRef);
@@ -93,17 +112,20 @@ export const orderService = {
           if (product.stockQty < item.orderedQty) {
             throw new Error(`Insufficient stock for product ${product.name}. Available: ${product.stockQty}, Requested: ${item.orderedQty}`);
           }
-          // Deduct reserved stock
           const newStock = product.stockQty - item.orderedQty;
-          transaction.update(productRef, {
-            stockQty: newStock,
-            availableStock: newStock,
-            updatedAt: serverTimestamp(),
-          });
+          productUpdates.push({ ref: productRef, newStock });
         }
       }
 
-      // 3. Construct unique Order Number
+      // 3. NOW PERFORM ALL WRITES
+      for (const pUpdate of productUpdates) {
+        transaction.update(pUpdate.ref, {
+          stockQty: pUpdate.newStock,
+          availableStock: pUpdate.newStock,
+          updatedAt: serverTimestamp(),
+        });
+      }
+
       const timestampPart = Date.now().toString().slice(-4);
       const orderNumber = `ORD-2026-${timestampPart}`;
 
@@ -112,14 +134,17 @@ export const orderService = {
         id: newOrderRef.id,
         orderId: newOrderRef.id,
         orderNumber,
+        notes: orderData.notes || '',
         createdAt: new Date().toISOString(),
       };
 
-      transaction.set(newOrderRef, {
+      const orderPayload = cleanFirestoreData({
         ...newOrder,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+
+      transaction.set(newOrderRef, orderPayload);
 
       return newOrder;
     });
@@ -143,6 +168,7 @@ export const orderService = {
     notes?: string
   ): Promise<void> => {
     await runTransaction(db, async (transaction) => {
+      // --- PHASE 1: ALL READS FIRST ---
       const orderRef = doc(db, ORDERS_COLLECTION, orderId);
       const orderSnap = await transaction.get(orderRef);
 
@@ -152,6 +178,11 @@ export const orderService = {
 
       const existingOrder = orderSnap.data() as Order;
 
+      // Fetch Vendor Document before any writes
+      const vendorRef = doc(db, VENDORS_COLLECTION, existingOrder.vendorId);
+      const vendorSnap = await transaction.get(vendorRef);
+
+      // --- PHASE 2: CALCULATIONS & PREPARATIONS ---
       // Recalculate delivered totals
       const newSubtotal = updatedItems.reduce(
         (sum, item) => sum + item.deliveredQty * item.unitPrice,
@@ -171,8 +202,9 @@ export const orderService = {
       const newBalanceDue = Math.max(0, newTotalAmount - safePaidAmount);
       const nowStr = new Date().toISOString();
 
+      // --- PHASE 3: ALL WRITES ---
       // 1. Update Order Document
-      transaction.update(orderRef, {
+      const orderUpdatePayload = cleanFirestoreData({
         items: updatedItems,
         subtotal: newSubtotal,
         tax: newTax,
@@ -186,10 +218,9 @@ export const orderService = {
         updatedAt: serverTimestamp(),
       });
 
-      // 2. Fetch Vendor to update outstanding balance
-      const vendorRef = doc(db, VENDORS_COLLECTION, existingOrder.vendorId);
-      const vendorSnap = await transaction.get(vendorRef);
+      transaction.update(orderRef, orderUpdatePayload);
 
+      // 2. If vendor exists, update outstanding balance and write ledger entries
       if (vendorSnap.exists()) {
         const vendor = vendorSnap.data() as Vendor;
         const currentBal = vendor.currentBalance || 0;
@@ -227,10 +258,10 @@ export const orderService = {
           createdAt: nowStr,
         };
 
-        transaction.set(ledgerRef, {
+        transaction.set(ledgerRef, cleanFirestoreData({
           ...debitEntry,
           createdAt: serverTimestamp(),
-        });
+        }));
 
         // 4. Record Credit Ledger Entry if payment was collected at delivery
         if (safePaidAmount > 0) {
@@ -259,10 +290,10 @@ export const orderService = {
             createdAt: nowStr,
           };
 
-          transaction.set(creditLedgerRef, {
+          transaction.set(creditLedgerRef, cleanFirestoreData({
             ...creditEntry,
             createdAt: serverTimestamp(),
-          });
+          }));
         }
       }
     });

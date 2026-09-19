@@ -169,6 +169,7 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
               key={order.id}
               order={order}
               showVendorName
+              showDeliverAction
               onPress={() =>
                 navigation.navigate('DeliveryDetail', { orderId: order.id })
               }
