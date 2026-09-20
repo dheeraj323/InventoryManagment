@@ -187,9 +187,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     get().initInventoryCache();
 
     const unsubSuppliers = supplierService.subscribeSuppliers((firestoreSups) => {
-      if (firestoreSups && firestoreSups.length > 0) {
-        set({ suppliers: firestoreSups });
-      }
+      set({ suppliers: firestoreSups || [] });
     });
 
     return () => {

@@ -19,13 +19,11 @@ import { invoiceService } from '../../services/invoiceService';
 import { paymentService } from '../../services/paymentService';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
-import { Input } from '../../components/common/Input';
 import { EmptyState } from '../../components/common/EmptyState';
 import { LedgerSummaryCard } from '../../components/ledger/LedgerSummaryCard';
 import { LedgerRow } from '../../components/ledger/LedgerRow';
-import { LedgerAdjustmentModal } from '../../components/ledger/LedgerAdjustmentModal';
-import { ConfirmationModal } from '../../components/common/ConfirmationModal';
+import { TransactionDetailModal } from '../../components/ledger/TransactionDetailModal';
+import { formatTransaction } from '../../utils/transactionFormatter';
 import { RecordPaymentModal } from '../../components/vendor/RecordPaymentModal';
 import {
   Vendor,
@@ -43,8 +41,7 @@ type DetailTab =
   | 'LEDGER'
   | 'ORDERS'
   | 'INVOICES'
-  | 'PAYMENTS'
-  | 'SETTINGS';
+  | 'PAYMENTS';
 
 const TABS: { label: string; value: DetailTab; icon: keyof typeof Ionicons.glyphMap }[] = [
   { label: 'Overview', value: 'OVERVIEW', icon: 'pie-chart-outline' },
@@ -52,21 +49,18 @@ const TABS: { label: string; value: DetailTab; icon: keyof typeof Ionicons.glyph
   { label: 'Orders', value: 'ORDERS', icon: 'receipt-outline' },
   { label: 'Invoices', value: 'INVOICES', icon: 'document-text-outline' },
   { label: 'Payments', value: 'PAYMENTS', icon: 'cash-outline' },
-  { label: 'Settings', value: 'SETTINGS', icon: 'settings-outline' },
 ];
 
 export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
   route,
   navigation,
 }) => {
-  const { vendorId } = route.params || {};
+  const { vendorId, initialTab } = route.params || {};
   const {
     getVendorById,
-    updateVendorProfile,
-    updateVendorStatus,
     recordDirectPayment,
   } = useVendorStore();
-  const { getLedgerForParty, adjustLedgerManual, getVendorAccountSummary } =
+  const { getLedgerForParty, getVendorAccountSummary } =
     useLedgerStore();
   const { orders } = useOrderStore();
   const { currentUser } = useAuthStore();
@@ -77,26 +71,25 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
     ownerName: 'Retailer',
     shopName: 'Vendor Shop',
     phone: '',
-    email: '',
     address: '',
-    area: '',
     currentBalance: 0,
     creditLimit: 0,
-    paymentTerms: 'Net 15 Days',
     payLaterEligible: true,
     preferredPaymentMode: 'CASH' as const,
     status: 'ACTIVE' as VendorStatus,
   };
 
-  const [activeTab, setActiveTab] = useState<DetailTab>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<DetailTab>(initialTab || 'OVERVIEW');
+
+  // Sync activeTab when navigating with a different initialTab param (e.g. from Finance screen)
+  useEffect(() => {
+    if (route.params?.initialTab) {
+      setActiveTab(route.params.initialTab);
+    }
+  }, [route.params?.initialTab]);
 
   // Modals
-  const [selectedLedgerEntry, setSelectedLedgerEntry] = useState<LedgerEntry | null>(null);
-  const [showLedgerModal, setShowLedgerModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
-  const [pendingStatusChange, setPendingStatusChange] = useState<VendorStatus | null>(null);
-  const [statusReason, setStatusReason] = useState('');
 
   // Live Async Data (Invoices & Payments)
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -104,19 +97,13 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
   const [loadingInvoices, setLoadingInvoices] = useState(false);
 
   // Sub-tab filters
-  const [ledgerFilter, setLedgerFilter] = useState<'ALL' | 'DEBIT' | 'CREDIT' | 'ADJUSTMENT'>('ALL');
-  const [orderFilter, setOrderFilter] = useState<'ALL' | OrderStatus>('ALL');
+  type LedgerCategoryFilter = 'ALL' | 'INVOICES' | 'PAYMENTS' | 'CREDITS' | 'ADJUSTMENTS';
+  type LedgerDateFilter = 'ALL_TIME' | 'TODAY' | 'THIS_WEEK' | 'THIS_MONTH';
 
-  // Settings Form
-  const [editName, setEditName] = useState(vendor.name);
-  const [editShopName, setEditShopName] = useState(vendor.shopName);
-  const [editPhone, setEditPhone] = useState(vendor.phone);
-  const [editEmail, setEditEmail] = useState(vendor.email || '');
-  const [editAddress, setEditAddress] = useState(vendor.address || '');
-  const [editArea, setEditArea] = useState(vendor.area || '');
-  const [editPaymentTerms, setEditPaymentTerms] = useState(vendor.paymentTerms || 'Net 15 Days');
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [profileMsg, setProfileMsg] = useState<{ text: string; isError: boolean } | null>(null);
+  const [ledgerCategoryFilter, setLedgerCategoryFilter] = useState<LedgerCategoryFilter>('ALL');
+  const [ledgerDateFilter, setLedgerDateFilter] = useState<LedgerDateFilter>('ALL_TIME');
+  const [selectedTransaction, setSelectedTransaction] = useState<LedgerEntry | null>(null);
+  const [orderFilter, setOrderFilter] = useState<'ALL' | OrderStatus>('ALL');
 
   // Fetch Invoices & Payments for this vendor
   useEffect(() => {
@@ -166,17 +153,42 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
     return orders.filter((o) => o.vendorId === vendor.id);
   }, [orders, vendor.id]);
 
-  // Filtered Ledger Entries
+  // Filtered Ledger Entries with Category & Date Filters
   const filteredLedgerEntries = useMemo(() => {
-    if (ledgerFilter === 'ALL') return ledgerEntries;
-    if (ledgerFilter === 'DEBIT') return ledgerEntries.filter((e) => e.type === 'DEBIT');
-    if (ledgerFilter === 'CREDIT') return ledgerEntries.filter((e) => e.type === 'CREDIT');
-    if (ledgerFilter === 'ADJUSTMENT')
-      return ledgerEntries.filter(
-        (e) => e.sourceType === 'MANUAL_ADJUSTMENT' || !!e.editedAt
-      );
-    return ledgerEntries;
-  }, [ledgerEntries, ledgerFilter]);
+    return ledgerEntries.filter((entry) => {
+      const formatted = formatTransaction(entry, 'ADMIN');
+
+      // Category filter
+      if (ledgerCategoryFilter === 'INVOICES') {
+        if (formatted.category !== 'invoice') return false;
+      } else if (ledgerCategoryFilter === 'PAYMENTS') {
+        if (formatted.category !== 'payment') return false;
+      } else if (ledgerCategoryFilter === 'CREDITS') {
+        if (formatted.category !== 'credit_note' && formatted.category !== 'refund') return false;
+      } else if (ledgerCategoryFilter === 'ADJUSTMENTS') {
+        if (formatted.category !== 'adjustment' && formatted.category !== 'opening_balance') return false;
+      }
+
+      // Date filter
+      if (ledgerDateFilter !== 'ALL_TIME') {
+        const entryTime = new Date(entry.date || entry.createdAt || 0).getTime();
+        const now = new Date();
+
+        if (ledgerDateFilter === 'TODAY') {
+          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+          if (entryTime < startOfToday) return false;
+        } else if (ledgerDateFilter === 'THIS_WEEK') {
+          const sevenDaysAgo = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+          if (entryTime < sevenDaysAgo) return false;
+        } else if (ledgerDateFilter === 'THIS_MONTH') {
+          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+          if (entryTime < startOfMonth) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [ledgerEntries, ledgerCategoryFilter, ledgerDateFilter]);
 
   // Filtered Orders
   const filteredOrders = useMemo(() => {
@@ -206,70 +218,12 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
       .catch(() => Linking.openURL(`https://wa.me/${clean}`));
   };
 
-  const handleSaveManualAdjustment = (
-    entryId: string,
-    newAmount: number,
-    reason: string
-  ) => {
-    adjustLedgerManual(
-      entryId,
-      newAmount,
-      reason,
-      currentUser?.name || 'Administrator'
-    );
-  };
-
-  const handleSaveProfile = async () => {
-    setSavingProfile(true);
-    setProfileMsg(null);
-    try {
-      await updateVendorProfile(
-        vendor.id,
-        {
-          name: editName.trim(),
-          ownerName: editName.trim(),
-          shopName: editShopName.trim(),
-          businessName: editShopName.trim(),
-          phone: editPhone.trim(),
-          email: editEmail.trim(),
-          address: editAddress.trim(),
-          area: editArea.trim(),
-          paymentTerms: editPaymentTerms.trim(),
-        },
-        currentUser?.name || 'Admin'
-      );
-      setProfileMsg({ text: 'Vendor profile updated successfully.', isError: false });
-    } catch (err: any) {
-      setProfileMsg({ text: err.message || 'Failed to update profile.', isError: true });
-    } finally {
-      setSavingProfile(false);
-    }
-  };
-
-  const handleStatusChange = (newStatus: VendorStatus) => {
-    setPendingStatusChange(newStatus);
-    setStatusReason('');
-    setShowStatusModal(true);
-  };
-
-  const confirmStatusChange = async () => {
-    if (!pendingStatusChange) return;
-    await updateVendorStatus(
-      vendor.id,
-      pendingStatusChange,
-      statusReason.trim() || `Status updated to ${pendingStatusChange}`,
-      currentUser?.name || 'Admin'
-    );
-    setShowStatusModal(false);
-    setPendingStatusChange(null);
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       {/* ── Top Header ────────────────────────────────────────────── */}
       <Header
         title={vendor.shopName}
-        subtitle={`${vendor.name || vendor.ownerName} · ${vendor.area || 'General Area'}`}
+        subtitle={vendor.name || vendor.ownerName || 'Retail Partner'}
         showBack
         onBackPress={() => {
           if (navigation.canGoBack()) {
@@ -319,7 +273,7 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
                 <Ionicons
                   name={tab.icon}
                   size={14}
-                  color={isSelected ? colors.primary : colors.textMuted}
+                  color={isSelected ? colors.textInverse : colors.textMuted}
                 />
                 <Text style={[styles.tabText, isSelected && styles.tabTextActive]}>
                   {tab.label}
@@ -340,29 +294,6 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
             <View style={styles.balanceHeroCard}>
               <View style={styles.heroTop}>
                 <Text style={styles.heroSubtitle}>Outstanding Receivable</Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    vendor.status === 'ACTIVE'
-                      ? styles.badgeActive
-                      : vendor.status === 'ON_HOLD'
-                      ? styles.badgeHold
-                      : styles.badgeSuspended,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusBadgeText,
-                      vendor.status === 'ACTIVE'
-                        ? { color: colors.brandGreen }
-                        : vendor.status === 'ON_HOLD'
-                        ? { color: '#7E22CE' }
-                        : { color: colors.debit },
-                    ]}
-                  >
-                    {vendor.status || 'ACTIVE'}
-                  </Text>
-                </View>
               </View>
 
               <Text
@@ -392,7 +323,7 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
               </TouchableOpacity>
             </View>
 
-            {/* Financial & Activity 2x2 Grid */}
+            {/* Financial & Activity Metrics Grid */}
             <View style={styles.metricsGrid}>
               <View style={styles.metricTile}>
                 <Text style={styles.metricTileLabel}>Total Purchases</Text>
@@ -409,13 +340,6 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
               <View style={styles.metricTile}>
                 <Text style={styles.metricTileLabel}>Orders Placed</Text>
                 <Text style={styles.metricTileVal}>{vendorOrders.length}</Text>
-              </View>
-
-              <View style={styles.metricTile}>
-                <Text style={styles.metricTileLabel}>Payment Terms</Text>
-                <Text style={[styles.metricTileVal, { fontSize: 13 }]}>
-                  {vendor.paymentTerms || 'Net 15 Days'}
-                </Text>
               </View>
             </View>
 
@@ -435,18 +359,6 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
                 <Text style={styles.infoVal}>{vendor.phone || 'Not provided'}</Text>
               </View>
 
-              <View style={styles.infoRow}>
-                <Ionicons name="mail-outline" size={16} color={colors.textMuted} />
-                <Text style={styles.infoLabel}>Email</Text>
-                <Text style={styles.infoVal}>{vendor.email || 'Not provided'}</Text>
-              </View>
-
-              <View style={styles.infoRow}>
-                <Ionicons name="location-outline" size={16} color={colors.textMuted} />
-                <Text style={styles.infoLabel}>Market Area</Text>
-                <Text style={styles.infoVal}>{vendor.area || 'General Area'}</Text>
-              </View>
-
               <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
                 <Ionicons name="map-outline" size={16} color={colors.textMuted} />
                 <Text style={styles.infoLabel}>Address</Text>
@@ -462,57 +374,104 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
         {activeTab === 'LEDGER' && (
           <View>
             <LedgerSummaryCard
-              currentBalance={runningBalance}
-              totalGave={totalInvoiced}
-              totalGot={totalPaid}
+              currentOutstanding={summary.currentOutstanding}
+              advanceBalance={summary.advanceBalance}
+              currentBalance={summary.lastLedgerBalance}
+              totalInvoiced={summary.totalDebits}
+              paymentsReceived={summary.totalCredits}
+              overdueAmount={summary.overdueAmount}
               partyName={`${vendor.shopName} Khata`}
-              debitLabel="Total Invoiced"
-              creditLabel="Total Collected"
+              perspective="ADMIN"
             />
 
-            {/* Filter Chips */}
-            <View style={styles.subFilterRow}>
-              {(['ALL', 'DEBIT', 'CREDIT', 'ADJUSTMENT'] as const).map((f) => (
+            {/* Category Filter Tabs */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryFilterScroll}
+              style={{ marginBottom: spacing.sm }}
+            >
+              {(
+                [
+                  { key: 'ALL', label: 'All' },
+                  { key: 'INVOICES', label: 'Invoices' },
+                  { key: 'PAYMENTS', label: 'Payments' },
+                  { key: 'CREDITS', label: 'Credits' },
+                  { key: 'ADJUSTMENTS', label: 'Adjustments' },
+                ] as const
+              ).map((f) => (
                 <TouchableOpacity
-                  key={f}
-                  style={[styles.subFilterChip, ledgerFilter === f && styles.subFilterChipActive]}
-                  onPress={() => setLedgerFilter(f)}
+                  key={f.key}
+                  style={[
+                    styles.subFilterChip,
+                    ledgerCategoryFilter === f.key && styles.subFilterChipActive,
+                  ]}
+                  onPress={() => setLedgerCategoryFilter(f.key)}
+                  activeOpacity={0.75}
                 >
                   <Text
                     style={[
                       styles.subFilterText,
-                      ledgerFilter === f && styles.subFilterTextActive,
+                      ledgerCategoryFilter === f.key && styles.subFilterTextActive,
                     ]}
                   >
-                    {f === 'ALL'
-                      ? 'All'
-                      : f === 'DEBIT'
-                      ? 'Invoices'
-                      : f === 'CREDIT'
-                      ? 'Payments'
-                      : 'Adjustments'}
+                    {f.label}
                   </Text>
                 </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
 
-            {filteredLedgerEntries.map((entry) => (
-              <LedgerRow
-                key={entry.id}
-                entry={entry}
-                perspective="ADMIN"
-                onPress={() => {
-                  setSelectedLedgerEntry(entry);
-                  setShowLedgerModal(true);
-                }}
-              />
-            ))}
+            {/* Transactions Section */}
+            {filteredLedgerEntries.length > 0 ? (
+              <View style={styles.transactionsContainer}>
+                <View style={styles.transactionsHeader}>
+                  <Text style={styles.transactionsTitle}>
+                    TRANSACTIONS ({filteredLedgerEntries.length})
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.dateCycleBtn}
+                    onPress={() => {
+                      const dates: LedgerDateFilter[] = [
+                        'ALL_TIME',
+                        'TODAY',
+                        'THIS_WEEK',
+                        'THIS_MONTH',
+                      ];
+                      const nextIdx = (dates.indexOf(ledgerDateFilter) + 1) % dates.length;
+                      setLedgerDateFilter(dates[nextIdx]);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="calendar-outline" size={12} color={colors.textSecondary} />
+                    <Text style={styles.dateCycleText}>
+                      {ledgerDateFilter === 'ALL_TIME'
+                        ? 'All Time'
+                        : ledgerDateFilter === 'TODAY'
+                        ? 'Today'
+                        : ledgerDateFilter === 'THIS_WEEK'
+                        ? 'This Week'
+                        : 'This Month'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={10} color={colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
 
-            {filteredLedgerEntries.length === 0 && (
+                <View style={styles.transactionCardGroup}>
+                  {filteredLedgerEntries.map((entry) => (
+                    <LedgerRow
+                      key={entry.id}
+                      entry={entry}
+                      perspective="ADMIN"
+                      onPress={() => setSelectedTransaction(entry)}
+                    />
+                  ))}
+                </View>
+              </View>
+            ) : (
               <EmptyState
                 iconName="book-outline"
-                title="No Khata entries"
-                description="Invoices and offline payment vouchers will appear here automatically."
+                title="No matching transactions"
+                description="No transactions found for the selected filter."
               />
             )}
           </View>
@@ -523,78 +482,136 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
         {/* ═══════════════════════════════════════════════════════════ */}
         {activeTab === 'ORDERS' && (
           <View>
-            <View style={styles.subFilterRow}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryFilterScroll}
+              style={{ marginBottom: spacing.sm }}
+            >
               {(['ALL', 'PENDING', 'APPROVED', 'DELIVERED', 'CANCELLED'] as const).map((st) => (
                 <TouchableOpacity
                   key={st}
                   style={[styles.subFilterChip, orderFilter === st && styles.subFilterChipActive]}
                   onPress={() => setOrderFilter(st)}
+                  activeOpacity={0.75}
                 >
                   <Text
                     style={[styles.subFilterText, orderFilter === st && styles.subFilterTextActive]}
                   >
-                    {st === 'ALL' ? 'All Orders' : st}
+                    {st === 'ALL'
+                      ? 'All'
+                      : st === 'PENDING'
+                      ? 'Pending'
+                      : st === 'APPROVED'
+                      ? 'Confirmed'
+                      : st === 'DELIVERED'
+                      ? 'Delivered'
+                      : 'Cancelled'}
                   </Text>
                 </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
 
-            {filteredOrders.map((ord) => (
-              <Card
-                key={ord.id}
-                style={styles.orderCard}
-                onPress={() => navigation.navigate('AdminOrderDetail', { orderId: ord.id })}
-                outlined
-                elevation="sm"
-              >
-                <View style={styles.orderHeader}>
-                  <View>
-                    <Text style={styles.orderNum}>{ord.orderNumber}</Text>
-                    <Text style={styles.orderDate}>
-                      {new Date(ord.orderDate).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.statusPill,
-                      ord.status === 'DELIVERED'
-                        ? styles.pillDelivered
-                        : ord.status === 'PENDING'
-                        ? styles.pillPending
-                        : styles.pillDefault,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusPillText,
-                        ord.status === 'DELIVERED'
-                          ? { color: colors.brandGreen }
-                          : ord.status === 'PENDING'
-                          ? { color: '#B45309' }
-                          : { color: colors.textSecondary },
-                      ]}
+            {filteredOrders.length > 0 ? (
+              <View style={styles.transactionCardGroup}>
+                {filteredOrders.map((ord) => {
+                  let orderTitle = 'General Order';
+                  if (ord.items && ord.items.length > 0) {
+                    const firstItem = ord.items[0].productName;
+                    if (ord.items.length === 1) {
+                      orderTitle = `${firstItem} (${ord.items[0].orderedQty || ord.items[0].deliveredQty || 1} units)`;
+                    } else if (ord.items.length === 2) {
+                      orderTitle = `${firstItem} & ${ord.items[1].productName}`;
+                    } else {
+                      orderTitle = `${firstItem} + ${ord.items.length - 1} more`;
+                    }
+                  }
+
+                  const dateFormatted = new Date(
+                    ord.orderDate || ord.createdAt || Date.now()
+                  ).toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  });
+
+                  const isDelivered = ord.status === 'DELIVERED';
+                  const isPending = ord.status === 'PENDING';
+                  const isCancelled = ord.status === 'CANCELLED';
+
+                  const statusLabel = isDelivered
+                    ? 'Delivered'
+                    : isPending
+                    ? 'Pending'
+                    : ord.status === 'APPROVED'
+                    ? 'Confirmed'
+                    : isCancelled
+                    ? 'Cancelled'
+                    : ord.status;
+
+                  const statusColor = isDelivered
+                    ? colors.brandGreen
+                    : isPending
+                    ? '#B45309'
+                    : isCancelled
+                    ? colors.debit
+                    : colors.primary;
+
+                  const statusBg = isDelivered
+                    ? colors.brandGreenLight
+                    : isPending
+                    ? '#FEF3C7'
+                    : isCancelled
+                    ? colors.debitLight
+                    : colors.surfaceSubtle;
+
+                  const statusIcon = isDelivered
+                    ? 'checkmark-circle-outline'
+                    : isPending
+                    ? 'time-outline'
+                    : isCancelled
+                    ? 'close-circle-outline'
+                    : 'cube-outline';
+
+                  return (
+                    <TouchableOpacity
+                      key={ord.id}
+                      style={styles.orderListItem}
+                      onPress={() =>
+                        navigation.navigate('AdminOrderDetail', {
+                          orderId: ord.id,
+                          hideVendorProfile: true,
+                        })
+                      }
+                      activeOpacity={0.65}
                     >
-                      {ord.status}
-                    </Text>
-                  </View>
-                </View>
+                      <View style={[styles.orderIconBox, { backgroundColor: statusBg }]}>
+                        <Ionicons name={statusIcon as any} size={17} color={statusColor} />
+                      </View>
 
-                <View style={styles.orderDivider} />
+                      <View style={styles.orderItemContent}>
+                        <View style={styles.orderItemRowTop}>
+                          <Text style={styles.orderItemTitle} numberOfLines={1}>
+                            {orderTitle}
+                          </Text>
+                          <Text style={styles.orderItemAmount}>₹{fmt(ord.totalAmount)}</Text>
+                        </View>
 
-                <View style={styles.orderFooter}>
-                  <Text style={styles.orderItemsCount}>
-                    {ord.items?.length || 0} item{ord.items?.length !== 1 ? 's' : ''}
-                  </Text>
-                  <Text style={styles.orderTotal}>₹{fmt(ord.totalAmount)}</Text>
-                </View>
-              </Card>
-            ))}
-
-            {filteredOrders.length === 0 && (
+                        <View style={styles.orderItemRowBottom}>
+                          <Text style={styles.orderItemMeta} numberOfLines={1}>
+                            {dateFormatted}  •  {ord.items?.length || 0} item
+                            {ord.items?.length !== 1 ? 's' : ''}
+                          </Text>
+                          <Text style={[styles.orderStatusBadge, { color: statusColor }]}>
+                            {statusLabel}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
               <EmptyState
                 iconName="receipt-outline"
                 title="No orders found"
@@ -612,69 +629,68 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
             {loadingInvoices ? (
               <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 24 }} />
             ) : invoices.length > 0 ? (
-              invoices.map((inv) => (
-                <Card key={inv.id} style={styles.invoiceCard} outlined elevation="sm">
-                  <View style={styles.invHeader}>
-                    <View>
-                      <Text style={styles.invNum}>{inv.invoiceNumber}</Text>
-                      <Text style={styles.invDate}>
-                        {new Date(inv.invoiceDate).toLocaleDateString('en-IN', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.statusPill,
-                        inv.status === 'PAID'
-                          ? styles.pillDelivered
-                          : inv.status === 'PARTIALLY_PAID'
-                          ? styles.pillPending
-                          : styles.pillDanger,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statusPillText,
-                          inv.status === 'PAID'
-                            ? { color: colors.brandGreen }
-                            : inv.status === 'PARTIALLY_PAID'
-                            ? { color: '#B45309' }
-                            : { color: colors.debit },
-                        ]}
-                      >
-                        {inv.status}
-                      </Text>
-                    </View>
-                  </View>
+              <View style={styles.transactionCardGroup}>
+                {invoices.map((inv) => {
+                  const dateFormatted = new Date(
+                    inv.invoiceDate || inv.createdAt || Date.now()
+                  ).toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                  });
 
-                  <View style={styles.orderDivider} />
+                  const isPaid = inv.status === 'PAID';
+                  const isPartial = inv.status === 'PARTIALLY_PAID';
 
-                  <View style={styles.invRow}>
-                    <Text style={styles.invLabel}>Invoice Total</Text>
-                    <Text style={styles.invVal}>₹{fmt(inv.totalAmount)}</Text>
-                  </View>
-                  <View style={styles.invRow}>
-                    <Text style={styles.invLabel}>Amount Paid</Text>
-                    <Text style={[styles.invVal, { color: colors.brandGreen }]}>
-                      ₹{fmt(inv.paidAmount)}
-                    </Text>
-                  </View>
-                  <View style={styles.invRow}>
-                    <Text style={styles.invLabel}>Balance Due</Text>
-                    <Text
-                      style={[
-                        styles.invVal,
-                        inv.balanceDue > 0 ? { color: colors.debit } : { color: colors.textMuted },
-                      ]}
-                    >
-                      ₹{fmt(inv.balanceDue)}
-                    </Text>
-                  </View>
-                </Card>
-              ))
+                  const statusLabel = isPaid
+                    ? 'Paid'
+                    : isPartial
+                    ? 'Partially Paid'
+                    : 'Balance Due';
+
+                  const statusColor = isPaid
+                    ? colors.brandGreen
+                    : isPartial
+                    ? '#B45309'
+                    : colors.debit;
+
+                  const statusBg = isPaid
+                    ? colors.brandGreenLight
+                    : isPartial
+                    ? '#FEF3C7'
+                    : colors.debitLight;
+
+                  return (
+                    <View key={inv.id} style={styles.orderListItem}>
+                      <View style={[styles.orderIconBox, { backgroundColor: statusBg }]}>
+                        <Ionicons
+                          name={isPaid ? 'document-text' : 'receipt-outline'}
+                          size={17}
+                          color={statusColor}
+                        />
+                      </View>
+
+                      <View style={styles.orderItemContent}>
+                        <View style={styles.orderItemRowTop}>
+                          <Text style={styles.orderItemTitle} numberOfLines={1}>
+                            Tax Invoice ({inv.lineItems?.length || 1} item{inv.lineItems?.length !== 1 ? 's' : ''})
+                          </Text>
+                          <Text style={styles.orderItemAmount}>₹{fmt(inv.totalAmount)}</Text>
+                        </View>
+
+                        <View style={styles.orderItemRowBottom}>
+                          <Text style={styles.orderItemMeta} numberOfLines={1}>
+                            {dateFormatted}  •  {isPaid ? 'Fully Settled' : `Due: ₹${fmt(inv.balanceDue)}`}
+                          </Text>
+                          <Text style={[styles.orderStatusBadge, { color: statusColor }]}>
+                            {statusLabel}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
             ) : (
               <EmptyState
                 iconName="document-text-outline"
@@ -741,90 +757,14 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
           </View>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {/* TAB 6: SETTINGS & STATUS                                   */}
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {activeTab === 'SETTINGS' && (
-          <View>
-            {profileMsg ? (
-              <Text
-                style={[
-                  styles.formMsgText,
-                  profileMsg.isError ? styles.formMsgError : styles.formMsgSuccess,
-                ]}
-              >
-                {profileMsg.text}
-              </Text>
-            ) : null}
-
-            <Card style={styles.settingsCard} outlined elevation="sm">
-              <Text style={styles.settingsCardTitle}>Edit Vendor Information</Text>
-
-              <Input label="Shop / Business Name *" value={editShopName} onChangeText={setEditShopName} />
-              <Input label="Proprietor / Owner Name *" value={editName} onChangeText={setEditName} />
-              <Input label="Phone Number *" value={editPhone} onChangeText={setEditPhone} keyboardType="phone-pad" />
-              <Input label="Email Address" value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
-              <Input label="Market Area / Locality" value={editArea} onChangeText={setEditArea} />
-              <Input label="Full Address" value={editAddress} onChangeText={setEditAddress} />
-              <Input label="Payment Terms" value={editPaymentTerms} onChangeText={setEditPaymentTerms} />
-
-              <Button
-                title="Save Profile Changes"
-                onPress={handleSaveProfile}
-                loading={savingProfile}
-                style={{ marginTop: spacing.sm }}
-              />
-            </Card>
-
-            <Card style={[styles.settingsCard, { marginTop: spacing.md }]} outlined elevation="sm">
-              <Text style={styles.settingsCardTitle}>Account Status Controls</Text>
-              
-              <View style={styles.statusActionCol}>
-                <TouchableOpacity
-                  style={[styles.statusBtn, vendor.status === 'ACTIVE' && styles.statusBtnActive]}
-                  onPress={() => handleStatusChange('ACTIVE')}
-                >
-                  <Ionicons name="checkmark-circle" size={18} color={colors.brandGreen} />
-                  <Text style={styles.statusBtnLabel}>Activate Partner</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.statusBtn, vendor.status === 'ON_HOLD' && styles.statusBtnActive]}
-                  onPress={() => handleStatusChange('ON_HOLD')}
-                >
-                  <Ionicons name="pause-circle" size={18} color="#B45309" />
-                  <Text style={styles.statusBtnLabel}>Put Account On Hold</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.statusBtn, vendor.status === 'SUSPENDED' && styles.statusBtnActive]}
-                  onPress={() => handleStatusChange('SUSPENDED')}
-                >
-                  <Ionicons name="ban" size={18} color={colors.debit} />
-                  <Text style={[styles.statusBtnLabel, { color: colors.debit }]}>
-                    Suspend Account
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </Card>
-          </View>
-        )}
-
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
-
-      {/* ── Ledger Adjustment Modal ────────────────────────────────── */}
-      <LedgerAdjustmentModal
-        visible={showLedgerModal}
-        entry={selectedLedgerEntry}
-        onClose={() => setShowLedgerModal(false)}
-        onSave={handleSaveManualAdjustment}
-      />
 
       {/* ── Record Payment Modal ───────────────────────────────────── */}
       <RecordPaymentModal
         visible={showPaymentModal}
         vendor={vendor}
+        dueAmount={runningBalance}
         onClose={() => setShowPaymentModal(false)}
         onSave={async (params) => {
           await recordDirectPayment({
@@ -834,25 +774,13 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
         }}
       />
 
-      {/* ── Status Change Confirmation Modal ───────────────────────── */}
-      <ConfirmationModal
-        visible={showStatusModal}
-        title="Change Vendor Status"
-        message={`Update ${vendor.shopName} account status to ${pendingStatusChange}.`}
-        confirmTitle="Confirm Change"
-        variant={pendingStatusChange === 'SUSPENDED' ? 'danger' : 'primary'}
-        onConfirm={confirmStatusChange}
-        onCancel={() => setShowStatusModal(false)}
-      >
-        <Input
-          label="Reason for Status Change (Optional)"
-          value={statusReason}
-          onChangeText={setStatusReason}
-          multiline
-          numberOfLines={2}
-          containerStyle={{ marginTop: spacing.sm }}
-        />
-      </ConfirmationModal>
+      {/* ── Transaction Details Modal ─────────────────────────────── */}
+      <TransactionDetailModal
+        visible={Boolean(selectedTransaction)}
+        entry={selectedTransaction}
+        onClose={() => setSelectedTransaction(null)}
+        perspective="ADMIN"
+      />
     </SafeAreaView>
   );
 };
@@ -890,22 +818,25 @@ const styles = StyleSheet.create({
   tabBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
+    gap: 5,
+    paddingHorizontal: 13,
     paddingVertical: 7,
     borderRadius: spacing.borderRadiusFull,
     backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   tabBtnActive: {
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   tabText: {
     ...typography.captionBold,
-    color: colors.textMuted,
+    color: colors.textSecondary,
     fontSize: 12,
   },
   tabTextActive: {
-    color: colors.primary,
+    color: colors.textInverse,
   },
   scrollContent: {
     padding: spacing.screenPadding,
@@ -1041,11 +972,12 @@ const styles = StyleSheet.create({
   subFilterRow: {
     flexDirection: 'row',
     gap: 6,
+    marginTop: 2,
     marginBottom: spacing.sm,
   },
   subFilterChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: spacing.borderRadiusFull,
     backgroundColor: colors.surfaceSubtle,
     borderWidth: 1,
@@ -1064,108 +996,115 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
   },
 
-  // Orders Tab
-  orderCard: {
-    backgroundColor: colors.surface,
-    borderRadius: spacing.borderRadiusMd,
-    padding: spacing.md,
-    marginBottom: spacing.xs + 2,
-    borderWidth: 1,
-    borderColor: colors.border,
+  // Khata Styles
+  categoryFilterScroll: {
+    gap: 6,
+    paddingVertical: 2,
   },
-  orderHeader: {
+  transactionsContainer: {
+    marginTop: spacing.xs,
+  },
+  transactionsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: spacing.xs + 2,
+    paddingHorizontal: 2,
   },
-  orderNum: {
-    ...typography.bodyBold,
-    fontSize: 14,
-    color: colors.textPrimary,
-  },
-  orderDate: {
-    ...typography.caption,
+  transactionsTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
     color: colors.textMuted,
-    marginTop: 1,
   },
-  statusPill: {
+  dateCycleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surface,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: spacing.borderRadiusFull,
-  },
-  pillDelivered: {
-    backgroundColor: colors.brandGreenLight,
-  },
-  pillPending: {
-    backgroundColor: '#FEF3C7',
-  },
-  pillDanger: {
-    backgroundColor: colors.debitLight,
-  },
-  pillDefault: {
-    backgroundColor: colors.surfaceSubtle,
-  },
-  statusPillText: {
-    ...typography.captionBold,
-    fontSize: 11,
-  },
-  orderDivider: {
-    height: 1,
-    backgroundColor: colors.divider,
-    marginVertical: spacing.sm,
-  },
-  orderFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  orderItemsCount: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  orderTotal: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-  },
-
-  // Invoices Tab
-  invoiceCard: {
-    backgroundColor: colors.surface,
-    borderRadius: spacing.borderRadiusMd,
-    padding: spacing.md,
-    marginBottom: spacing.xs + 2,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  invHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  invNum: {
-    ...typography.bodyBold,
-    fontSize: 14,
-    color: colors.textPrimary,
-  },
-  invDate: {
-    ...typography.caption,
-    color: colors.textMuted,
-    marginTop: 1,
-  },
-  invRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 2,
-  },
-  invLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-  },
-  invVal: {
+  dateCycleText: {
     ...typography.captionBold,
-    fontSize: 13,
+    fontSize: 10,
+    color: colors.textSecondary,
+  },
+  transactionCardGroup: {
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+
+  // Orders Tab
+  orderListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: spacing.screenPadding,
+    backgroundColor: colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  orderIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    flexShrink: 0,
+  },
+  orderItemContent: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  orderItemRowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 3,
+  },
+  orderItemTitle: {
+    ...typography.bodyBold,
     color: colors.textPrimary,
+    fontSize: 13,
+    lineHeight: 17,
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  orderItemAmount: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textPrimary,
+    letterSpacing: -0.2,
+  },
+  orderItemRowBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  orderItemMeta: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 11,
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  orderStatusBadge: {
+    ...typography.caption,
+    fontSize: 11,
+    fontWeight: '700',
   },
 
   // Payments Tab

@@ -30,18 +30,15 @@ interface LedgerState {
 }
 
 export const useLedgerStore = create<LedgerState>((set, get) => ({
-  entries: MOCK_LEDGER_ENTRIES,
-  auditLogs: MOCK_AUDIT_LOGS,
+  entries: [],
+  auditLogs: [],
   isLoading: false,
 
   fetchLedger: async () => {
     set({ isLoading: true });
     try {
       const logs = await ledgerService.getAuditLogs();
-      if (logs.length > 0) {
-        set({ auditLogs: logs });
-      }
-      set({ isLoading: false });
+      set({ auditLogs: logs || [], isLoading: false });
     } catch (err) {
       console.error('Error fetching audit logs:', err);
       set({ isLoading: false });
@@ -50,9 +47,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
 
   subscribeLedger: () => {
     return ledgerService.subscribeLedger((firestoreEntries) => {
-      if (firestoreEntries && firestoreEntries.length > 0) {
-        set({ entries: firestoreEntries });
-      }
+      set({ entries: firestoreEntries || [] });
     });
   },
 
@@ -169,6 +164,8 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
       entries.length > 0 ? totalDebits - totalCredits : openingBalance;
 
     const currentOutstanding = Math.max(0, outstandingDue);
+    const advanceBalance = outstandingDue < 0 ? Math.abs(outstandingDue) : 0;
+    const overdueAmount = 0; // Baseline; derived from individual invoice due dates if applicable
 
     // availableCredit = 0 when no limit is set (treat as "no limit")
     const availableCredit =
@@ -183,6 +180,8 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
       totalDebits,
       totalCredits,
       currentOutstanding,
+      advanceBalance,
+      overdueAmount,
       availableCredit,
       lastLedgerBalance: outstandingDue,
     };
@@ -190,8 +189,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
 
   getVendorReceivables: () => {
     const vendors = useVendorStore.getState().vendors;
-    const vendorList = vendors.length > 0 ? vendors : MOCK_VENDORS;
-    return vendorList.map((v) => ({
+    return vendors.map((v) => ({
       vendorId: v.id,
       name: v.shopName,
       balance: get().getVendorAccountSummary(v.id, v).currentOutstanding,

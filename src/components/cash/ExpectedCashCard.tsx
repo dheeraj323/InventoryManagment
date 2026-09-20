@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '../common/Card';
+import { formatDate } from '../../utils/dateFormatter';
 import { colors, typography, spacing } from '../../theme';
 
 interface ExpectedCashCardProps {
@@ -15,11 +16,7 @@ export const ExpectedCashCard: React.FC<ExpectedCashCardProps> = ({
   date,
   subtitle = "Calculated from today's order collections",
 }) => {
-  const formattedDate = date || new Date().toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  const formattedDate = formatDate(date || new Date());
 
   return (
     <Card variant="flat" style={styles.card}>

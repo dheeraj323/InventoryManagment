@@ -78,7 +78,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         vendorName: vendor.name,
         shopName: vendor.shopName,
         phone: vendor.phone,
-        address: vendor.address,
+        address: vendor.address || '',
         items,
         subtotal,
         tax,

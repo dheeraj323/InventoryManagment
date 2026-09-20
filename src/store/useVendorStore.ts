@@ -33,11 +33,7 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     set({ isLoading: true });
     try {
       const vendors = await vendorService.getVendors();
-      if (vendors && vendors.length > 0) {
-        set({ vendors, isLoading: false });
-      } else {
-        set({ isLoading: false });
-      }
+      set({ vendors: vendors || [], isLoading: false });
     } catch (err) {
       console.error('Error fetching vendors from Firestore:', err);
       set({ isLoading: false });
@@ -46,9 +42,7 @@ export const useVendorStore = create<VendorState>((set, get) => ({
 
   subscribeVendors: () => {
     return vendorService.subscribeVendors((firestoreVendors) => {
-      if (firestoreVendors && firestoreVendors.length > 0) {
-        set({ vendors: firestoreVendors });
-      }
+      set({ vendors: firestoreVendors || [] });
     });
   },
 

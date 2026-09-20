@@ -20,6 +20,7 @@ export interface RecordPaymentModalProps {
   visible: boolean;
   onClose: () => void;
   vendor: Vendor | null;
+  dueAmount?: number;
   onSave: (params: {
     vendorId: string;
     amount: number;
@@ -29,24 +30,34 @@ export interface RecordPaymentModalProps {
   }) => Promise<void> | void;
 }
 
-const PAYMENT_MODES: { label: string; value: PaymentMethod; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { label: 'Cash', value: 'CASH', icon: 'cash-outline' },
-  { label: 'UPI / QR', value: 'ONLINE', icon: 'qr-code-outline' },
-  { label: 'Bank Transfer', value: 'ONLINE', icon: 'card-outline' },
+type PaymentModeKey = 'CASH' | 'UPI' | 'BANK';
+
+const PAYMENT_MODES: {
+  key: PaymentModeKey;
+  label: string;
+  paymentMode: PaymentMethod;
+  icon: keyof typeof Ionicons.glyphMap;
+}[] = [
+  { key: 'CASH', label: 'Cash', paymentMode: 'CASH', icon: 'cash-outline' },
+  { key: 'UPI', label: 'UPI / QR', paymentMode: 'ONLINE', icon: 'qr-code-outline' },
+  { key: 'BANK', label: 'Bank Transfer', paymentMode: 'ONLINE', icon: 'card-outline' },
 ];
 
 export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   visible,
   onClose,
   vendor,
+  dueAmount,
   onSave,
 }) => {
   const [amountStr, setAmountStr] = useState('');
-  const [paymentMode, setPaymentMode] = useState<PaymentMethod>('CASH');
+  const [selectedModeKey, setSelectedModeKey] = useState<PaymentModeKey>('CASH');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const liveDue = dueAmount !== undefined ? dueAmount : (vendor?.currentBalance || 0);
 
   const handleSave = async () => {
     if (!vendor) return;
@@ -60,15 +71,23 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     setLoading(true);
 
     try {
+      const selectedObj =
+        PAYMENT_MODES.find((m) => m.key === selectedModeKey) || PAYMENT_MODES[0];
+
       await onSave({
         vendorId: vendor.id,
         amount: numAmount,
-        paymentMode,
+        paymentMode: selectedObj.paymentMode,
         referenceNumber: referenceNumber.trim() || undefined,
-        notes: notes.trim() || undefined,
+        notes: notes.trim()
+          ? `${selectedObj.label}: ${notes.trim()}`
+          : selectedModeKey !== 'CASH'
+          ? `Settled via ${selectedObj.label}`
+          : undefined,
       });
 
       setAmountStr('');
+      setSelectedModeKey('CASH');
       setReferenceNumber('');
       setNotes('');
       onClose();
@@ -100,7 +119,11 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                     <View>
                       <Text style={styles.title}>Record Payment</Text>
                       <Text style={styles.subtitle}>
-                        {vendor.shopName} · Due: ₹{(vendor.currentBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        {vendor.shopName} · {liveDue > 0
+                          ? `Due: ₹${liveDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+                          : liveDue < 0
+                          ? `Advance: ₹${Math.abs(liveDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+                          : 'No Dues Pending (₹0.00)'}
                       </Text>
                     </View>
                   </View>
@@ -126,12 +149,12 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                     <Text style={styles.fieldLabel}>Payment Method</Text>
                     <View style={styles.modeGrid}>
                       {PAYMENT_MODES.map((mode) => {
-                        const isSelected = paymentMode === mode.value;
+                        const isSelected = selectedModeKey === mode.key;
                         return (
                           <TouchableOpacity
-                            key={mode.label}
+                            key={mode.key}
                             style={[styles.modeCard, isSelected && styles.modeCardActive]}
-                            onPress={() => setPaymentMode(mode.value)}
+                            onPress={() => setSelectedModeKey(mode.key)}
                             activeOpacity={0.7}
                           >
                             <Ionicons

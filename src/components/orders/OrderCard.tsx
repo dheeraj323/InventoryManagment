@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Order } from '../../types';
 import { StatusBadge } from '../common/StatusBadge';
+import { formatDate } from '../../utils/dateFormatter';
 import { colors, typography, spacing } from '../../theme';
 
 export interface OrderCardProps {
@@ -23,11 +24,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   showDeliverAction = false,
 }) => {
   const itemCount = order.items.reduce((sum, i) => sum + i.orderedQty, 0);
-  const formattedDate = new Date(order.orderDate).toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  const formattedDate = formatDate(order.orderDate);
 
   const isPendingDelivery =
     showDeliverAction &&

@@ -15,13 +15,14 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 import { StatusTracker } from '../../components/orders/StatusTracker';
 import { OrderItemRow } from '../../components/orders/OrderItemRow';
 import { OrderStatus } from '../../types';
+import { formatDate } from '../../utils/dateFormatter';
 import { colors, typography, spacing } from '../../theme';
 
 export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> = ({
   route,
   navigation,
 }) => {
-  const { orderId } = route.params || {};
+  const { orderId, hideVendorProfile } = route.params || {};
   const { getOrderById, updateOrderStatus } = useOrderStore();
   const order = getOrderById(orderId);
 
@@ -44,7 +45,7 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
     <SafeAreaView style={styles.container}>
       <Header
         title={`Order #${order.orderNumber}`}
-        subtitle={`Vendor: ${order.shopName}`}
+        subtitle={hideVendorProfile ? undefined : `Vendor: ${order.shopName}`}
         showBack
         onBackPress={() => {
           if (navigation.canGoBack()) {
@@ -97,19 +98,21 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
         </Card>
 
         {/* Vendor Profile & Delivery Details */}
-        <Card style={styles.card} outlined elevation="sm">
-          <Text style={styles.cardTitle}>CUSTOMER VENDOR PROFILE</Text>
-          <Text style={styles.shopName}>{order.shopName}</Text>
-          <Text style={styles.detailText}>Proprietor: {order.vendorName}</Text>
-          <Text style={styles.detailText}>Phone: {order.phone}</Text>
-          <Text style={styles.detailText}>Address: {order.address}</Text>
-          <Text style={styles.detailText}>Delivery Date: {order.deliveryDate}</Text>
-          {order.assignedStaffName && (
-            <Text style={styles.detailText}>
-              Delivery Executive: {order.assignedStaffName}
-            </Text>
-          )}
-        </Card>
+        {!hideVendorProfile && (
+          <Card style={styles.card} outlined elevation="sm">
+            <Text style={styles.cardTitle}>CUSTOMER VENDOR PROFILE</Text>
+            <Text style={styles.shopName}>{order.shopName}</Text>
+            <Text style={styles.detailText}>Proprietor: {order.vendorName}</Text>
+            <Text style={styles.detailText}>Phone: {order.phone}</Text>
+            {Boolean(order.address) && <Text style={styles.detailText}>Address: {order.address}</Text>}
+            <Text style={styles.detailText}>Delivery Date: {formatDate(order.deliveryDate)}</Text>
+            {order.assignedStaffName && (
+              <Text style={styles.detailText}>
+                Delivery Executive: {order.assignedStaffName}
+              </Text>
+            )}
+          </Card>
+        )}
 
         {/* Itemized Invoice Breakdown */}
         <Card style={styles.card} outlined elevation="sm">

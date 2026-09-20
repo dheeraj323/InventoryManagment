@@ -11,6 +11,7 @@ import { useLedgerStore } from '../../store/useLedgerStore';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { EmptyState } from '../../components/common/EmptyState';
+import { formatDateTime } from '../../utils/dateFormatter';
 import { colors, typography, spacing } from '../../theme';
 
 export const AuditHistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -32,12 +33,7 @@ export const AuditHistoryScreen: React.FC<{ navigation: any }> = ({ navigation }
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         renderItem={({ item }) => {
-          const dateFormatted = new Date(item.timestamp).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-          });
+          const dateFormatted = formatDateTime(item.timestamp);
 
           return (
             <Card style={styles.card} outlined elevation="sm">

@@ -60,7 +60,7 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
       iconBg: colors.accentLight,
       title: 'Vendors',
       subtitle: 'Vendor directory & Khata accounts',
-      route: 'VendorList',
+      route: 'VendorListTab',
     },
     {
       icon: 'receipt-outline',
@@ -68,7 +68,7 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
       iconBg: colors.statusApprovedBg,
       title: 'Orders',
       subtitle: 'Approve, assign & track',
-      route: 'AdminOrders',
+      route: 'AdminOrdersTab',
       badge:
         pendingOrdersCount + pendingOverrideCount > 0
           ? pendingOrdersCount + pendingOverrideCount
@@ -109,7 +109,7 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
       iconBg: colors.brandGreenLight,
       title: 'Finance & Ledgers',
       subtitle: 'Receivables & payables overview',
-      route: 'AdminFinance',
+      route: 'AdminFinanceTab',
     },
   ];
 
@@ -185,7 +185,7 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
         <View style={styles.statsGrid}>
           <TouchableOpacity
             style={[styles.statCard, { borderTopColor: colors.brandGreen }]}
-            onPress={() => navigation.navigate('AdminFinance')}
+            onPress={() => navigation.navigate('AdminFinanceTab')}
             activeOpacity={0.8}
           >
             <Text style={styles.statLabel}>Vendor Receivables</Text>
@@ -195,7 +195,7 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
 
           <TouchableOpacity
             style={[styles.statCard, { borderTopColor: colors.accent }]}
-            onPress={() => navigation.navigate('AdminOrders')}
+            onPress={() => navigation.navigate('AdminOrdersTab')}
             activeOpacity={0.8}
           >
             <Text style={styles.statLabel}>Pending Orders</Text>

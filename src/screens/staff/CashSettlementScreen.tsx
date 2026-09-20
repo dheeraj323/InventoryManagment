@@ -23,6 +23,7 @@ import {
   SettlementDetailModal,
 } from '../../components/cash';
 import { CashSettlement } from '../../types';
+import { formatDate } from '../../utils/dateFormatter';
 import { colors, typography, spacing } from '../../theme';
 
 export const CashSettlementScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -276,7 +277,7 @@ export const CashSettlementScreen: React.FC<{ navigation: any }> = ({ navigation
                     <View style={styles.historyLeft}>
                       <View style={styles.historyTitleRow}>
                         <Text style={styles.historyNum}>{item.settlementNumber}</Text>
-                        <Text style={styles.historyDate}>{item.date}</Text>
+                        <Text style={styles.historyDate}>{formatDate(item.date)}</Text>
                       </View>
                       <Text style={styles.historyExpectedSubtitle}>
                         Expected: ₹{itemExpected.toLocaleString('en-IN', { minimumFractionDigits: 2 })}

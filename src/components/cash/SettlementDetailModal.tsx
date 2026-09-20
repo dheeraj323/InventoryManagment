@@ -10,19 +10,21 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CashSettlement } from '../../types';
-import { StatusBadge } from '../common/StatusBadge';
+import { formatDate, formatDateTime } from '../../utils/dateFormatter';
 import { colors, typography, spacing } from '../../theme';
 
 interface SettlementDetailModalProps {
   visible: boolean;
   settlement: CashSettlement | null;
   onClose: () => void;
+  onVerify?: (id: string) => void;
 }
 
 export const SettlementDetailModal: React.FC<SettlementDetailModalProps> = ({
   visible,
   settlement,
   onClose,
+  onVerify,
 }) => {
   if (!settlement) return null;
 
@@ -31,115 +33,156 @@ export const SettlementDetailModal: React.FC<SettlementDetailModalProps> = ({
   const expected = settlement.totalCashCollected || settlement.amountCollected || 0;
   const variance = settlement.variance || settlement.difference || 0;
 
+  const fmt = (n: number) =>
+    n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
-            <View style={styles.container}>
+            <View style={styles.sheetContainer}>
+              {/* Drag Handle */}
               <View style={styles.dragHandle} />
 
+              {/* Modal Header */}
               <View style={styles.header}>
                 <View style={styles.headerLeft}>
-                  <Text style={styles.title}>{settlement.settlementNumber}</Text>
-                  <Text style={styles.subtitle}>
-                    Submitted by {settlement.staffName} • {settlement.date}
-                  </Text>
+                  <Text style={styles.receiptTitle}>Cash Handover Slip</Text>
+                  <Text style={styles.receiptId}>{settlement.settlementNumber}</Text>
                 </View>
-                <StatusBadge
-                  customLabel={isVerified ? 'Verified' : 'Pending Audit'}
-                  customBg={isVerified ? colors.brandGreenLight : '#FEF3C7'}
-                  customColor={isVerified ? colors.brandGreen : '#D97706'}
-                  size="sm"
-                />
+
+                <TouchableOpacity
+                  style={styles.closeBtn}
+                  onPress={onClose}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
               </View>
 
               <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-                <View style={styles.metricGrid}>
-                  <View style={styles.metricBox}>
-                    <Text style={styles.metricLabel}>Expected Cash</Text>
-                    <Text style={styles.metricVal}>
-                      ₹{expected.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </Text>
-                  </View>
-                  <View style={styles.metricBox}>
-                    <Text style={styles.metricLabel}>Actual Handed Over</Text>
-                    <Text style={styles.metricValBold}>
-                      ₹{handedOver.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                {/* Handover Amount Highlight */}
+                <View style={styles.amountCard}>
+                  <Text style={styles.amountLabel}>PHYSICAL CASH HANDED OVER</Text>
+                  <Text style={styles.amountValue}>₹{fmt(handedOver)}</Text>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      isVerified ? styles.statusBadgeVerified : styles.statusBadgePending,
+                    ]}
+                  >
+                    <Ionicons
+                      name={isVerified ? 'checkmark-circle' : 'time-outline'}
+                      size={13}
+                      color={isVerified ? colors.brandGreen : colors.statusPendingText}
+                    />
+                    <Text
+                      style={[
+                        styles.statusBadgeText,
+                        isVerified ? styles.statusTextVerified : styles.statusTextPending,
+                      ]}
+                    >
+                      {isVerified ? 'Verified & Audited' : 'Awaiting Admin Audit'}
                     </Text>
                   </View>
                 </View>
 
-                <View
-                  style={[
-                    styles.varianceBanner,
-                    variance === 0
-                      ? styles.matchBanner
-                      : variance > 0
-                      ? styles.excessBanner
-                      : styles.shortageBanner,
-                  ]}
-                >
-                  <Ionicons
-                    name={
-                      variance === 0
-                        ? 'checkmark-circle'
-                        : variance > 0
-                        ? 'alert-circle'
-                        : 'warning'
-                    }
-                    size={20}
-                    color={
-                      variance === 0
-                        ? colors.brandGreen
-                        : variance > 0
-                        ? '#D97706'
-                        : colors.danger
-                    }
-                  />
-                  <View style={styles.varianceTextGroup}>
+                {/* Handover Details Breakdown */}
+                <View style={styles.detailsTable}>
+                  <View style={styles.tableRow}>
+                    <Text style={styles.tableLabel}>Submitted By</Text>
+                    <Text style={styles.tableValueBold}>{settlement.staffName}</Text>
+                  </View>
+
+                  <View style={styles.tableDivider} />
+
+                  <View style={styles.tableRow}>
+                    <Text style={styles.tableLabel}>Date</Text>
+                    <Text style={styles.tableValue}>{formatDate(settlement.date)}</Text>
+                  </View>
+
+                  <View style={styles.tableDivider} />
+
+                  <View style={styles.tableRow}>
+                    <Text style={styles.tableLabel}>Expected from Deliveries</Text>
+                    <Text style={styles.tableValue}>₹{fmt(expected)}</Text>
+                  </View>
+
+                  <View style={styles.tableDivider} />
+
+                  <View style={styles.tableRow}>
+                    <Text style={styles.tableLabel}>Actual Handover</Text>
+                    <Text style={styles.tableValueBold}>₹{fmt(handedOver)}</Text>
+                  </View>
+
+                  <View style={styles.tableDivider} />
+
+                  <View style={styles.tableRow}>
+                    <Text style={styles.tableLabel}>Reconciliation Variance</Text>
                     <Text
                       style={[
-                        styles.varianceTitle,
+                        styles.tableValueBold,
                         variance === 0
                           ? { color: colors.brandGreen }
                           : variance > 0
-                          ? { color: '#D97706' }
+                          ? { color: colors.statusPendingText }
                           : { color: colors.danger },
                       ]}
                     >
                       {variance === 0
-                        ? 'Exact Match (₹0.00)'
+                        ? '₹0.00 (Exact Match)'
                         : variance > 0
-                        ? `Excess Cash: +₹${variance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-                        : `Shortage: -₹${Math.abs(variance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+                        ? `+₹${fmt(variance)} (Excess)`
+                        : `-₹${fmt(Math.abs(variance))} (Shortage)`}
                     </Text>
                   </View>
                 </View>
 
+                {/* Notes / Bag remarks */}
                 {settlement.notes ? (
-                  <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>Notes / Bag Identifier</Text>
-                    <Text style={styles.sectionValue}>{settlement.notes}</Text>
+                  <View style={styles.notesCard}>
+                    <Text style={styles.notesLabel}>BAG IDENTIFIER / REMARKS</Text>
+                    <Text style={styles.notesContent}>{settlement.notes}</Text>
                   </View>
                 ) : null}
 
-                {isVerified ? (
-                  <View style={styles.auditStamp}>
+                {/* Audit Stamp */}
+                {isVerified && (
+                  <View style={styles.auditCard}>
                     <Ionicons name="shield-checkmark" size={16} color={colors.brandGreen} />
-                    <Text style={styles.auditText}>
-                      Audited & Verified by {settlement.verifiedBy || 'Admin'}
-                      {settlement.verifiedAt
-                        ? ` on ${new Date(settlement.verifiedAt).toLocaleDateString('en-IN')}`
-                        : ''}
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.auditTitle}>Verified by {settlement.verifiedBy || 'Admin'}</Text>
+                      {settlement.verifiedAt && (
+                        <Text style={styles.auditSub}>
+                          {formatDateTime(settlement.verifiedAt)}
+                        </Text>
+                      )}
+                    </View>
                   </View>
-                ) : null}
+                )}
               </ScrollView>
 
-              <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-                <Text style={styles.closeBtnText}>Close</Text>
-              </TouchableOpacity>
+              {/* Bottom Actions */}
+              <View style={styles.footer}>
+                {!isVerified && onVerify ? (
+                  <TouchableOpacity
+                    style={styles.verifyBtn}
+                    onPress={() => {
+                      onVerify(settlement.id);
+                      onClose();
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="checkmark-circle-outline" size={18} color={colors.textInverse} />
+                    <Text style={styles.verifyBtnText}>Verify & Accept Handover</Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                <TouchableOpacity style={styles.dismissBtn} onPress={onClose} activeOpacity={0.7}>
+                  <Text style={styles.dismissBtnText}>Close</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -154,12 +197,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.5)',
     justifyContent: 'flex-end',
   },
-  container: {
+  sheetContainer: {
     backgroundColor: colors.surface,
-    borderTopLeftRadius: spacing.borderRadiusXl,
-    borderTopRightRadius: spacing.borderRadiusXl,
-    padding: spacing.lg,
-    maxHeight: '80%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
+    maxHeight: '85%',
   },
   dragHandle: {
     width: 36,
@@ -173,113 +218,180 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
     marginBottom: spacing.md,
   },
   headerLeft: {
     flex: 1,
   },
-  title: {
+  receiptTitle: {
     ...typography.h2,
+    fontSize: 17,
     color: colors.textPrimary,
   },
-  subtitle: {
+  receiptId: {
     ...typography.caption,
     color: colors.textMuted,
-    marginTop: 2,
+    marginTop: 1,
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   body: {
     marginBottom: spacing.md,
   },
-  metricGrid: {
+  amountCard: {
+    backgroundColor: colors.surfaceSubtle,
+    padding: spacing.md,
+    borderRadius: spacing.borderRadiusLg,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  amountLabel: {
+    ...typography.captionBold,
+    fontSize: 10,
+    color: colors.textMuted,
+    letterSpacing: 0.5,
+  },
+  amountValue: {
+    ...typography.h1,
+    fontSize: 26,
+    color: colors.textPrimary,
+    marginVertical: 4,
+  },
+  statusBadge: {
     flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: spacing.borderRadiusFull,
+    gap: 4,
+    marginTop: 2,
+  },
+  statusBadgePending: {
+    backgroundColor: colors.statusPendingBg,
+  },
+  statusBadgeVerified: {
+    backgroundColor: colors.brandGreenLight,
+  },
+  statusBadgeText: {
+    ...typography.captionBold,
+    fontSize: 11,
+  },
+  statusTextPending: {
+    color: colors.statusPendingText,
+  },
+  statusTextVerified: {
+    color: colors.brandGreen,
+  },
+  detailsTable: {
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+  },
+  tableLabel: {
+    ...typography.body,
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  tableValue: {
+    ...typography.body,
+    fontSize: 13,
+    color: colors.textPrimary,
+  },
+  tableValueBold: {
+    ...typography.bodyBold,
+    fontSize: 13,
+    color: colors.textPrimary,
+  },
+  tableDivider: {
+    height: 1,
+    backgroundColor: colors.divider,
+  },
+  notesCard: {
+    backgroundColor: colors.surfaceSubtle,
+    padding: spacing.md,
+    borderRadius: spacing.borderRadiusMd,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  notesLabel: {
+    ...typography.captionBold,
+    fontSize: 10,
+    color: colors.textMuted,
+    marginBottom: 3,
+  },
+  notesContent: {
+    ...typography.body,
+    fontSize: 13,
+    color: colors.textPrimary,
+  },
+  auditCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.brandGreenLight,
+    padding: spacing.md,
+    borderRadius: spacing.borderRadiusMd,
     gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
     marginBottom: spacing.sm,
   },
-  metricBox: {
-    flex: 1,
-    backgroundColor: colors.surfaceSubtle,
-    padding: spacing.md,
-    borderRadius: spacing.borderRadiusMd,
-  },
-  metricLabel: {
-    ...typography.label,
-    fontSize: 9,
-    color: colors.textMuted,
-  },
-  metricVal: {
-    ...typography.captionBold,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  metricValBold: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    marginTop: 2,
-  },
-  varianceBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-    borderRadius: spacing.borderRadiusMd,
-    marginVertical: spacing.sm,
-    borderWidth: 1,
-  },
-  matchBanner: {
-    backgroundColor: colors.brandGreenLight,
-    borderColor: '#A7F3D0',
-  },
-  excessBanner: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FDE68A',
-  },
-  shortageBanner: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#FCA5A5',
-  },
-  varianceTextGroup: {
-    marginLeft: spacing.sm,
-  },
-  varianceTitle: {
-    ...typography.bodyBold,
-  },
-  section: {
-    backgroundColor: colors.surfaceSubtle,
-    padding: spacing.md,
-    borderRadius: spacing.borderRadiusMd,
-    marginTop: spacing.xs,
-  },
-  sectionLabel: {
-    ...typography.label,
-    fontSize: 9,
-    color: colors.textMuted,
-  },
-  sectionValue: {
-    ...typography.caption,
-    color: colors.textPrimary,
-    marginTop: 2,
-  },
-  auditStamp: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.brandGreenLight,
-    padding: spacing.md,
-    borderRadius: spacing.borderRadiusMd,
-    marginTop: spacing.md,
-    gap: spacing.xs,
-  },
-  auditText: {
+  auditTitle: {
     ...typography.captionBold,
     color: colors.brandGreen,
-    flex: 1,
+    fontSize: 12,
   },
-  closeBtn: {
+  auditSub: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  footer: {
+    gap: spacing.xs + 2,
+    paddingTop: spacing.xs,
+  },
+  verifyBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: spacing.borderRadiusLg,
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    borderRadius: spacing.borderRadiusMd,
+    gap: 6,
   },
-  closeBtnText: {
-    ...typography.button,
-    color: colors.textPrimary,
+  verifyBtnText: {
+    ...typography.bodyBold,
+    color: colors.textInverse,
+    fontSize: 14,
+  },
+  dismissBtn: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  dismissBtnText: {
+    ...typography.captionBold,
+    color: colors.textSecondary,
+    fontSize: 13,
   },
 });

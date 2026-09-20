@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { LedgerEntry } from '../../types';
+import { formatTransaction, FormattedTransaction } from '../../utils/transactionFormatter';
 import { colors, typography, spacing } from '../../theme';
 
 export interface LedgerRowProps {
@@ -14,80 +16,56 @@ export const LedgerRow: React.FC<LedgerRowProps> = ({
   entry,
   onPress,
   showPartyName = false,
-  perspective = 'VENDOR',
+  perspective = 'ADMIN',
 }) => {
-  const isDebit = entry.type === 'DEBIT'; // Order / Invoice billed on credit
-  const accentColor = isDebit ? colors.debit : colors.brandGreen;
-
-  const dateFormatted = new Date(entry.date).toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  const getTransactionLabel = () => {
-    if (perspective === 'VENDOR') {
-      // From the vendor's perspective: DEBIT = you were invoiced, CREDIT = you made a payment
-      return isDebit ? 'INVOICE' : 'PAYMENT';
-    }
-    // From the Admin/Distributor perspective: DEBIT = we issued invoice, CREDIT = we received payment
-    return isDebit ? 'INVOICE' : 'PAYMENT RECEIVED';
-  };
+  const t: FormattedTransaction = formatTransaction(entry, perspective);
 
   return (
     <TouchableOpacity
-      style={styles.row}
+      style={styles.card}
       onPress={onPress}
       disabled={!onPress}
-      activeOpacity={0.6}
+      activeOpacity={0.65}
     >
-      {/* Left indicator dot */}
-      <View style={[styles.dot, { backgroundColor: accentColor }]} />
-
-      {/* Content */}
-      <View style={styles.content}>
-        <View style={styles.topRow}>
-          <Text style={styles.refNo} numberOfLines={1}>
-            {entry.referenceNo}
-          </Text>
-          {entry.editedAt && (
-            <View style={styles.editedTag}>
-              <Text style={styles.editedText}>edited</Text>
-            </View>
-          )}
-        </View>
-
-        {showPartyName && (
-          <Text style={styles.partyName} numberOfLines={1}>
-            {entry.partyName}
-          </Text>
-        )}
-
-        <Text style={styles.note} numberOfLines={1}>
-          {entry.note}
-        </Text>
-
-        <Text style={styles.date}>{dateFormatted}</Text>
+      {/* Icon */}
+      <View style={[styles.iconCircle, { backgroundColor: t.iconBg }]}>
+        <Ionicons name={t.iconName as any} size={17} color={t.iconColor} />
       </View>
 
-      {/* Right: amount + running balance */}
-      <View style={styles.rightCol}>
-        <Text style={[styles.amountLabel, { color: accentColor }]}>
-          {getTransactionLabel()}
-        </Text>
-        <Text style={[styles.amount, { color: accentColor }]}>
-          ₹{entry.amount.toLocaleString('en-IN', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-        </Text>
-        <View style={styles.balanceTag}>
-          <Text style={styles.balanceText}>
-            Due ₹{entry.runningBalance.toLocaleString('en-IN', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+      {/* Main Content (2 Clean Lines) */}
+      <View style={styles.mainContent}>
+        {/* Line 1: Title & Amount */}
+        <View style={styles.rowTop}>
+          <View style={styles.titleWrapper}>
+            <Text style={styles.title} numberOfLines={1}>
+              {t.title}
+            </Text>
+            {t.auditInfo && (
+              <View style={styles.editedDot} />
+            )}
+          </View>
+          <Text style={[styles.amount, { color: t.color }]}>
+            {t.amountWithSign}
+          </Text>
+        </View>
+
+        {/* Line 2: Date/Time & Balance (Reference ID hidden from list view) */}
+        <View style={styles.rowBottom}>
+          <Text style={styles.subText} numberOfLines={1}>
+            {t.dateFormatted} • {t.timeFormatted}
+          </Text>
+          <Text
+            style={[
+              styles.balanceText,
+              t.balanceStatus === 'DUE'
+                ? styles.balanceTextDue
+                : t.balanceStatus === 'ADVANCE'
+                ? styles.balanceTextAdvance
+                : styles.balanceTextSettled,
+            ]}
+            numberOfLines={1}
+          >
+            {t.balanceLabel}
           </Text>
         </View>
       </View>
@@ -96,89 +74,82 @@ export const LedgerRow: React.FC<LedgerRowProps> = ({
 };
 
 const styles = StyleSheet.create({
-  row: {
+  card: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.lg,
+    paddingVertical: 12,
     paddingHorizontal: spacing.screenPadding,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: spacing.md,
-    marginTop: 2,
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
     flexShrink: 0,
   },
-  content: {
+  mainContent: {
     flex: 1,
-    marginRight: spacing.md,
+    justifyContent: 'center',
   },
-  topRow: {
+  rowTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.xs,
+    justifyContent: 'space-between',
+    marginBottom: 3,
   },
-  refNo: {
+  titleWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  title: {
     ...typography.bodyBold,
     color: colors.textPrimary,
-    fontSize: 14,
-  },
-  editedTag: {
-    backgroundColor: colors.surfaceSubtle,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  editedText: {
-    ...typography.caption,
-    fontSize: 9,
-    color: colors.textMuted,
-  },
-  partyName: {
-    ...typography.captionBold,
-    color: colors.accent,
-    marginTop: 2,
-  },
-  note: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
+    fontSize: 13,
     lineHeight: 17,
   },
-  date: {
+  editedDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#F59E0B',
+    marginLeft: 4,
+  },
+  amount: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  rowBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  subText: {
     ...typography.caption,
     color: colors.textMuted,
     fontSize: 11,
-    marginTop: 3,
-  },
-  rightCol: {
-    alignItems: 'flex-end',
-    flexShrink: 0,
-  },
-  amountLabel: {
-    ...typography.label,
-    fontSize: 9,
-    marginBottom: 2,
-  },
-  amount: {
-    fontSize: 16,
-    fontWeight: '700',
-    lineHeight: 22,
-  },
-  balanceTag: {
-    marginTop: 4,
-    backgroundColor: colors.surfaceSubtle,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    flex: 1,
+    marginRight: spacing.sm,
   },
   balanceText: {
-    ...typography.captionBold,
-    fontSize: 10,
+    ...typography.caption,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  balanceTextDue: {
     color: colors.textSecondary,
+  },
+  balanceTextAdvance: {
+    color: colors.brandGreen,
+  },
+  balanceTextSettled: {
+    color: colors.textMuted,
   },
 });

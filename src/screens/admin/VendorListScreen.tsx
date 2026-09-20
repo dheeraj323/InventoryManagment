@@ -18,19 +18,17 @@ import { useDebounce } from '../../hooks';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { EmptyState } from '../../components/common/EmptyState';
-import { AddVendorModal } from '../../components/vendor/AddVendorModal';
 import { Vendor, VendorStatus } from '../../types';
 import { colors, typography, spacing } from '../../theme';
 
-type FilterKey = 'ALL' | 'WITH_DUES' | 'ACTIVE' | 'ON_HOLD' | 'SUSPENDED';
+type FilterKey = 'ALL' | 'WITH_DUES';
 
 export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { vendors, addVendor } = useVendorStore();
+  const { vendors } = useVendorStore();
   const { getVendorAccountSummary } = useLedgerStore();
 
   const [search, setSearch] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<FilterKey>('ALL');
-  const [showAddModal, setShowAddModal] = useState(false);
   const debouncedSearch = useDebounce(search, 350);
 
   // Compute live account summaries for each vendor
@@ -38,13 +36,11 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     return vendors.map((v) => {
       const summary = getVendorAccountSummary(v.id, v);
       const hasDues = summary.currentOutstanding > 0;
-      const status: VendorStatus = v.status || (v.active === false ? 'SUSPENDED' : 'ACTIVE');
 
       return {
         vendor: v,
         summary,
         hasDues,
-        status,
       };
     });
   }, [vendors, getVendorAccountSummary]);
@@ -53,27 +49,18 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const metrics = useMemo(() => {
     let totalReceivables = 0;
     let withDuesCount = 0;
-    let activeCount = 0;
-    let onHoldCount = 0;
-    let suspendedCount = 0;
 
     for (const item of vendorSummaries) {
       if (item.hasDues) {
         totalReceivables += item.summary.currentOutstanding;
         withDuesCount++;
       }
-      if (item.status === 'ACTIVE') activeCount++;
-      else if (item.status === 'ON_HOLD') onHoldCount++;
-      else if (item.status === 'SUSPENDED') suspendedCount++;
     }
 
     return {
       totalCount: vendors.length,
       totalReceivables,
       withDuesCount,
-      activeCount,
-      onHoldCount,
-      suspendedCount,
     };
   }, [vendorSummaries, vendors]);
 
@@ -90,18 +77,13 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           v.shopName.toLowerCase().includes(q) ||
           v.name.toLowerCase().includes(q) ||
           (v.ownerName && v.ownerName.toLowerCase().includes(q)) ||
-          v.phone.includes(q) ||
-          (v.email && v.email.toLowerCase().includes(q)) ||
-          (v.area && v.area.toLowerCase().includes(q));
+          v.phone.includes(q);
 
         if (!matchesSearch) return false;
       }
 
       // Filter Key Selection
       if (selectedFilter === 'WITH_DUES') return item.hasDues;
-      if (selectedFilter === 'ACTIVE') return item.status === 'ACTIVE';
-      if (selectedFilter === 'ON_HOLD') return item.status === 'ON_HOLD';
-      if (selectedFilter === 'SUSPENDED') return item.status === 'SUSPENDED';
 
       return true;
     });
@@ -132,8 +114,6 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const filterTabs = [
     { key: 'ALL' as FilterKey, label: 'All', count: metrics.totalCount, dotColor: undefined },
     { key: 'WITH_DUES' as FilterKey, label: 'With Dues', count: metrics.withDuesCount, dotColor: colors.warning },
-    { key: 'ACTIVE' as FilterKey, label: 'Active', count: metrics.activeCount, dotColor: colors.brandGreen },
-    { key: 'ON_HOLD' as FilterKey, label: 'On Hold', count: metrics.onHoldCount, dotColor: '#7E22CE' },
   ];
 
   return (
@@ -146,16 +126,6 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         onBackPress={() => {
           if (navigation.canGoBack()) navigation.goBack();
         }}
-        rightAction={
-          <TouchableOpacity
-            style={styles.headerAddBtn}
-            onPress={() => setShowAddModal(true)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="add" size={16} color={colors.textInverse} />
-            <Text style={styles.headerAddBtnText}>Add Vendor</Text>
-          </TouchableOpacity>
-        }
       />
 
       {/* ── Search & Filter Tabs ─────────────────────────────────── */}
@@ -164,7 +134,7 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         <View style={styles.searchBar}>
           <Ionicons name="search-outline" size={17} color={colors.textMuted} />
           <TextInput
-            placeholder="Search shop, owner, phone, area..."
+            placeholder="Search shop, owner, phone..."
             value={search}
             onChangeText={setSearch}
             placeholderTextColor={colors.textMuted}
@@ -232,8 +202,6 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         renderItem={({ item }) => {
           const v = item.vendor;
           const outstanding = item.summary.currentOutstanding;
-          const isPending = item.status === 'ON_HOLD' || item.status === 'PENDING_APPROVAL';
-          const isSuspended = item.status === 'SUSPENDED';
 
           return (
             <Card
@@ -242,14 +210,14 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
               outlined
               elevation="sm"
             >
-              {/* Card Header: Shop Name + Status */}
+              {/* Card Header: Shop Name + Contact */}
               <View style={styles.cardHeader}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.shopName} numberOfLines={1}>
                     {v.shopName}
                   </Text>
                   <Text style={styles.ownerText} numberOfLines={1}>
-                    {v.name || v.ownerName} · {v.area || 'General Area'}
+                    {v.name || v.ownerName || 'Retail Partner'}
                   </Text>
                 </View>
 
@@ -279,38 +247,27 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
               {/* Divider */}
               <View style={styles.cardDivider} />
 
-              {/* Card Footer: Terms on Left, Balance on Right */}
+              {/* Card Footer: Contact / Balance */}
               <View style={styles.cardFooter}>
-                <View style={styles.termsCol}>
-                  <Text style={styles.termsLabel}>Terms</Text>
-                  <Text style={styles.termsVal}>
-                    {v.paymentTerms || 'Net 15 Days'}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.phoneLabel}>
+                    {v.phone ? `Ph: ${v.phone}` : 'No phone provided'}
                   </Text>
                 </View>
 
-                {isSuspended ? (
-                  <View style={styles.statusPillSuspended}>
-                    <Text style={styles.statusTextSuspended}>Suspended</Text>
-                  </View>
-                ) : isPending ? (
-                  <View style={styles.statusPillPending}>
-                    <Text style={styles.statusTextPending}>On Hold</Text>
-                  </View>
-                ) : (
-                  <View style={styles.balanceCol}>
-                    <Text style={styles.balanceLabel}>
-                      {outstanding > 0 ? 'Balance Due' : 'Account Balance'}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.balanceAmount,
-                        outstanding > 0 ? styles.balanceDue : styles.balanceSettled,
-                      ]}
-                    >
-                      {outstanding > 0 ? `₹${fmt(outstanding)}` : 'Settled (₹0)'}
-                    </Text>
-                  </View>
-                )}
+                <View style={styles.balanceCol}>
+                  <Text style={styles.balanceLabel}>
+                    {outstanding > 0 ? 'Balance Due' : 'Account Balance'}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.balanceAmount,
+                      outstanding > 0 ? styles.balanceDue : styles.balanceSettled,
+                    ]}
+                  >
+                    {outstanding > 0 ? `₹${fmt(outstanding)}` : 'Settled (₹0)'}
+                  </Text>
+                </View>
 
                 <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={{ marginLeft: 6 }} />
               </View>
@@ -328,19 +285,10 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             description={
               search.length > 0 || selectedFilter !== 'ALL'
                 ? 'Try changing your search term or filter selection'
-                : 'Tap "Add Vendor" above to register retail shop partners'
+                : 'No retail shop partners found'
             }
           />
         }
-      />
-
-      {/* ── Add Vendor Modal ───────────────────────────────────────── */}
-      <AddVendorModal
-        visible={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onSave={async (vendorData) => {
-          await addVendor(vendorData);
-        }}
       />
     </SafeAreaView>
   );
@@ -350,20 +298,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  headerAddBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: spacing.borderRadiusMd,
-    gap: 4,
-  },
-  headerAddBtnText: {
-    ...typography.captionBold,
-    color: colors.textInverse,
-    fontSize: 12,
   },
   topControlSection: {
     backgroundColor: colors.surface,
@@ -522,20 +456,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  termsCol: {
-    flex: 1,
-  },
-  termsLabel: {
+  phoneLabel: {
     ...typography.caption,
     color: colors.textMuted,
-    fontSize: 10,
-    textTransform: 'uppercase',
-  },
-  termsVal: {
-    ...typography.captionBold,
-    color: colors.textSecondary,
     fontSize: 12,
-    marginTop: 1,
   },
   balanceCol: {
     alignItems: 'flex-end',
@@ -556,27 +480,5 @@ const styles = StyleSheet.create({
   },
   balanceSettled: {
     color: colors.textMuted,
-  },
-  statusPillPending: {
-    backgroundColor: '#F3E8FF',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: spacing.borderRadiusFull,
-  },
-  statusTextPending: {
-    ...typography.captionBold,
-    color: '#7E22CE',
-    fontSize: 11,
-  },
-  statusPillSuspended: {
-    backgroundColor: colors.debitLight,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: spacing.borderRadiusFull,
-  },
-  statusTextSuspended: {
-    ...typography.captionBold,
-    color: colors.debit,
-    fontSize: 11,
   },
 });

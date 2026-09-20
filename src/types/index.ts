@@ -26,8 +26,8 @@ export interface Vendor {
   businessName?: string;
   phone: string;
   email?: string;
-  address: string;
-  area: string;
+  address?: string;
+  area?: string;
   vendorType?: string; // e.g. "Retailer", "Supermarket", "Kirana Store", "Wholesaler"
   paymentTerms?: string; // e.g. "Net 15 Days", "Payment On Delivery", "Weekly"
   assignedStaffId?: string;
@@ -326,7 +326,9 @@ export interface VendorAccountSummary {
   openingBalance: number;
   totalDebits: number;       // Sum of all DEBIT ledger entries
   totalCredits: number;      // Sum of all CREDIT ledger entries
-  currentOutstanding: number; // Net amount the vendor owes (positive = receivable)
+  currentOutstanding: number; // Net amount the vendor owes (positive = receivable, 0 if settled/advance)
+  advanceBalance: number;    // Net excess payment (positive when totalCredits > totalDebits)
+  overdueAmount: number;     // Overdue amount if invoices are past due
   availableCredit: number;   // creditLimit - currentOutstanding (0 if no limit)
   lastLedgerBalance: number; // Running balance of the most recent ledger entry
 }

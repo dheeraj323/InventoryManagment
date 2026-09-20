@@ -3,54 +3,85 @@ import { View, Text, StyleSheet } from 'react-native';
 import { colors, typography, spacing } from '../../theme';
 
 export interface LedgerSummaryCardProps {
-  currentBalance: number; // Positive = Receivable (Vendor owes), Negative = Advance (Prepaid)
+  currentBalance?: number;
+  currentOutstanding?: number;
+  totalInvoiced?: number;
+  paymentsReceived?: number;
+  advanceBalance?: number;
+  overdueAmount?: number;
   totalGave?: number;
   totalGot?: number;
   partyName?: string;
-  debitLabel?: string; // Defaults to 'Total Billed'
-  creditLabel?: string; // Defaults to 'Total Paid'
+  debitLabel?: string;
+  creditLabel?: string;
   perspective?: 'ADMIN' | 'VENDOR';
 }
 
+const fmt = (n: number) =>
+  n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
   currentBalance,
+  currentOutstanding: explicitOutstanding,
+  totalInvoiced,
+  paymentsReceived,
+  advanceBalance: explicitAdvance,
+  overdueAmount = 0,
   totalGave = 0,
   totalGot = 0,
   partyName,
-  debitLabel = 'Total Invoiced',
-  creditLabel = 'Total Collected',
+  debitLabel = 'Invoiced',
+  creditLabel = 'Collected',
   perspective = 'ADMIN',
 }) => {
-  const isDue = currentBalance > 0;
+  const invoiced = totalInvoiced !== undefined ? totalInvoiced : totalGave;
+  const collected = paymentsReceived !== undefined ? paymentsReceived : totalGot;
 
-  // Amount and Card border: Green #16A34A for receivable asset
-  const amountColor = '#16A34A';
-  const borderColor = '#16A34A';
+  const rawBalance = currentBalance !== undefined ? currentBalance : invoiced - collected;
+  const outstanding =
+    explicitOutstanding !== undefined
+      ? explicitOutstanding
+      : rawBalance > 0
+      ? rawBalance
+      : 0;
+  const advance =
+    explicitAdvance !== undefined
+      ? explicitAdvance
+      : rawBalance < 0
+      ? Math.abs(rawBalance)
+      : 0;
 
-  // Status Chip: Amber text #B45309 and Light Amber bg #FEF3C7 for Pending Due
-  const statusTextColor = isDue ? '#B45309' : '#16A34A';
-  const statusBgColor = isDue ? '#FEF3C7' : '#DCFCE7';
-  const statusText = isDue ? 'Pending Due' : 'Settled / Advance';
+  const isDue = outstanding > 0;
+  const isAdvance = advance > 0 && outstanding === 0;
+
+  let heroLabel = 'ACCOUNT BALANCE';
+  let heroAmount = '₹0.00';
+  let statusText = 'Settled';
+  let statusTextColor = colors.textSecondary;
+  let statusBgColor = colors.surfaceSubtle;
+  let amountColor = colors.textPrimary;
+
+  if (isDue) {
+    heroLabel = 'OUTSTANDING DUE';
+    heroAmount = `₹${fmt(outstanding)}`;
+    statusText = 'Pending Due';
+    statusTextColor = '#B45309';
+    statusBgColor = '#FEF3C7';
+    amountColor = colors.textPrimary;
+  } else if (isAdvance) {
+    heroLabel = 'ADVANCE BALANCE';
+    heroAmount = `₹${fmt(advance)}`;
+    statusText = 'In Advance';
+    statusTextColor = colors.brandGreen;
+    statusBgColor = colors.brandGreenLight;
+    amountColor = colors.brandGreen;
+  }
 
   return (
-    <View style={[styles.card, { borderLeftColor: borderColor }]}>
-      {/* Party name label */}
-      {partyName && (
-        <Text style={styles.partyName} numberOfLines={1}>
-          {partyName}
-        </Text>
-      )}
-
-      {/* Hero balance row */}
-      <View style={styles.heroRow}>
-        <View style={styles.heroLeft}>
-          <Text style={styles.heroLabel}>
-            {isDue ? 'Net Outstanding Due' : 'Account Settled'}
-          </Text>
-          <Text style={[styles.heroAmount, { color: amountColor }]}>
-            ₹{Math.abs(currentBalance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </Text>
-        </View>
+    <View style={styles.card}>
+      {/* Top row: Label & Status */}
+      <View style={styles.topRow}>
+        <Text style={styles.heroLabel}>{heroLabel}</Text>
         <View style={[styles.statusChip, { backgroundColor: statusBgColor }]}>
           <Text style={[styles.statusChipText, { color: statusTextColor }]}>
             {statusText}
@@ -58,22 +89,37 @@ export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
         </View>
       </View>
 
-      {/* Divider + stats row — only shown when there's actual data */}
-      {(totalGave > 0 || totalGot > 0) && (
-        <View style={styles.statsRow}>
-          <View style={styles.statBlock}>
-            <Text style={styles.statLabel}>{debitLabel}</Text>
-            <Text style={[styles.statAmount, { color: colors.debit }]}>
-              ₹{totalGave.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      {/* Main Hero Amount */}
+      <Text style={[styles.heroAmount, { color: amountColor }]}>{heroAmount}</Text>
+
+      {/* Footer Metrics Row */}
+      {(invoiced > 0 || collected > 0) && (
+        <View style={styles.metricsRow}>
+          <View style={styles.metricItem}>
+            <Text style={styles.metricLabel}>{debitLabel}</Text>
+            <Text style={styles.metricValue}>₹{fmt(invoiced)}</Text>
+          </View>
+
+          <View style={styles.metricDot} />
+
+          <View style={styles.metricItem}>
+            <Text style={styles.metricLabel}>{creditLabel}</Text>
+            <Text style={[styles.metricValue, { color: colors.brandGreen }]}>
+              ₹{fmt(collected)}
             </Text>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statBlock}>
-            <Text style={styles.statLabel}>{creditLabel}</Text>
-            <Text style={[styles.statAmount, { color: colors.brandGreen }]}>
-              ₹{totalGot.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </Text>
-          </View>
+
+          {overdueAmount > 0 && (
+            <>
+              <View style={styles.metricDot} />
+              <View style={styles.metricItem}>
+                <Text style={styles.metricLabel}>Overdue</Text>
+                <Text style={[styles.metricValue, { color: colors.debit }]}>
+                  ₹{fmt(overdueAmount)}
+                </Text>
+              </View>
+            </>
+          )}
         </View>
       )}
     </View>
@@ -84,73 +130,73 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: spacing.borderRadiusLg,
-    padding: spacing.xl,
-    borderLeftWidth: 4,
+    padding: spacing.md,
+    marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
-    // Subtle shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  partyName: {
-    ...typography.captionBold,
-    color: colors.textMuted,
-    marginBottom: spacing.sm,
-    letterSpacing: 0.3,
-  },
-  heroRow: {
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  heroLeft: {
-    flex: 1,
-    marginRight: spacing.md,
-  },
-  heroLabel: {
-    ...typography.label,
-    color: colors.textMuted,
     marginBottom: 4,
   },
-  heroAmount: {
-    ...typography.hero,
+  heroLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    color: colors.textMuted,
   },
   statusChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: spacing.borderRadiusFull,
   },
   statusChipText: {
     ...typography.captionBold,
-    fontSize: 11,
+    fontSize: 10,
   },
-  statsRow: {
+  heroAmount: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    marginBottom: spacing.xs,
+  },
+  metricsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.lg,
-    paddingTop: spacing.lg,
+    marginTop: spacing.xs,
+    paddingTop: spacing.xs + 2,
     borderTopWidth: 1,
     borderTopColor: colors.divider,
+    gap: spacing.sm,
   },
-  statBlock: {
-    flex: 1,
+  metricItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  statLabel: {
-    ...typography.label,
+  metricDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: colors.textMuted,
+    opacity: 0.5,
+  },
+  metricLabel: {
+    ...typography.caption,
     color: colors.textMuted,
-    marginBottom: 3,
+    fontSize: 11,
   },
-  statAmount: {
-    ...typography.bodyBold,
-    fontSize: 15,
-  },
-  statDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: colors.divider,
-    marginHorizontal: spacing.lg,
+  metricValue: {
+    ...typography.captionBold,
+    color: colors.textPrimary,
+    fontSize: 11,
   },
 });

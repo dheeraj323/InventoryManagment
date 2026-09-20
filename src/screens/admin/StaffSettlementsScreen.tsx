@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,183 +6,343 @@ import {
   SafeAreaView,
   FlatList,
   TouchableOpacity,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCashStore } from '../../store/useCashStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useDebounce } from '../../hooks';
 import { Header } from '../../components/common/Header';
-import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
-import { StatusBadge } from '../../components/common/StatusBadge';
 import { EmptyState } from '../../components/common/EmptyState';
 import { SettlementDetailModal } from '../../components/cash';
 import { CashSettlement } from '../../types';
+import { formatDate } from '../../utils/dateFormatter';
 import { colors, typography, spacing } from '../../theme';
+
+type FilterType = 'ALL' | 'PENDING' | 'VERIFIED';
 
 export const StaffSettlementsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { settlements, verifySettlement } = useCashStore();
   const { currentUser } = useAuthStore();
+
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<FilterType>('ALL');
   const [selectedSettlement, setSelectedSettlement] = useState<CashSettlement | null>(null);
 
-  const pendingCount = settlements.filter((s) => s.status === 'PENDING_VERIFICATION').length;
+  const debouncedSearch = useDebounce(search, 300);
+
+  const fmt = (n: number) =>
+    n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Summary Metrics
+  const stats = useMemo(() => {
+    let pendingCount = 0;
+    let pendingAmount = 0;
+    let verifiedCount = 0;
+    let verifiedAmount = 0;
+
+    for (const s of settlements) {
+      const handed = s.handedOverCash || s.amountHandedOver || 0;
+      if (s.status === 'PENDING_VERIFICATION') {
+        pendingCount++;
+        pendingAmount += handed;
+      } else {
+        verifiedCount++;
+        verifiedAmount += handed;
+      }
+    }
+
+    return {
+      totalCount: settlements.length,
+      totalAmount: pendingAmount + verifiedAmount,
+      pendingCount,
+      pendingAmount,
+      verifiedCount,
+      verifiedAmount,
+    };
+  }, [settlements]);
+
+  // Filter & Search List
+  const filteredSettlements = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+
+    const sorted = [...settlements].sort((a, b) => {
+      const timeA = a.createdAt
+        ? new Date(a.createdAt).getTime()
+        : a.id.startsWith('set-')
+        ? parseInt(a.id.replace('set-', ''), 10) || 0
+        : 0;
+      const timeB = b.createdAt
+        ? new Date(b.createdAt).getTime()
+        : b.id.startsWith('set-')
+        ? parseInt(b.id.replace('set-', ''), 10) || 0
+        : 0;
+      return timeB - timeA;
+    });
+
+    return sorted.filter((item) => {
+      if (filter === 'PENDING' && item.status !== 'PENDING_VERIFICATION') return false;
+      if (filter === 'VERIFIED' && item.status !== 'VERIFIED') return false;
+
+      if (q.length > 0) {
+        const staffMatch = item.staffName?.toLowerCase().includes(q) || false;
+        const setNumMatch = item.settlementNumber?.toLowerCase().includes(q) || false;
+        const notesMatch = item.notes?.toLowerCase().includes(q) || false;
+        const dateMatch = item.date?.toLowerCase().includes(q) || false;
+
+        if (!staffMatch && !setNumMatch && !notesMatch && !dateMatch) return false;
+      }
+
+      return true;
+    });
+  }, [settlements, filter, debouncedSearch]);
 
   const handleVerify = (id: string) => {
-    verifySettlement(id, currentUser?.name || 'Admin Rajesh');
+    const target = settlements.find((s) => s.id === id);
+    const staffName = target?.staffName || 'Staff';
+    const amount = target?.handedOverCash || target?.amountHandedOver || 0;
+
+    Alert.alert(
+      'Verify Cash Handover',
+      `Confirm receipt of ₹${fmt(amount)} physical cash from ${staffName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm & Sign Off',
+          style: 'default',
+          onPress: () => {
+            verifySettlement(id, currentUser?.name || 'Admin');
+          },
+        },
+      ]
+    );
   };
 
-  const sortedSettlements = [...settlements].sort((a, b) => {
-    const timeA = a.createdAt
-      ? new Date(a.createdAt).getTime()
-      : a.id.startsWith('set-')
-      ? parseInt(a.id.replace('set-', ''), 10) || 0
-      : 0;
-    const timeB = b.createdAt
-      ? new Date(b.createdAt).getTime()
-      : b.id.startsWith('set-')
-      ? parseInt(b.id.replace('set-', ''), 10) || 0
-      : 0;
-    return timeB - timeA;
-  });
+  const filterTabs = [
+    { key: 'ALL' as FilterType, label: `All (${stats.totalCount})` },
+    { key: 'PENDING' as FilterType, label: `Pending (${stats.pendingCount})` },
+    { key: 'VERIFIED' as FilterType, label: `Verified (${stats.verifiedCount})` },
+  ];
 
-  const renderHeader = () => (
-    <View style={styles.summaryBar}>
-      <View style={styles.summaryPill}>
-        <Ionicons name="documents-outline" size={16} color={colors.primary} />
-        <Text style={styles.summaryText}>{sortedSettlements.length} Total Handovers</Text>
-      </View>
-      {pendingCount > 0 ? (
-        <View style={[styles.summaryPill, styles.pendingPill]}>
-          <Ionicons name="time-outline" size={16} color="#D97706" />
-          <Text style={[styles.summaryText, { color: '#D97706' }]}>
-            {pendingCount} Pending Audit
-          </Text>
+  const renderHeaderSummary = () => (
+    <View style={styles.summaryCard}>
+      {/* Top Total */}
+      <View style={styles.summaryTopRow}>
+        <View>
+          <Text style={styles.summaryLabel}>TOTAL CASH COLLECTED</Text>
+          <Text style={styles.summaryTotalAmount}>₹{fmt(stats.totalAmount)}</Text>
         </View>
-      ) : null}
+        {stats.pendingCount > 0 ? (
+          <View style={styles.pendingBadge}>
+            <View style={styles.pendingDot} />
+            <Text style={styles.pendingBadgeText}>
+              {stats.pendingCount} to verify
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.settledBadge}>
+            <Ionicons name="checkmark-circle" size={13} color={colors.brandGreen} />
+            <Text style={styles.settledBadgeText}>All Audited</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Divider */}
+      <View style={styles.summaryDivider} />
+
+      {/* Breakdown Columns */}
+      <View style={styles.summaryCols}>
+        <View style={styles.summaryCol}>
+          <Text style={styles.colLabel}>Pending Audit</Text>
+          <Text
+            style={[
+              styles.colAmount,
+              stats.pendingCount > 0 ? { color: colors.statusPendingText } : { color: colors.textPrimary },
+            ]}
+          >
+            ₹{fmt(stats.pendingAmount)}
+          </Text>
+          <Text style={styles.colCount}>{stats.pendingCount} handover{stats.pendingCount !== 1 ? 's' : ''}</Text>
+        </View>
+
+        <View style={styles.colSeparator} />
+
+        <View style={styles.summaryCol}>
+          <Text style={styles.colLabel}>Verified in Safe</Text>
+          <Text style={[styles.colAmount, { color: colors.brandGreen }]}>
+            ₹{fmt(stats.verifiedAmount)}
+          </Text>
+          <Text style={styles.colCount}>{stats.verifiedCount} audited</Text>
+        </View>
+      </View>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* ── Header ──────────────────────────────────────────────── */}
       <Header
-        title="Staff Cash Settlements"
-        subtitle="Audit & verify end-of-day cash handovers"
+        title="Cash Settlements"
+        subtitle={`${settlements.length} Staff Handovers`}
         showBack={navigation.canGoBack()}
         onBackPress={() => {
           if (navigation.canGoBack()) navigation.goBack();
         }}
       />
 
+      {/* ── Search & Filter Tabs ─────────────────────────────────── */}
+      <View style={styles.controlBar}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search-outline" size={16} color={colors.textMuted} />
+          <TextInput
+            placeholder="Search staff, date, remarks..."
+            value={search}
+            onChangeText={setSearch}
+            placeholderTextColor={colors.textMuted}
+            style={styles.searchInput}
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close-circle" size={16} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Filter Segment Tabs */}
+        <View style={styles.filterSegment}>
+          {filterTabs.map((tab) => {
+            const isActive = filter === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[styles.segmentBtn, isActive && styles.segmentBtnActive]}
+                onPress={() => setFilter(tab.key)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.segmentText, isActive && styles.segmentTextActive]}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* ── Settlements List ─────────────────────────────────────── */}
       <FlatList
-        data={sortedSettlements}
+        data={filteredSettlements}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
-        ListHeaderComponent={renderHeader}
+        ListHeaderComponent={renderHeaderSummary}
         renderItem={({ item }) => {
           const isPending = item.status === 'PENDING_VERIFICATION';
           const handedOver = item.handedOverCash || item.amountHandedOver || 0;
           const expected = item.totalCashCollected || item.amountCollected || 0;
           const variance = item.variance || item.difference || 0;
-          const initial = item.staffName ? item.staffName.charAt(0).toUpperCase() : 'S';
 
           return (
             <TouchableOpacity
-              activeOpacity={0.8}
+              activeOpacity={0.85}
               onPress={() => setSelectedSettlement(item)}
+              style={styles.cardWrapper}
             >
-              <Card variant="flat" style={styles.card}>
-                <View style={styles.headerRow}>
-                  <View style={styles.staffInfoGroup}>
-                    <View style={styles.avatarCircle}>
-                      <Text style={styles.avatarText}>{initial}</Text>
-                    </View>
-                    <View>
-                      <Text style={styles.staffNameText}>{item.staffName}</Text>
-                      <Text style={styles.metaText}>
-                        {item.settlementNumber} • {item.date}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <StatusBadge
-                    customLabel={isPending ? 'Pending Audit' : 'Verified'}
-                    customBg={isPending ? '#FEF3C7' : colors.brandGreenLight}
-                    customColor={isPending ? '#D97706' : colors.brandGreen}
-                    size="sm"
-                  />
+              <View style={styles.settlementCard}>
+                {/* Row 1: Staff Name + Handed Over Amount */}
+                <View style={styles.cardRow1}>
+                  <Text style={styles.staffName}>{item.staffName}</Text>
+                  <Text style={styles.handoverAmount}>₹{fmt(handedOver)}</Text>
                 </View>
 
-                <View style={styles.metricsGrid}>
-                  <View style={styles.metricCol}>
-                    <Text style={styles.metricLabel}>EXPECTED</Text>
-                    <Text style={styles.metricVal}>
-                      ₹{expected.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </Text>
-                  </View>
-
-                  <View style={styles.metricDivider} />
-
-                  <View style={styles.metricCol}>
-                    <Text style={styles.metricLabel}>HANDED OVER</Text>
-                    <Text style={styles.metricValBold}>
-                      ₹{handedOver.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                    </Text>
-                  </View>
-
-                  <View style={styles.metricDivider} />
-
-                  <View style={styles.metricCol}>
-                    <Text style={styles.metricLabel}>VARIANCE</Text>
+                {/* Row 2: Date & Expected vs Variance status */}
+                <View style={styles.cardRow2}>
+                  <Text style={styles.dateLabel}>{formatDate(item.date)}</Text>
+                  <View style={styles.reconciliationGroup}>
+                    <Text style={styles.expectedLabel}>Expected: ₹{fmt(expected)}</Text>
+                    <Text style={styles.dotSeparator}>•</Text>
                     <Text
                       style={[
-                        styles.metricValBold,
+                        styles.varianceLabel,
                         variance === 0
                           ? { color: colors.brandGreen }
                           : variance > 0
-                          ? { color: '#D97706' }
+                          ? { color: colors.statusPendingText }
                           : { color: colors.danger },
                       ]}
                     >
                       {variance === 0
-                        ? '₹0.00'
+                        ? 'Balanced'
                         : variance > 0
-                        ? `+₹${variance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-                        : `-₹${Math.abs(variance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+                        ? `+₹${fmt(variance)} Excess`
+                        : `-₹${fmt(Math.abs(variance))} Short`}
                     </Text>
                   </View>
                 </View>
 
+                {/* Row 3: Notes / Bag Tag (if present) */}
                 {item.notes ? (
-                  <View style={styles.notesBox}>
-                    <Ionicons name="document-text-outline" size={14} color={colors.textMuted} />
-                    <Text style={styles.notesText}>{item.notes}</Text>
+                  <View style={styles.bagNoteRow}>
+                    <Ionicons name="bag-outline" size={12} color={colors.textSecondary} />
+                    <Text style={styles.bagNoteText} numberOfLines={1}>
+                      {item.notes}
+                    </Text>
                   </View>
                 ) : null}
 
-                {isPending && (
-                  <Button
-                    title="Verify & Approve Settlement"
-                    onPress={() => handleVerify(item.id)}
-                    size="md"
-                    style={styles.verifyBtn}
-                  />
-                )}
-              </Card>
+                {/* Row 4: Status footer & Actions */}
+                <View style={styles.cardFooter}>
+                  {isPending ? (
+                    <View style={styles.pendingActionRow}>
+                      <View style={styles.pendingStatusTextGroup}>
+                        <View style={styles.amberDot} />
+                        <Text style={styles.pendingStatusText}>Awaiting Verification</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.inlineVerifyBtn}
+                        onPress={() => handleVerify(item.id)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="checkmark" size={14} color={colors.textInverse} />
+                        <Text style={styles.inlineVerifyText}>Verify Cash</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={styles.verifiedStatusRow}>
+                      <Ionicons name="checkmark-done" size={14} color={colors.brandGreen} />
+                      <Text style={styles.verifiedByText}>
+                        Audited by {item.verifiedBy || 'Admin'}
+                      </Text>
+                      <Ionicons name="chevron-forward" size={14} color={colors.textMuted} style={{ marginLeft: 'auto' }} />
+                    </View>
+                  )}
+                </View>
+              </View>
             </TouchableOpacity>
           );
         }}
         ListEmptyComponent={
           <EmptyState
             iconName="cash-outline"
-            title="No Settlements Found"
-            description="No staff cash settlements have been submitted yet."
+            title={
+              search.length > 0 || filter !== 'ALL'
+                ? 'No matching settlements'
+                : 'No settlements found'
+            }
+            description={
+              search.length > 0 || filter !== 'ALL'
+                ? 'Try changing your search keywords or filter tab'
+                : 'Submitted staff cash handovers will appear here'
+            }
           />
         }
       />
 
+      {/* ── Detail Slip Modal ──────────────────────────────────────── */}
       <SettlementDetailModal
         visible={!!selectedSettlement}
         settlement={selectedSettlement}
         onClose={() => setSelectedSettlement(null)}
+        onVerify={handleVerify}
       />
     </SafeAreaView>
   );
@@ -193,121 +353,285 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  listContent: {
-    padding: spacing.screenPadding,
-    paddingBottom: spacing.xxl,
+  controlBar: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  summaryBar: {
-    flexDirection: 'row',
-    marginBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  summaryPill: {
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: spacing.borderRadiusLg,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: spacing.borderRadiusMd,
+    paddingHorizontal: spacing.sm + 2,
+    height: 38,
     borderWidth: 1,
-    borderColor: colors.divider,
+    borderColor: colors.border,
+    marginBottom: spacing.xs + 2,
     gap: 6,
   },
-  pendingPill: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FDE68A',
+  searchInput: {
+    flex: 1,
+    ...typography.body,
+    fontSize: 13,
+    color: colors.textPrimary,
+    paddingVertical: 0,
   },
-  summaryText: {
+  filterSegment: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: spacing.borderRadiusMd,
+    padding: 3,
+    gap: 4,
+  },
+  segmentBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    borderRadius: spacing.borderRadiusMd - 2,
+  },
+  segmentBtnActive: {
+    backgroundColor: colors.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  segmentText: {
     ...typography.captionBold,
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  segmentTextActive: {
     color: colors.textPrimary,
   },
-  card: {
-    padding: spacing.lg,
+  listContent: {
+    padding: spacing.screenPadding,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xxl,
+  },
+
+  // Executive Summary Card
+  summaryCard: {
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
     marginBottom: spacing.md,
   },
-  headerRow: {
+  summaryTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.md,
   },
-  staffInfoGroup: {
+  summaryLabel: {
+    ...typography.captionBold,
+    fontSize: 10,
+    color: colors.textMuted,
+    letterSpacing: 0.5,
+  },
+  summaryTotalAmount: {
+    ...typography.h1,
+    fontSize: 22,
+    color: colors.textPrimary,
+    marginTop: 2,
+  },
+  pendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.statusPendingBg,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: spacing.borderRadiusFull,
+    gap: 5,
+  },
+  pendingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.statusPendingText,
+  },
+  pendingBadgeText: {
+    ...typography.captionBold,
+    fontSize: 11,
+    color: colors.statusPendingText,
+  },
+  settledBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.brandGreenLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: spacing.borderRadiusFull,
+    gap: 4,
+  },
+  settledBadgeText: {
+    ...typography.captionBold,
+    fontSize: 11,
+    color: colors.brandGreen,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: colors.divider,
+    marginVertical: spacing.sm + 2,
+  },
+  summaryCols: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  avatarCircle: {
-    width: 36,
+  summaryCol: {
+    flex: 1,
+  },
+  colSeparator: {
+    width: 1,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surfaceSubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.divider,
+    backgroundColor: colors.divider,
+    marginHorizontal: spacing.sm,
   },
-  avatarText: {
-    ...typography.bodyBold,
-    color: colors.primary,
-  },
-  staffNameText: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-  },
-  metaText: {
+  colLabel: {
     ...typography.caption,
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  colAmount: {
+    ...typography.bodyBold,
+    fontSize: 15,
+    marginTop: 1,
+  },
+  colCount: {
+    ...typography.caption,
+    fontSize: 10,
     color: colors.textMuted,
     marginTop: 1,
   },
-  metricsGrid: {
+
+  // Settlement Card
+  cardWrapper: {
+    marginBottom: spacing.sm,
+  },
+  settlementCard: {
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  cardRow1: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.surfaceSubtle,
-    padding: spacing.md,
-    borderRadius: spacing.borderRadiusMd,
   },
-  metricCol: {
-    flex: 1,
+  staffName: {
+    ...typography.bodyBold,
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
+  handoverAmount: {
+    ...typography.bodyBold,
+    fontSize: 16,
+    color: colors.textPrimary,
+  },
+  cardRow2: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
   },
-  metricDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: colors.divider,
-  },
-  metricLabel: {
-    ...typography.label,
-    fontSize: 9,
+  dateLabel: {
+    ...typography.caption,
+    fontSize: 12,
     color: colors.textMuted,
   },
-  metricVal: {
-    ...typography.captionBold,
+  reconciliationGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  expectedLabel: {
+    ...typography.caption,
+    fontSize: 11,
     color: colors.textSecondary,
-    marginTop: 2,
   },
-  metricValBold: {
-    ...typography.bodyBold,
-    marginTop: 2,
+  dotSeparator: {
+    ...typography.caption,
+    fontSize: 10,
+    color: colors.textMuted,
   },
-  notesBox: {
+  varianceLabel: {
+    ...typography.captionBold,
+    fontSize: 11,
+  },
+  bagNoteRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surfaceSubtle,
-    padding: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
     borderRadius: spacing.borderRadiusSm,
-    marginTop: spacing.sm,
-    gap: 6,
+    marginTop: spacing.xs + 2,
+    gap: 5,
   },
-  notesText: {
+  bagNoteText: {
     ...typography.caption,
+    fontSize: 11,
     color: colors.textSecondary,
     flex: 1,
   },
-  verifyBtn: {
-    backgroundColor: colors.navy,
-    marginTop: spacing.md,
-    borderRadius: spacing.borderRadiusLg,
+  cardFooter: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.xs + 2,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+  },
+  pendingActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pendingStatusTextGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  amberDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.warning,
+  },
+  pendingStatusText: {
+    ...typography.captionBold,
+    fontSize: 11,
+    color: colors.statusPendingText,
+  },
+  inlineVerifyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: spacing.borderRadiusSm,
+    gap: 4,
+  },
+  inlineVerifyText: {
+    ...typography.captionBold,
+    color: colors.textInverse,
+    fontSize: 11,
+  },
+  verifiedStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  verifiedByText: {
+    ...typography.caption,
+    fontSize: 11,
+    color: colors.brandGreen,
   },
 });
-

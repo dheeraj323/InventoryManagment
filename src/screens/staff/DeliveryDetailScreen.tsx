@@ -20,6 +20,7 @@ import {
 } from '../../components/orders';
 import { OrderItem } from '../../types';
 import { PAYMENT_METHOD_LABELS } from '../../constants/rules';
+import { formatDate, formatDateTime } from '../../utils/dateFormatter';
 import { colors, typography, spacing } from '../../theme';
 
 export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = ({
@@ -90,18 +91,8 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
   // ── Render Completed / Delivered Order Summary ────────────────────────
   if (isCompleted) {
     const formattedDeliveredAt = order.deliveredAt
-      ? new Date(order.deliveredAt).toLocaleDateString('en-IN', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : new Date(order.orderDate).toLocaleDateString('en-IN', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-        });
+      ? formatDateTime(order.deliveredAt)
+      : formatDate(order.orderDate);
 
     return (
       <SafeAreaView style={styles.container}>

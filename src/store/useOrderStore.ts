@@ -24,7 +24,7 @@ interface OrderState {
 }
 
 export const useOrderStore = create<OrderState>((set, get) => ({
-  orders: MOCK_ORDERS,
+  orders: [],
   isLoading: false,
   error: null,
 
@@ -32,11 +32,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const orders = await orderService.getOrders();
-      if (orders.length > 0) {
-        set({ orders, isLoading: false });
-      } else {
-        set({ isLoading: false });
-      }
+      set({ orders: orders || [], isLoading: false });
     } catch (err: any) {
       console.error('Failed to fetch orders:', err);
       set({ error: err.message || 'Failed to fetch orders', isLoading: false });
@@ -45,9 +41,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
   subscribeToOrders: (vendorId?: string, staffId?: string) => {
     return orderService.subscribeOrders((firestoreOrders) => {
-      if (firestoreOrders && firestoreOrders.length > 0) {
-        set({ orders: firestoreOrders });
-      }
+      set({ orders: firestoreOrders || [] });
     }, vendorId, staffId);
   },
 

@@ -14,6 +14,7 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 import { StatusTracker } from '../../components/orders/StatusTracker';
 import { OrderItemRow } from '../../components/orders/OrderItemRow';
 import { PAYMENT_METHOD_LABELS } from '../../constants/rules';
+import { formatDateTime } from '../../utils/dateFormatter';
 import { colors, typography, spacing } from '../../theme';
 
 export const VendorOrderDetailScreen: React.FC<{ route: any; navigation: any }> = ({
@@ -35,13 +36,7 @@ export const VendorOrderDetailScreen: React.FC<{ route: any; navigation: any }> 
     );
   }
 
-  const orderDateFormatted = new Date(order.orderDate).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const orderDateFormatted = formatDateTime(order.orderDate);
 
   return (
     <SafeAreaView style={styles.container}>

@@ -23,10 +23,6 @@ export interface AddVendorModalProps {
 }
 
 const VENDOR_TYPES = ['Kirana Store', 'Supermarket', 'Wholesaler', 'Retail Shop', 'Other'];
-const STATUS_OPTIONS: { label: string; value: VendorStatus }[] = [
-  { label: 'Active', value: 'ACTIVE' },
-  { label: 'Pending Approval', value: 'PENDING_APPROVAL' },
-];
 
 export const AddVendorModal: React.FC<AddVendorModalProps> = ({
   visible,
@@ -36,13 +32,9 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
   const [shopName, setShopName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
-  const [area, setArea] = useState('');
   const [vendorType, setVendorType] = useState('Kirana Store');
   const [openingBalanceStr, setOpeningBalanceStr] = useState('');
-  const [paymentTerms, setPaymentTerms] = useState('Net 15 Days');
-  const [status, setStatus] = useState<VendorStatus>('ACTIVE');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
@@ -58,9 +50,6 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
     const cleanPhone = phone.replace(/[^0-9]/g, '');
     if (!cleanPhone || cleanPhone.length < 10) {
       errs.phone = 'Valid 10-digit phone number is required.';
-    }
-    if (!area.trim()) {
-      errs.area = 'Market area / locality is required.';
     }
 
     const numOpenBal = parseFloat(openingBalanceStr);
@@ -84,17 +73,14 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
         name: ownerName.trim(),
         ownerName: ownerName.trim(),
         phone: phone.trim(),
-        email: email.trim(),
         address: address.trim(),
-        area: area.trim(),
         vendorType,
-        paymentTerms,
         openingBalance,
         currentBalance: openingBalance,
         currentOutstanding: openingBalance,
-        status,
-        active: status === 'ACTIVE',
-        payLaterEligible: status === 'ACTIVE',
+        status: 'ACTIVE',
+        active: true,
+        payLaterEligible: true,
         preferredPaymentMode: 'CASH',
       });
 
@@ -102,13 +88,9 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
       setShopName('');
       setOwnerName('');
       setPhone('');
-      setEmail('');
       setAddress('');
-      setArea('');
       setVendorType('Kirana Store');
       setOpeningBalanceStr('');
-      setPaymentTerms('Net 15 Days');
-      setStatus('ACTIVE');
       setErrors({});
       onClose();
     } catch (err: any) {
@@ -181,50 +163,22 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
                     error={errors.ownerName}
                   />
 
-                  <View style={styles.twoCol}>
-                    <View style={styles.col}>
-                      <Input
-                        label="Phone Number *"
-                        keyboardType="phone-pad"
-                        value={phone}
-                        onChangeText={(v) => {
-                          setPhone(v);
-                          if (errors.phone) setErrors((prev) => ({ ...prev, phone: '' }));
-                        }}
-                        error={errors.phone}
-                      />
-                    </View>
-                    <View style={styles.col}>
-                      <Input
-                        label="Email (Optional)"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        value={email}
-                        onChangeText={setEmail}
-                      />
-                    </View>
-                  </View>
+                  <Input
+                    label="Phone Number *"
+                    keyboardType="phone-pad"
+                    value={phone}
+                    onChangeText={(v) => {
+                      setPhone(v);
+                      if (errors.phone) setErrors((prev) => ({ ...prev, phone: '' }));
+                    }}
+                    error={errors.phone}
+                  />
 
-                  <View style={styles.twoCol}>
-                    <View style={styles.col}>
-                      <Input
-                        label="Market Area / Locality *"
-                        value={area}
-                        onChangeText={(v) => {
-                          setArea(v);
-                          if (errors.area) setErrors((prev) => ({ ...prev, area: '' }));
-                        }}
-                        error={errors.area}
-                      />
-                    </View>
-                    <View style={styles.col}>
-                      <Input
-                        label="Full Address (Optional)"
-                        value={address}
-                        onChangeText={setAddress}
-                      />
-                    </View>
-                  </View>
+                  <Input
+                    label="Address / Location (Optional)"
+                    value={address}
+                    onChangeText={setAddress}
+                  />
 
                   {/* Business Type Selector */}
                   <View style={styles.inputGroup}>
@@ -250,7 +204,7 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
 
                   {/* Section 2: Financial Terms */}
                   <View style={[styles.sectionHeading, { marginTop: spacing.md }]}>
-                    <Text style={styles.sectionTitle}>2. Financial Terms</Text>
+                    <Text style={styles.sectionTitle}>2. Opening Balance</Text>
                   </View>
 
                   <Input
@@ -265,34 +219,6 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
                     }}
                     error={errors.openingBalance}
                   />
-
-                  <Input
-                    label="Payment Terms"
-                    value={paymentTerms}
-                    onChangeText={setPaymentTerms}
-                  />
-
-                  {/* Initial Status Selector */}
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.fieldLabel}>Registration Status</Text>
-                    <View style={styles.chipRow}>
-                      {STATUS_OPTIONS.map((opt) => {
-                        const isSelected = status === opt.value;
-                        return (
-                          <TouchableOpacity
-                            key={opt.value}
-                            style={[styles.chip, isSelected && styles.chipActive]}
-                            onPress={() => setStatus(opt.value)}
-                            activeOpacity={0.7}
-                          >
-                            <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
-                              {opt.label}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
                 </ScrollView>
 
                 {/* Footer Buttons */}

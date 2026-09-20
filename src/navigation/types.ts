@@ -25,11 +25,19 @@ export type StaffTabParamList = {
 };
 
 export type AdminTabParamList = {
+  AdminDashboardTab: undefined;
+  AdminOrdersTab: undefined;
+  VendorListTab: undefined;
+  AdminFinanceTab: undefined;
+  AdminSettingsTab: undefined;
   AdminDashboard: undefined;
   VendorList: undefined;
-  VendorDetail: { vendorId: string };
+  VendorDetail: {
+    vendorId: string;
+    initialTab?: 'OVERVIEW' | 'LEDGER' | 'ORDERS' | 'INVOICES' | 'PAYMENTS';
+  };
   AdminOrders: undefined;
-  AdminOrderDetail: { orderId: string };
+  AdminOrderDetail: { orderId: string; hideVendorProfile?: boolean };
   Inventory: undefined;
   AdminFinance: undefined;
   AuditHistory: undefined;
