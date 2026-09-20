@@ -9,6 +9,7 @@ export interface LedgerSummaryCardProps {
   partyName?: string;
   debitLabel?: string; // Defaults to 'Total Billed'
   creditLabel?: string; // Defaults to 'Total Paid'
+  perspective?: 'ADMIN' | 'VENDOR';
 }
 
 export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
@@ -16,15 +17,23 @@ export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
   totalGave = 0,
   totalGot = 0,
   partyName,
-  debitLabel = 'Total Billed',
-  creditLabel = 'Total Paid',
+  debitLabel = 'Total Invoiced',
+  creditLabel = 'Total Collected',
+  perspective = 'ADMIN',
 }) => {
-  const isReceivable = currentBalance >= 0;
-  const accentColor = isReceivable ? colors.debit : colors.brandGreen;
-  const accentBg = isReceivable ? colors.debitLight : colors.brandGreenLight;
+  const isDue = currentBalance > 0;
+
+  // Amount and Card border: Green #16A34A for receivable asset
+  const amountColor = '#16A34A';
+  const borderColor = '#16A34A';
+
+  // Status Chip: Amber text #B45309 and Light Amber bg #FEF3C7 for Pending Due
+  const statusTextColor = isDue ? '#B45309' : '#16A34A';
+  const statusBgColor = isDue ? '#FEF3C7' : '#DCFCE7';
+  const statusText = isDue ? 'Pending Due' : 'Settled / Advance';
 
   return (
-    <View style={[styles.card, { borderLeftColor: accentColor }]}>
+    <View style={[styles.card, { borderLeftColor: borderColor }]}>
       {/* Party name label */}
       {partyName && (
         <Text style={styles.partyName} numberOfLines={1}>
@@ -36,15 +45,15 @@ export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
       <View style={styles.heroRow}>
         <View style={styles.heroLeft}>
           <Text style={styles.heroLabel}>
-            {isReceivable ? 'Net Outstanding Due' : 'Settled / Advance'}
+            {isDue ? 'Net Outstanding Due' : 'Account Settled'}
           </Text>
-          <Text style={[styles.heroAmount, { color: accentColor }]}>
+          <Text style={[styles.heroAmount, { color: amountColor }]}>
             ₹{Math.abs(currentBalance).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Text>
         </View>
-        <View style={[styles.statusChip, { backgroundColor: accentBg }]}>
-          <Text style={[styles.statusChipText, { color: accentColor }]}>
-            {isReceivable ? 'Pending Due' : 'Paid / Advance'}
+        <View style={[styles.statusChip, { backgroundColor: statusBgColor }]}>
+          <Text style={[styles.statusChipText, { color: statusTextColor }]}>
+            {statusText}
           </Text>
         </View>
       </View>

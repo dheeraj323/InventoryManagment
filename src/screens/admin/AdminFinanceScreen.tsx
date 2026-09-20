@@ -156,7 +156,11 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
             const s = item as typeof suppliers[0];
             const payable = s.balancePayable || s.outstandingPayable || 0;
             return (
-              <View style={styles.partyRow}>
+              <TouchableOpacity
+                style={styles.partyRow}
+                onPress={() => navigation.navigate('Supplier')}
+                activeOpacity={0.7}
+              >
                 <View style={[styles.avatar, { backgroundColor: colors.debitLight }]}>
                   <Text style={[styles.avatarText, { color: colors.debit }]}>
                     {getInitials(s.name)}
@@ -172,7 +176,8 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
                     ₹{fmt(payable)}
                   </Text>
                 </View>
-              </View>
+                <Ionicons name="chevron-forward" size={15} color={colors.textMuted} style={{ marginLeft: 4 }} />
+              </TouchableOpacity>
             );
           }
         }}

@@ -86,7 +86,7 @@ export interface Supplier {
   contactPerson: string;
   phone: string;
   email: string;
-  category: string;
+  category?: string;
   balancePayable: number; // Outstanding amount we owe to supplier
   outstandingPayable?: number;
   active?: boolean;

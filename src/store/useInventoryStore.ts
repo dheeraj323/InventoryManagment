@@ -27,6 +27,16 @@ interface InventoryState {
   deleteProduct: (productId: string) => Promise<void>;
   getLowStockProducts: () => Product[];
   getProductById: (id: string) => Product | undefined;
+  getSupplierById: (id: string) => Supplier | undefined;
+  addSupplier: (supplier: Partial<Supplier>) => Promise<Supplier>;
+  updateSupplier: (supplierId: string, updates: Partial<Supplier>) => Promise<void>;
+  adjustSupplierPayable: (
+    supplierId: string,
+    amountDelta: number,
+    type: 'ADD_BILL' | 'RECORD_PAYMENT' | 'SET_BALANCE',
+    reason?: string
+  ) => Promise<void>;
+  deleteSupplier: (supplierId: string) => Promise<void>;
   getInventoryStats: () => {
     totalCount: number;
     healthyCount: number;
@@ -334,6 +344,73 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
 
   getProductById: (id: string) => {
     return get().products.find((p) => p.id === id);
+  },
+
+  getSupplierById: (id: string) => {
+    return get().suppliers.find((s) => s.id === id || s.supplierId === id);
+  },
+
+  addSupplier: async (supplierData: Partial<Supplier>) => {
+    const newSupplier = await supplierService.addSupplier(supplierData);
+    set({ suppliers: [...get().suppliers, newSupplier] });
+    return newSupplier;
+  },
+
+  updateSupplier: async (supplierId: string, updates: Partial<Supplier>) => {
+    set({
+      suppliers: get().suppliers.map((s) =>
+        s.id === supplierId || s.supplierId === supplierId ? { ...s, ...updates } : s
+      ),
+    });
+    try {
+      await supplierService.updateSupplier(supplierId, updates);
+    } catch (err) {
+      console.error('Error updating supplier in Firestore:', err);
+    }
+  },
+
+  adjustSupplierPayable: async (
+    supplierId: string,
+    amountDelta: number,
+    type: 'ADD_BILL' | 'RECORD_PAYMENT' | 'SET_BALANCE',
+    reason?: string
+  ) => {
+    const current = get().suppliers.find((s) => s.id === supplierId || s.supplierId === supplierId);
+    if (!current) return;
+
+    let newBalance = current.balancePayable || 0;
+    if (type === 'ADD_BILL') {
+      newBalance += Math.abs(amountDelta);
+    } else if (type === 'RECORD_PAYMENT') {
+      newBalance = Math.max(0, newBalance - Math.abs(amountDelta));
+    } else if (type === 'SET_BALANCE') {
+      newBalance = Math.max(0, amountDelta);
+    }
+
+    set({
+      suppliers: get().suppliers.map((s) =>
+        s.id === supplierId || s.supplierId === supplierId
+          ? { ...s, balancePayable: newBalance, outstandingPayable: newBalance }
+          : s
+      ),
+    });
+
+    try {
+      await supplierService.adjustSupplierPayable(supplierId, newBalance, reason);
+    } catch (err) {
+      console.error('Error updating supplier payable in Firestore:', err);
+    }
+  },
+
+  deleteSupplier: async (supplierId: string) => {
+    set({
+      suppliers: get().suppliers.filter((s) => s.id !== supplierId && s.supplierId !== supplierId),
+    });
+    try {
+      await supplierService.deleteSupplier(supplierId);
+    } catch (err) {
+      console.error('Error deleting supplier in Firestore:', err);
+    }
   },
 
   getInventoryStats: () => {

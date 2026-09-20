@@ -83,6 +83,14 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
       route: 'Inventory',
       badge: lowStockItems.length > 0 ? lowStockItems.length : undefined,
     },
+    {
+      icon: 'business-outline',
+      iconColor: colors.debit,
+      iconBg: colors.debitLight,
+      title: 'Suppliers & Payables',
+      subtitle: 'Distributor payables & inward bills',
+      route: 'Supplier',
+    },
   ];
 
   const financeModules: Module[] = [

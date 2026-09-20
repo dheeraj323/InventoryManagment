@@ -3,6 +3,8 @@ import {
   doc,
   getDocs,
   setDoc,
+  updateDoc,
+  deleteDoc,
   onSnapshot,
   query,
   orderBy,
@@ -68,5 +70,31 @@ export const supplierService = {
     });
 
     return newSupplier;
+  },
+
+  updateSupplier: async (supplierId: string, updates: Partial<Supplier>): Promise<void> => {
+    const docRef = doc(db, SUPPLIERS_COLLECTION, supplierId);
+    await updateDoc(docRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  adjustSupplierPayable: async (
+    supplierId: string,
+    newBalance: number,
+    _reason?: string
+  ): Promise<void> => {
+    const docRef = doc(db, SUPPLIERS_COLLECTION, supplierId);
+    await updateDoc(docRef, {
+      balancePayable: newBalance,
+      outstandingPayable: newBalance,
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  deleteSupplier: async (supplierId: string): Promise<void> => {
+    const docRef = doc(db, SUPPLIERS_COLLECTION, supplierId);
+    await deleteDoc(docRef);
   },
 };
