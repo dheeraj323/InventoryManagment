@@ -18,10 +18,11 @@ import { colors, typography, spacing } from '../../theme';
 
 export const VendorOrdersScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { getOrdersByVendor } = useOrderStore();
-  const { activeVendorId } = useAuthStore();
+  const { activeVendorId, currentUser } = useAuthStore();
   const [selectedFilter, setSelectedFilter] = useState<string>('ALL');
 
-  const vendorOrders = getOrdersByVendor(activeVendorId);
+  const effectiveVendorId = activeVendorId || currentUser?.vendorId || 'vendor-1';
+  const vendorOrders = getOrdersByVendor(effectiveVendorId);
 
   const filters = ['ALL', 'PENDING', 'APPROVED', 'OUT_FOR_DELIVERY', 'DELIVERED'];
 

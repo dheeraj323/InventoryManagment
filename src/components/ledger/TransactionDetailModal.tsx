@@ -70,7 +70,13 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                 {/* Hero Amount Box */}
                 <View style={styles.heroBox}>
                   <Text style={styles.heroLabel}>
-                    {t.amountType === 'debit' ? 'AMOUNT INVOICED (OWED)' : 'AMOUNT COLLECTED (PAID)'}
+                    {perspective === 'VENDOR'
+                      ? t.amountType === 'debit'
+                        ? 'PURCHASE INVOICE AMOUNT'
+                        : 'PAYMENT AMOUNT PAID'
+                      : t.amountType === 'debit'
+                      ? 'AMOUNT INVOICED (OWED)'
+                      : 'AMOUNT COLLECTED (PAID)'}
                   </Text>
                   <Text style={[styles.heroAmount, { color: t.color }]}>
                     {t.amountWithSign}
@@ -83,8 +89,6 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                         styles.balancePill,
                         t.balanceStatus === 'DUE'
                           ? styles.balancePillDue
-                          : t.balanceStatus === 'ADVANCE'
-                          ? styles.balancePillAdvance
                           : styles.balancePillSettled,
                       ]}
                     >
@@ -93,8 +97,6 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                           styles.balancePillText,
                           t.balanceStatus === 'DUE'
                             ? styles.balancePillTextDue
-                            : t.balanceStatus === 'ADVANCE'
-                            ? styles.balancePillTextAdvance
                             : styles.balancePillTextSettled,
                         ]}
                       >

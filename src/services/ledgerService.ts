@@ -58,9 +58,12 @@ export const ledgerService = {
     }
   },
 
-  // Real-time listener for all ledger entries
-  subscribeLedger: (callback: (entries: LedgerEntry[]) => void) => {
-    const q = query(collection(db, LEDGER_COLLECTION));
+  // Real-time listener for ledger entries (optionally filtered by partyId for vendor isolation)
+  subscribeLedger: (callback: (entries: LedgerEntry[]) => void, partyId?: string) => {
+    let q = query(collection(db, LEDGER_COLLECTION));
+    if (partyId) {
+      q = query(collection(db, LEDGER_COLLECTION), where('partyId', '==', partyId));
+    }
     return onSnapshot(q, (snapshot) => {
       const entries = snapshot.docs.map((docSnap) => ({
         id: docSnap.id,

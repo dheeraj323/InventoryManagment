@@ -25,15 +25,18 @@ export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
   currentOutstanding: explicitOutstanding,
   totalInvoiced,
   paymentsReceived,
-  advanceBalance: explicitAdvance,
   overdueAmount = 0,
   totalGave = 0,
   totalGot = 0,
   partyName,
-  debitLabel = 'Invoiced',
-  creditLabel = 'Collected',
+  debitLabel,
+  creditLabel,
   perspective = 'ADMIN',
 }) => {
+  const isVendor = perspective === 'VENDOR';
+  const resolvedDebitLabel = debitLabel || (isVendor ? 'Total Purchases' : 'Invoiced');
+  const resolvedCreditLabel = creditLabel || (isVendor ? 'Total Paid' : 'Collected');
+
   const invoiced = totalInvoiced !== undefined ? totalInvoiced : totalGave;
   const collected = paymentsReceived !== undefined ? paymentsReceived : totalGot;
 
@@ -44,15 +47,8 @@ export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
       : rawBalance > 0
       ? rawBalance
       : 0;
-  const advance =
-    explicitAdvance !== undefined
-      ? explicitAdvance
-      : rawBalance < 0
-      ? Math.abs(rawBalance)
-      : 0;
 
   const isDue = outstanding > 0;
-  const isAdvance = advance > 0 && outstanding === 0;
 
   let heroLabel = 'ACCOUNT BALANCE';
   let heroAmount = '₹0.00';
@@ -62,19 +58,12 @@ export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
   let amountColor = colors.textPrimary;
 
   if (isDue) {
-    heroLabel = 'OUTSTANDING DUE';
+    heroLabel = isVendor ? 'TOTAL AMOUNT PAYABLE' : 'OUTSTANDING DUE';
     heroAmount = `₹${fmt(outstanding)}`;
-    statusText = 'Pending Due';
+    statusText = isVendor ? 'Payment Due' : 'Pending Due';
     statusTextColor = '#B45309';
     statusBgColor = '#FEF3C7';
     amountColor = colors.textPrimary;
-  } else if (isAdvance) {
-    heroLabel = 'ADVANCE BALANCE';
-    heroAmount = `₹${fmt(advance)}`;
-    statusText = 'In Advance';
-    statusTextColor = colors.brandGreen;
-    statusBgColor = colors.brandGreenLight;
-    amountColor = colors.brandGreen;
   }
 
   return (
@@ -96,14 +85,14 @@ export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
       {(invoiced > 0 || collected > 0) && (
         <View style={styles.metricsRow}>
           <View style={styles.metricItem}>
-            <Text style={styles.metricLabel}>{debitLabel}</Text>
+            <Text style={styles.metricLabel}>{resolvedDebitLabel}</Text>
             <Text style={styles.metricValue}>₹{fmt(invoiced)}</Text>
           </View>
 
           <View style={styles.metricDot} />
 
           <View style={styles.metricItem}>
-            <Text style={styles.metricLabel}>{creditLabel}</Text>
+            <Text style={styles.metricLabel}>{resolvedCreditLabel}</Text>
             <Text style={[styles.metricValue, { color: colors.brandGreen }]}>
               ₹{fmt(collected)}
             </Text>
@@ -158,24 +147,22 @@ const styles = StyleSheet.create({
     borderRadius: spacing.borderRadiusFull,
   },
   statusChipText: {
-    ...typography.captionBold,
     fontSize: 10,
+    fontWeight: '700',
   },
   heroAmount: {
-    fontSize: 24,
-    lineHeight: 30,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    marginBottom: spacing.xs,
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    marginTop: 2,
+    marginBottom: spacing.sm,
   },
   metricsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.xs,
     paddingTop: spacing.xs + 2,
     borderTopWidth: 1,
     borderTopColor: colors.divider,
-    gap: spacing.sm,
   },
   metricItem: {
     flexDirection: 'row',
@@ -187,16 +174,15 @@ const styles = StyleSheet.create({
     height: 3,
     borderRadius: 1.5,
     backgroundColor: colors.textMuted,
-    opacity: 0.5,
+    marginHorizontal: 8,
   },
   metricLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
     fontSize: 11,
+    color: colors.textMuted,
   },
   metricValue: {
-    ...typography.captionBold,
-    color: colors.textPrimary,
     fontSize: 11,
+    fontWeight: '700',
+    color: colors.textPrimary,
   },
 });

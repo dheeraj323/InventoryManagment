@@ -15,7 +15,7 @@ import { VendorNavigator } from './VendorNavigator';
 const Stack = createNativeStackNavigator();
 
 export const RootNavigator: React.FC = () => {
-  const { currentUser, activeRole, initAuth } = useAuthStore();
+  const { currentUser, activeRole, activeVendorId, activeStaffId, initAuth } = useAuthStore();
   const { subscribeToOrders } = useOrderStore();
   const { subscribeLedger } = useLedgerStore();
   const { subscribeInventory } = useInventoryStore();
@@ -29,8 +29,12 @@ export const RootNavigator: React.FC = () => {
   useEffect(() => {
     if (!currentUser) return;
 
-    const unsubOrders = subscribeToOrders();
-    const unsubLedger = subscribeLedger();
+    // Scope subscriptions: Vendors only receive their own orders & ledger entries
+    const vendorFilter = activeRole === 'VENDOR' ? (activeVendorId || currentUser.vendorId) : undefined;
+    const staffFilter = activeRole === 'STAFF' ? (activeStaffId || currentUser.staffId) : undefined;
+
+    const unsubOrders = subscribeToOrders(vendorFilter, staffFilter);
+    const unsubLedger = subscribeLedger(vendorFilter);
     const unsubInventory = subscribeInventory();
     const unsubSettlements = subscribeSettlements();
     const unsubVendors = subscribeVendors();
@@ -42,7 +46,7 @@ export const RootNavigator: React.FC = () => {
       unsubSettlements();
       unsubVendors();
     };
-  }, [currentUser]);
+  }, [currentUser, activeRole, activeVendorId, activeStaffId]);
 
   return (
     <NavigationContainer>

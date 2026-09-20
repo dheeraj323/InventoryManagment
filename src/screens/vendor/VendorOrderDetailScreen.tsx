@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useOrderStore } from '../../store/useOrderStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { StatusBadge } from '../../components/common/StatusBadge';
@@ -23,14 +24,21 @@ export const VendorOrderDetailScreen: React.FC<{ route: any; navigation: any }> 
 }) => {
   const { orderId } = route.params || {};
   const { getOrderById } = useOrderStore();
+  const { activeVendorId, currentUser, activeRole } = useAuthStore();
   const order = getOrderById(orderId);
 
-  if (!order) {
+  const effectiveVendorId = activeVendorId || currentUser?.vendorId;
+  const isVendorRole = activeRole === 'VENDOR' || currentUser?.role === 'VENDOR';
+  const isForbidden = Boolean(isVendorRole && effectiveVendorId && order && order.vendorId !== effectiveVendorId);
+
+  if (!order || isForbidden) {
     return (
       <SafeAreaView style={styles.container}>
         <Header title="Order Detail" showBack onBackPress={() => navigation.goBack()} />
         <View style={styles.emptyContainer}>
-          <Text style={styles.errorText}>Order not found.</Text>
+          <Text style={styles.errorText}>
+            {isForbidden ? 'Unauthorized: You can only view orders placed by your store.' : 'Order not found.'}
+          </Text>
         </View>
       </SafeAreaView>
     );

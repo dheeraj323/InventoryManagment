@@ -17,18 +17,23 @@ import { PAYMENT_METHOD_LABELS } from '../../constants/rules';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
-import { PaymentMethod } from '../../types';
+import { EmptyState } from '../../components/common/EmptyState';
+import { Order, PaymentMethod } from '../../types';
+import { formatDate } from '../../utils/dateFormatter';
 import { colors, typography, spacing } from '../../theme';
 
 export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { items, getSubtotal, getTax, getTotal, clearCart } = useCartStore();
+  const { items, getSubtotal, getTax, getTotal, getItemCount, clearCart } = useCartStore();
   const { createOrder } = useOrderStore();
-  const { activeVendorId } = useAuthStore();
+  const { activeVendorId, currentUser } = useAuthStore();
   const { getVendorAccountSummary } = useLedgerStore();
   const { getVendorById } = useVendorStore();
 
-  const vendor = getVendorById(activeVendorId) || {
-    id: activeVendorId || 'vendor-1',
+  const [placedOrder, setPlacedOrder] = useState<Order | null>(null);
+
+  const effectiveVendorId = activeVendorId || currentUser?.vendorId || 'vendor-1';
+  const vendor = getVendorById(effectiveVendorId) || {
+    id: effectiveVendorId,
     name: 'Amit Patel',
     shopName: 'Apex Supermarket',
     phone: '+91 99887 76655',
@@ -38,11 +43,12 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     payLaterEligible: true,
     preferredPaymentMode: 'PAY_LATER' as const,
   };
-  const runningBalance = getVendorAccountSummary(vendor.id, vendor);
+  const runningBalance = getVendorAccountSummary(effectiveVendorId, vendor);
 
   const totalAmount = getTotal();
   const subtotal = getSubtotal();
   const tax = getTax();
+  const totalUnits = getItemCount();
 
   const [selectedPaymentMode, setSelectedPaymentMode] = useState<PaymentMethod>(
     vendor.preferredPaymentMode || 'PAY_LATER'
@@ -54,6 +60,8 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [loading, setLoading] = useState(false);
 
   const handlePlaceOrder = async () => {
+    if (items.length === 0 || totalAmount <= 0) return;
+
     setErrorMsg('');
     setCreditWarning('');
     setLoading(true);
@@ -79,7 +87,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         shopName: vendor.shopName,
         phone: vendor.phone,
         address: vendor.address || '',
-        items,
+        items: [...items],
         subtotal,
         tax,
         discount: 0,
@@ -93,24 +101,13 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         assignedStaffId: 'staff-1',
         assignedStaffName: 'Suresh Kumar',
         notes: notes.trim() || '',
-        // Propagate credit limit override flag if applicable
         pendingAdminOverride: pendingAdminOverrideLocal || undefined,
       });
 
-      // NOTE: No ledger write here. The ledger DEBIT entry is created by
-      // financialTransactionService.finalizeDelivery() when the staff
-      // confirms physical delivery. This prevents double billing.
-
+      // Clear cart and show order placed success screen
       clearCart();
       setLoading(false);
-
-      navigation.reset({
-        index: 0,
-        routes: [
-          { name: 'VendorDashboard' },
-          { name: 'VendorOrderDetail', params: { orderId: newOrder.id } },
-        ],
-      });
+      setPlacedOrder(newOrder);
     } catch (err: any) {
       console.error('Checkout place order error:', err);
       setErrorMsg(err.message || 'Failed to place order. Please try again.');
@@ -118,16 +115,180 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     }
   };
 
+  // ── 1. Order Success Screen View ──────────────────────────────────────────
+  if (placedOrder) {
+    const itemCount = placedOrder.items.reduce((s, i) => s + i.orderedQty, 0);
+
+    return (
+      <SafeAreaView style={styles.container}>
+        <Header
+          title="Order Confirmed"
+          subtitle={`Order #${placedOrder.orderNumber || placedOrder.id}`}
+        />
+
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Success Banner Hero */}
+          <View style={styles.successHero}>
+            <View style={styles.successIconOuter}>
+              <View style={styles.successIconInner}>
+                <Ionicons name="checkmark-sharp" size={44} color={colors.statusDeliveredText} />
+              </View>
+            </View>
+            <Text style={styles.successTitle}>Order Placed Successfully!</Text>
+            <Text style={styles.successSubtitle}>
+              Thank you for your order. We have received your wholesale request and queued it for dispatch.
+            </Text>
+          </View>
+
+          {/* Order Details Summary Card */}
+          <Card style={styles.card} outlined elevation="sm">
+            <View style={styles.orderSummaryHeader}>
+              <View>
+                <Text style={styles.orderNumberLabel}>ORDER REFERENCE</Text>
+                <Text style={styles.orderNumberValue}>#{placedOrder.orderNumber || placedOrder.id}</Text>
+              </View>
+              <View style={styles.statusBadgePending}>
+                <Ionicons name="time-outline" size={13} color={colors.statusPendingText} />
+                <Text style={styles.statusBadgeText}>Pending Confirmation</Text>
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Order Date</Text>
+              <Text style={styles.infoVal}>{formatDate(placedOrder.orderDate)}</Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Expected Delivery</Text>
+              <Text style={styles.infoVal}>{formatDate(placedOrder.deliveryDate)}</Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Total Ordered Items</Text>
+              <Text style={styles.infoVal}>{itemCount} Units ({placedOrder.items.length} SKUs)</Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Payment Mode</Text>
+              <Text style={styles.infoVal}>{PAYMENT_METHOD_LABELS[placedOrder.preferredPaymentMode] || placedOrder.preferredPaymentMode}</Text>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.totalRow}>
+              <View>
+                <Text style={styles.totalLabel}>Total Amount</Text>
+                <Text style={styles.totalSub}>Inclusive of GST</Text>
+              </View>
+              <Text style={styles.totalVal}>
+                ₹{placedOrder.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </Text>
+            </View>
+          </Card>
+
+          {/* Delivery Store Card */}
+          <Card style={styles.card} outlined elevation="sm">
+            <Text style={styles.cardTitle}>DELIVERY ADDRESS</Text>
+            <View style={styles.deliveryShopRow}>
+              <Ionicons name="business-outline" size={18} color={colors.primary} />
+              <Text style={styles.deliveryShopName}>{placedOrder.shopName || vendor.shopName}</Text>
+            </View>
+            <Text style={styles.deliveryAddressText}>{placedOrder.address || vendor.address || 'Standard Registered Store Address'}</Text>
+            <View style={styles.deliveryContactRow}>
+              <Ionicons name="call-outline" size={14} color={colors.textSecondary} />
+              <Text style={styles.deliveryPhoneText}>{placedOrder.phone || vendor.phone}</Text>
+            </View>
+          </Card>
+
+          <View style={{ height: spacing.lg }} />
+        </ScrollView>
+
+        {/* Success Action Buttons */}
+        <View style={styles.successFooterContainer}>
+          <Button
+            title="Go to Dashboard"
+            onPress={() => navigation.navigate('VendorDashboardTab')}
+            size="lg"
+            icon={<Ionicons name="home-outline" size={18} color={colors.textInverse} />}
+          />
+          <Button
+            title="View Order Details"
+            variant="outline"
+            onPress={() => navigation.navigate('VendorOrderDetail', { orderId: placedOrder.id })}
+            size="lg"
+            style={styles.viewOrderBtn}
+            icon={<Ionicons name="receipt-outline" size={18} color={colors.primary} />}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── 2. Empty Cart Guard View ──────────────────────────────────────────────
+  if (items.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Header
+          title="Payment & Checkout"
+          subtitle="Finalize Wholesale Order"
+          showBack
+          onBackPress={() => navigation.goBack()}
+        />
+        <View style={styles.emptyContainer}>
+          <EmptyState
+            iconName="cart-outline"
+            title="Your Order Cart is Empty"
+            description="You do not have any items ready for checkout. Please add products from the catalog to place an order."
+            actionTitle="Browse Product Catalog"
+            onAction={() => navigation.navigate('ProductCatalogTab')}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── 3. Active Checkout Form View ──────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container}>
       <Header
         title="Payment & Checkout"
-        subtitle="Finalize Wholesale Order"
+        subtitle={`${items.length} Items · ₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
         showBack
         onBackPress={() => navigation.goBack()}
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Order Items Summary Card */}
+        <Card style={styles.card} outlined elevation="sm">
+          <View style={styles.orderSummaryHeader}>
+            <Text style={styles.cardTitle}>ORDER ITEMS ({items.length})</Text>
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.editCartLink}>Edit Cart</Text>
+            </TouchableOpacity>
+          </View>
+
+          {items.map((item) => (
+            <View key={item.productId} style={styles.cartPreviewRow}>
+              <View style={styles.cartPreviewLeft}>
+                <Text style={styles.cartPreviewName} numberOfLines={1}>
+                  {item.productName}
+                </Text>
+                <Text style={styles.cartPreviewUnit}>
+                  {item.orderedQty} × ₹{item.unitPrice.toLocaleString('en-IN')} / {item.unit}
+                </Text>
+              </View>
+              <Text style={styles.cartPreviewTotal}>
+                ₹{item.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </Text>
+            </View>
+          ))}
+        </Card>
+
         {/* Payment Preferences Section */}
         <Card style={styles.card} outlined elevation="sm">
           <Text style={styles.cardTitle}>SELECT PAYMENT METHOD</Text>
@@ -174,11 +335,39 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
           })}
         </Card>
 
-        {/* Order Grand Total summary */}
+        {/* Bill Summary Breakdown */}
         <Card style={styles.card} outlined elevation="sm">
+          <Text style={styles.cardTitle}>BILL BREAKDOWN</Text>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Total Units</Text>
+            <Text style={styles.infoVal}>{totalUnits} Units</Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Subtotal</Text>
+            <Text style={styles.infoVal}>
+              ₹{subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>GST / Tax</Text>
+            <Text style={styles.infoVal}>
+              ₹{tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </Text>
+          </View>
+
+          <View style={styles.divider} />
+
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Grand Total Amount</Text>
-            <Text style={styles.totalVal}>₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+            <View>
+              <Text style={styles.totalLabel}>Grand Total</Text>
+              <Text style={styles.totalSub}>Inclusive of all taxes</Text>
+            </View>
+            <Text style={styles.totalVal}>
+              ₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </Text>
           </View>
         </Card>
 
@@ -195,6 +384,8 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             <Text style={styles.errorBannerText}>{errorMsg}</Text>
           </View>
         ) : null}
+
+        <View style={{ height: spacing.lg }} />
       </ScrollView>
 
       {/* Place Order CTA Button */}
@@ -203,6 +394,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
           title={`Confirm & Place Order  ₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
           onPress={handlePlaceOrder}
           loading={loading}
+          disabled={loading || items.length === 0 || totalAmount <= 0}
           size="lg"
         />
       </View>
@@ -215,18 +407,60 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  emptyContainer: {
+    flex: 1,
+    padding: spacing.screenPadding,
+    justifyContent: 'center',
+  },
   scrollContent: {
     padding: spacing.screenPadding,
   },
   card: {
     marginBottom: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
   },
   cardTitle: {
     ...typography.captionBold,
     color: colors.textMuted,
     fontSize: 10,
     letterSpacing: 0.5,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
+    textTransform: 'uppercase',
+  },
+  editCartLink: {
+    ...typography.captionBold,
+    color: colors.primary,
+    fontSize: 12,
+  },
+  cartPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  cartPreviewLeft: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  cartPreviewName: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 13,
+  },
+  cartPreviewUnit: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  cartPreviewTotal: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 13,
   },
   paymentOption: {
     flexDirection: 'row',
@@ -241,10 +475,6 @@ const styles = StyleSheet.create({
   paymentOptionSelected: {
     borderColor: colors.primary,
     backgroundColor: colors.accentLight,
-  },
-  paymentOptionDisabled: {
-    opacity: 0.5,
-    backgroundColor: colors.surfaceSubtle,
   },
   radioCircle: {
     width: 20,
@@ -269,26 +499,54 @@ const styles = StyleSheet.create({
     ...typography.bodyBold,
     color: colors.textPrimary,
   },
-  disabledText: {
-    color: colors.textMuted,
-  },
   paymentSubtext: {
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: 2,
   },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  infoLabel: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontSize: 13,
+  },
+  infoVal: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 13,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.sm,
+  },
   totalRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingTop: 4,
   },
   totalLabel: {
     ...typography.h3,
+    fontSize: 15,
     color: colors.textPrimary,
+  },
+  totalSub: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 10,
+    marginTop: 1,
   },
   totalVal: {
     ...typography.currencyLarge,
     color: colors.primary,
+    fontSize: 20,
+    fontWeight: '700',
   },
   errorBanner: {
     flexDirection: 'row',
@@ -320,9 +578,122 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   footerContainer: {
-    padding: spacing.screenPadding,
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
+  // ── Success View Styles ───────────────────────────────────────────
+  successHero: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.md,
+  },
+  successIconOuter: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: '#DCFCE7', // emerald light tint
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  successIconInner: {
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    backgroundColor: '#BBF7D0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successTitle: {
+    ...typography.h2,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  successSubtitle: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    fontSize: 13,
+    lineHeight: 19,
+    maxWidth: 320,
+  },
+  orderSummaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  orderNumberLabel: {
+    ...typography.captionBold,
+    color: colors.textMuted,
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  orderNumberValue: {
+    ...typography.h3,
+    color: colors.primary,
+    fontSize: 16,
+    marginTop: 2,
+  },
+  statusBadgePending: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.statusPendingBg,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: spacing.borderRadiusSm,
+  },
+  statusBadgeText: {
+    ...typography.captionBold,
+    color: colors.statusPendingText,
+    fontSize: 11,
+  },
+  deliveryShopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: 4,
+  },
+  deliveryShopName: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 14,
+  },
+  deliveryAddressText: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 6,
+  },
+  deliveryContactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  deliveryPhoneText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 12,
+  },
+  successFooterContainer: {
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: spacing.sm,
+  },
+  viewOrderBtn: {
+    marginTop: 2,
+  },
 });
+

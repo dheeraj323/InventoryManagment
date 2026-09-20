@@ -32,11 +32,12 @@ const FILTERS: { key: FilterType; label: string }[] = [
 
 export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { getLedgerForParty, getVendorAccountSummary } = useLedgerStore();
-  const { activeVendorId } = useAuthStore();
+  const { activeVendorId, currentUser } = useAuthStore();
   const { getVendorById } = useVendorStore();
 
-  const vendor = getVendorById(activeVendorId) || {
-    id: activeVendorId || 'vendor-1',
+  const effectiveVendorId = activeVendorId || currentUser?.vendorId || 'vendor-1';
+  const vendor = getVendorById(effectiveVendorId) || {
+    id: effectiveVendorId,
     name: 'Amit Patel',
     shopName: 'Apex Supermarket',
     phone: '',
@@ -48,8 +49,8 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
     preferredPaymentMode: 'PAY_LATER' as const,
   };
 
-  const entries = getLedgerForParty(vendor.id);
-  const accountSummary = getVendorAccountSummary(vendor.id, vendor);
+  const entries = getLedgerForParty(effectiveVendorId);
+  const accountSummary = getVendorAccountSummary(effectiveVendorId, vendor);
 
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [selectedTransaction, setSelectedTransaction] = useState<LedgerEntry | null>(null);
@@ -86,7 +87,6 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
             {/* Summary card */}
             <LedgerSummaryCard
               currentOutstanding={accountSummary.currentOutstanding}
-              advanceBalance={accountSummary.advanceBalance}
               currentBalance={accountSummary.lastLedgerBalance}
               totalInvoiced={accountSummary.totalDebits}
               paymentsReceived={accountSummary.totalCredits}

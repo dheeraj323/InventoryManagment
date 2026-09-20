@@ -33,7 +33,7 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
 
   const [items, setItems] = useState<OrderItem[]>(order ? order.items : []);
 
-  if (!order || order.status === 'PENDING') {
+  if (!order || order.status === 'PENDING' || order.status === 'CANCELLED') {
     return (
       <SafeAreaView style={styles.container}>
         <Header title="Delivery Record" showBack onBackPress={() => navigation.goBack()} />
@@ -41,6 +41,8 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
           <Text style={styles.errorText}>
             {!order
               ? 'Order not found.'
+              : order.status === 'CANCELLED'
+              ? 'This delivery has been cancelled and is no longer assigned.'
               : 'This order is pending admin approval and is not ready for delivery.'}
           </Text>
         </View>
@@ -50,8 +52,7 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
 
   const isCompleted =
     order.status === 'DELIVERED' ||
-    order.status === 'PARTIALLY_DELIVERED' ||
-    order.status === 'CANCELLED';
+    order.status === 'PARTIALLY_DELIVERED';
 
   const handleUpdateDeliveredQty = (itemId: string, delta: number) => {
     setItems((prev) =>
@@ -109,13 +110,11 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
             <View style={styles.statusHeader}>
               <View style={styles.statusTitleBlock}>
                 <Ionicons
-                  name={order.status === 'CANCELLED' ? 'close-circle' : 'checkmark-done-circle'}
+                  name="checkmark-done-circle"
                   size={20}
-                  color={order.status === 'CANCELLED' ? colors.danger : colors.brandGreen}
+                  color={colors.brandGreen}
                 />
-                <Text style={styles.statusTitle}>
-                  {order.status === 'CANCELLED' ? 'DELIVERY CANCELLED' : 'DELIVERY FULFILLED'}
-                </Text>
+                <Text style={styles.statusTitle}>DELIVERY FULFILLED</Text>
               </View>
               <StatusBadge status={order.status} />
             </View>

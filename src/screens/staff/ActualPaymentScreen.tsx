@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useVendorStore } from '../../store/useVendorStore';
 import { PAYMENT_METHOD_LABELS } from '../../constants/rules';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
@@ -25,8 +26,11 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
   const { orderId, updatedItems, calculatedTotal } = route.params || {};
   const { getOrderById, recordDelivery } = useOrderStore();
   const { activeStaffId, currentUser } = useAuthStore();
+  const { getVendorById } = useVendorStore();
 
   const order = getOrderById(orderId);
+  const vendor = order ? getVendorById(order.vendorId) : null;
+  const totalBill = calculatedTotal || order?.totalAmount || 0;
 
   const [actualMethod, setActualMethod] = useState<PaymentMethod>(
     order?.preferredPaymentMode || 'CASH'

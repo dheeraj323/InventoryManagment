@@ -9,7 +9,7 @@ interface LedgerState {
   auditLogs: AuditLog[];
   isLoading: boolean;
   fetchLedger: () => Promise<void>;
-  subscribeLedger: () => () => void;
+  subscribeLedger: (partyId?: string) => () => void;
   addEntry: (entry: Omit<LedgerEntry, 'id' | 'runningBalance'>) => Promise<void>;
   adjustLedgerManual: (
     entryId: string,
@@ -45,10 +45,10 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
     }
   },
 
-  subscribeLedger: () => {
+  subscribeLedger: (partyId?: string) => {
     return ledgerService.subscribeLedger((firestoreEntries) => {
       set({ entries: firestoreEntries || [] });
-    });
+    }, partyId);
   },
 
   addEntry: async (entryData) => {
@@ -148,23 +148,30 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
     // (for migrated vendors who had a balance before ledger entries were created)
     const openingBalance = vendorObj?.openingBalance ?? vendorObj?.currentBalance ?? 0;
 
+    // Check if there is an explicit opening balance entry in the ledger
+    const hasOpeningEntry = entries.some(
+      (e) => e.sourceType === 'OPENING_BALANCE' || (e.referenceNo || '').startsWith('OPEN-')
+    );
+    const effectiveOpeningBalance = hasOpeningEntry ? 0 : openingBalance;
+
     // Total Invoiced = Sum of all DEBIT entries
     const totalDebits = entries
       .filter((e) => e.type === 'DEBIT')
       .reduce((sum, e) => sum + e.amount, 0);
 
-    // Total Paid = Sum of all CREDIT entries
+    // Total Payments = Sum of all CREDIT entries
     const totalCredits = entries
       .filter((e) => e.type === 'CREDIT')
       .reduce((sum, e) => sum + e.amount, 0);
 
-    // Outstanding Due = Total Invoiced (Debits) − Total Paid (Credits)
-    // When no ledger entries exist yet, fall back to opening balance
-    const outstandingDue =
-      entries.length > 0 ? totalDebits - totalCredits : openingBalance;
+    // Outstanding Due = Effective Opening Balance + Total Debits − Total Credits (clamped to >= 0)
+    const rawBalance =
+      entries.length > 0
+        ? effectiveOpeningBalance + totalDebits - totalCredits
+        : openingBalance;
 
-    const currentOutstanding = Math.max(0, outstandingDue);
-    const advanceBalance = outstandingDue < 0 ? Math.abs(outstandingDue) : 0;
+    const currentOutstanding = Math.max(0, rawBalance);
+    const advanceBalance = 0; // Advance is not supported in the system
     const overdueAmount = 0; // Baseline; derived from individual invoice due dates if applicable
 
     // availableCredit = 0 when no limit is set (treat as "no limit")
@@ -183,7 +190,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
       advanceBalance,
       overdueAmount,
       availableCredit,
-      lastLedgerBalance: outstandingDue,
+      lastLedgerBalance: currentOutstanding,
     };
   },
 

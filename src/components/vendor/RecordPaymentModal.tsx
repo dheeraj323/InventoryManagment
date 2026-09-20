@@ -58,12 +58,26 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   const [error, setError] = useState('');
 
   const liveDue = dueAmount !== undefined ? dueAmount : (vendor?.currentBalance || 0);
+  const numAmount = parseFloat(amountStr) || 0;
+  const isOverpayment = liveDue > 0 && numAmount > liveDue;
+  const isZeroDue = liveDue <= 0;
 
   const handleSave = async () => {
     if (!vendor) return;
-    const numAmount = parseFloat(amountStr);
     if (isNaN(numAmount) || numAmount <= 0) {
       setError('Please enter a valid payment amount greater than 0.');
+      return;
+    }
+
+    if (isZeroDue) {
+      setError(`Cannot record payment: ${vendor.shopName} has no pending dues (₹0.00).`);
+      return;
+    }
+
+    if (numAmount > liveDue) {
+      setError(
+        `Amount ₹${numAmount.toLocaleString('en-IN')} exceeds the pending due of ₹${liveDue.toLocaleString('en-IN')}. Advance payments are not permitted.`
+      );
       return;
     }
 
@@ -121,8 +135,6 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                       <Text style={styles.subtitle}>
                         {vendor.shopName} · {liveDue > 0
                           ? `Due: ₹${liveDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-                          : liveDue < 0
-                          ? `Advance: ₹${Math.abs(liveDue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
                           : 'No Dues Pending (₹0.00)'}
                       </Text>
                     </View>
@@ -142,6 +154,32 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                   contentContainerStyle={styles.scrollContent}
                   keyboardShouldPersistTaps="handled"
                 >
+                  {/* Zero Due Notice */}
+                  {isZeroDue && (
+                    <View style={styles.zeroDueBanner}>
+                      <Ionicons name="checkmark-circle-outline" size={20} color={colors.brandGreen} />
+                      <View style={{ flex: 1, marginLeft: spacing.xs }}>
+                        <Text style={styles.zeroDueTitle}>All Dues Cleared (₹0.00)</Text>
+                        <Text style={styles.zeroDueSub}>
+                          This vendor has no outstanding balance. Advance payments or excess credit cannot be recorded.
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Overpayment Real-time Warning */}
+                  {isOverpayment && (
+                    <View style={styles.overpaymentBanner}>
+                      <Ionicons name="warning" size={20} color="#B45309" />
+                      <View style={{ flex: 1, marginLeft: spacing.xs }}>
+                        <Text style={styles.overpaymentTitle}>⚠️ Overpayment Warning</Text>
+                        <Text style={styles.overpaymentSub}>
+                          The entered amount (₹{numAmount.toLocaleString('en-IN')}) exceeds the outstanding due of ₹{liveDue.toLocaleString('en-IN')}. Advance balance is not allowed. Maximum payable is ₹{liveDue.toLocaleString('en-IN')}.
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
                   {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
                   {/* Payment Mode Selector */}
@@ -176,26 +214,46 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                     </View>
                   </View>
 
-                  <Input
-                    label="Payment Amount (₹) *"
-                    keyboardType="numeric"
-                    prefix="₹"
-                    value={amountStr}
-                    onChangeText={(v) => {
-                      setAmountStr(v);
-                      if (error) setError('');
-                    }}
-                  />
+                  <View style={styles.amountInputWrap}>
+                    <Input
+                      label="Payment Amount (₹) *"
+                      keyboardType="numeric"
+                      prefix="₹"
+                      value={amountStr}
+                      editable={!isZeroDue}
+                      onChangeText={(v) => {
+                        setAmountStr(v);
+                        if (error) setError('');
+                      }}
+                    />
+
+                    {liveDue > 0 && (
+                      <TouchableOpacity
+                        style={styles.fullDueChip}
+                        onPress={() => {
+                          setAmountStr(liveDue.toString());
+                          if (error) setError('');
+                        }}
+                      >
+                        <Ionicons name="sparkles" size={12} color={colors.accent} />
+                        <Text style={styles.fullDueChipText}>
+                          Pay Full Due (₹{liveDue.toLocaleString('en-IN')})
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
 
                   <Input
                     label="Reference / Transaction Number (Optional)"
                     value={referenceNumber}
+                    editable={!isZeroDue}
                     onChangeText={setReferenceNumber}
                   />
 
                   <Input
                     label="Notes / Remarks (Optional)"
                     value={notes}
+                    editable={!isZeroDue}
                     onChangeText={setNotes}
                   />
                 </ScrollView>
@@ -210,11 +268,12 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                     disabled={loading}
                   />
                   <Button
-                    title={`Record ₹${amountStr || '0'}`}
+                    title={isOverpayment ? 'Amount Exceeds Due' : `Record ₹${amountStr || '0'}`}
                     variant="primary"
                     onPress={handleSave}
                     loading={loading}
-                    style={{ flex: 2, backgroundColor: colors.brandGreen }}
+                    disabled={loading || isZeroDue || isOverpayment || numAmount <= 0}
+                    style={{ flex: 2, backgroundColor: isOverpayment ? colors.danger : colors.brandGreen }}
                   />
                 </View>
               </View>
@@ -330,6 +389,72 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     borderRadius: spacing.borderRadiusMd,
     marginBottom: spacing.md,
+  },
+  zeroDueBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.brandGreenLight,
+    padding: spacing.md,
+    borderRadius: spacing.borderRadiusMd,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  zeroDueTitle: {
+    ...typography.bodyBold,
+    color: colors.brandGreen,
+    fontSize: 13,
+  },
+  zeroDueSub: {
+    ...typography.caption,
+    color: '#166534',
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  overpaymentBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FEF3C7',
+    padding: spacing.md,
+    borderRadius: spacing.borderRadiusMd,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  overpaymentTitle: {
+    ...typography.bodyBold,
+    color: '#92400E',
+    fontSize: 13,
+  },
+  overpaymentSub: {
+    ...typography.caption,
+    color: '#78350F',
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  amountInputWrap: {
+    marginBottom: spacing.xs,
+  },
+  fullDueChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    backgroundColor: colors.accentLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 5,
+    borderRadius: spacing.borderRadiusSm,
+    marginTop: -spacing.xs,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  fullDueChipText: {
+    ...typography.captionBold,
+    color: colors.accent,
+    fontSize: 11,
   },
   footer: {
     flexDirection: 'row',

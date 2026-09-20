@@ -21,7 +21,7 @@ import { OrderCard } from '../../components/orders/OrderCard';
 import { colors, typography, spacing } from '../../theme';
 
 export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { switchRole, activeRole, activeVendorId } = useAuthStore();
+  const { switchRole, activeRole, activeVendorId, currentUser } = useAuthStore();
   const { getOrdersByVendor } = useOrderStore();
   const { getPartyRunningBalance } = useLedgerStore();
   const { getItemCount } = useCartStore();
@@ -29,8 +29,9 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const vendor = getVendorById(activeVendorId) || {
-    id: activeVendorId || 'vendor-1',
+  const effectiveVendorId = activeVendorId || currentUser?.vendorId || 'vendor-1';
+  const vendor = getVendorById(effectiveVendorId) || {
+    id: effectiveVendorId,
     name: 'Amit Patel',
     shopName: 'Apex Supermarket',
     phone: '+91 99887 76655',
@@ -41,8 +42,8 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
     preferredPaymentMode: 'PAY_LATER' as const,
   };
 
-  const runningBalance = getPartyRunningBalance(vendor.id);
-  const vendorOrders = getOrdersByVendor(vendor.id);
+  const runningBalance = getPartyRunningBalance(effectiveVendorId);
+  const vendorOrders = getOrdersByVendor(effectiveVendorId);
   const recentOrders = vendorOrders.slice(0, 3);
   const cartCount = getItemCount();
 
@@ -104,7 +105,7 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
           style={[styles.balanceCard, { borderLeftColor: balanceAccentColor }]}
           outlined
           elevation="sm"
-          onPress={() => navigation.navigate('VendorLedger')}
+          onPress={() => navigation.navigate('VendorLedgerTab')}
         >
           <View style={styles.balanceHeader}>
             <View style={styles.balanceLabelCol}>
@@ -118,7 +119,7 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
 
             <View style={[styles.balanceStatusChip, { backgroundColor: balanceAccentBg }]}>
               <Text style={[styles.balanceStatusText, { color: balanceAccentColor }]}>
-                {isDue ? 'Pending Due' : 'Settled / Advance'}
+                {isDue ? 'Pending Due' : 'All Dues Cleared'}
               </Text>
             </View>
           </View>
@@ -129,7 +130,7 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
             </Text>
             <TouchableOpacity
               style={styles.viewLedgerBtn}
-              onPress={() => navigation.navigate('VendorLedger')}
+              onPress={() => navigation.navigate('VendorLedgerTab')}
               activeOpacity={0.7}
             >
               <Text style={styles.viewLedgerText}>View Khata</Text>
@@ -142,7 +143,7 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
         <View style={styles.ctaContainer}>
           <Button
             title="Browse Catalogue & Place Order"
-            onPress={() => navigation.navigate('ProductCatalog')}
+            onPress={() => navigation.navigate('ProductCatalogTab')}
             icon={<Ionicons name="storefront-outline" size={18} color={colors.textInverse} />}
             size="lg"
             style={styles.primaryCta}
@@ -153,7 +154,7 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
         <View style={styles.quickActionsGrid}>
           <TouchableOpacity
             style={styles.quickActionCard}
-            onPress={() => navigation.navigate('VendorOrders')}
+            onPress={() => navigation.navigate('VendorOrdersTab')}
             activeOpacity={0.7}
           >
             <View style={[styles.quickIconWrap, { backgroundColor: colors.accentLight }]}>
@@ -165,7 +166,7 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
 
           <TouchableOpacity
             style={styles.quickActionCard}
-            onPress={() => navigation.navigate('VendorLedger')}
+            onPress={() => navigation.navigate('VendorLedgerTab')}
             activeOpacity={0.7}
           >
             <View style={[styles.quickIconWrap, { backgroundColor: colors.brandGreenLight }]}>
@@ -199,7 +200,7 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
             )}
           </View>
           <TouchableOpacity
-            onPress={() => navigation.navigate('VendorOrders')}
+            onPress={() => navigation.navigate('VendorOrdersTab')}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Text style={styles.seeAll}>See all</Text>
@@ -215,7 +216,7 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
             </Text>
             <TouchableOpacity
               style={styles.emptyCtaBtn}
-              onPress={() => navigation.navigate('ProductCatalog')}
+              onPress={() => navigation.navigate('ProductCatalogTab')}
             >
               <Text style={styles.emptyCtaText}>Browse Catalog</Text>
             </TouchableOpacity>

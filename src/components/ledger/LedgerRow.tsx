@@ -59,8 +59,6 @@ export const LedgerRow: React.FC<LedgerRowProps> = ({
               styles.balanceText,
               t.balanceStatus === 'DUE'
                 ? styles.balanceTextDue
-                : t.balanceStatus === 'ADVANCE'
-                ? styles.balanceTextAdvance
                 : styles.balanceTextSettled,
             ]}
             numberOfLines={1}

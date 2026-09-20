@@ -134,8 +134,18 @@ export const paymentService = {
       const vendorName = vendorData.name || 'Vendor';
       const shopName = vendorData.shopName || vendorName;
 
+      if (currentBalance <= 0) {
+        throw new Error(`Vendor ${shopName} has no pending dues (₹0.00). Advance payments are not permitted.`);
+      }
+
+      if (amount > currentBalance) {
+        throw new Error(
+          `Payment amount ₹${amount.toLocaleString('en-IN')} exceeds current outstanding due of ₹${currentBalance.toLocaleString('en-IN')}. Advance balance is not allowed.`
+        );
+      }
+
       // New balance after payment credit
-      const newBalance = currentBalance - amount;
+      const newBalance = Math.max(0, currentBalance - amount);
 
       // 2. CREATE PAYMENT DOCUMENT
       const newPayment: Payment = {

@@ -18,8 +18,9 @@ export const ProfileScreen: React.FC = () => {
   const { currentUser, activeVendorId, logout, switchRole } = useAuthStore();
   const { getVendorById } = useVendorStore();
 
-  const vendor = getVendorById(activeVendorId) || {
-    id: activeVendorId || 'vendor-1',
+  const effectiveVendorId = activeVendorId || currentUser?.vendorId || 'vendor-1';
+  const vendor = getVendorById(effectiveVendorId) || {
+    id: effectiveVendorId,
     name: currentUser?.name || 'Amit Patel',
     shopName: 'Apex Supermarket',
     phone: currentUser?.phone || '+91 99887 76655',

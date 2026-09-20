@@ -159,7 +159,6 @@ export const financialTransactionService = {
         : 'DELIVERED';
 
       const safePaidAmount = Math.max(0, paidAmount);
-      const newBalanceDue = Math.max(0, newTotalAmount - safePaidAmount);
 
       const nowStr = new Date().toISOString();
       const nowTimestamp = Date.now();
@@ -168,8 +167,11 @@ export const financialTransactionService = {
       const vendorExists = vendorSnap.exists();
       const vendor = vendorExists ? (vendorSnap.data() as Vendor) : null;
       const currentVendorBalance = vendor ? vendor.currentBalance || 0 : 0;
-      // After this delivery, vendor owes currentBalance + newBalanceDue
-      const updatedVendorBalance = currentVendorBalance + newBalanceDue;
+
+      const newBalanceDue = Math.max(0, newTotalAmount - safePaidAmount);
+
+      // After this delivery, vendor balance is updated by the invoice total minus cash collected
+      const updatedVendorBalance = Math.max(0, currentVendorBalance + newTotalAmount - safePaidAmount);
 
       // ── Deterministic Document IDs ────────────────────────────────────
       // Using orderId-derived IDs makes setDoc idempotent:
@@ -184,9 +186,9 @@ export const financialTransactionService = {
       const invoiceNumber = `INV-${existingOrder.orderNumber}`;
       const receiptNumber = `RCPT-${nowTimestamp.toString().slice(-6)}`;
 
-      // Invoice status based on payment coverage
+      // Invoice status based on payment
       const invoiceStatus: InvoiceStatus =
-        safePaidAmount >= newTotalAmount
+        newBalanceDue === 0
           ? 'PAID'
           : safePaidAmount > 0
           ? 'PARTIALLY_PAID'
@@ -251,6 +253,11 @@ export const financialTransactionService = {
 
       // 4. Write DEBIT ledger entry (invoice charge)
       //    runningBalance after DEBIT = prevBalance + invoiceTotal
+      const debitNote =
+        finalStatus === 'PARTIALLY_DELIVERED'
+          ? `Invoice for Order ${existingOrder.orderNumber} (Partial delivery)`
+          : `Invoice for Order ${existingOrder.orderNumber}`;
+
       const debitEntry: LedgerEntry = {
         id: debitEntryId,
         entryId: debitEntryId,
@@ -271,10 +278,7 @@ export const financialTransactionService = {
         sourceType: 'INVOICE',
         idempotencyKey: `${orderId}:DEBIT`,
         date: nowStr,
-        note:
-          finalStatus === 'PARTIALLY_DELIVERED'
-            ? `Invoice for Order ${existingOrder.orderNumber} (Partial delivery)`
-            : `Invoice for Order ${existingOrder.orderNumber}`,
+        note: debitNote,
         createdBy: staffName,
         createdRole: 'STAFF',
         createdAt: nowStr,

@@ -1,7 +1,9 @@
 import { create } from 'zustand';
-import { Order, OrderStatus, PaymentMethod, OrderItem } from '../types';
+import { Order, OrderStatus, PaymentMethod, OrderItem, LedgerEntry } from '../types';
 import { MOCK_ORDERS } from '../constants/mockData';
 import { orderService } from '../services/orderService';
+import { useVendorStore } from './useVendorStore';
+import { useLedgerStore } from './useLedgerStore';
 
 interface OrderState {
   orders: Order[];
@@ -83,7 +85,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     const order = get().getOrderById(orderId);
     if (!order) return;
 
-    // Local optimistic update
+    // Local optimistic calculations
     const newSubtotal = updatedItems.reduce(
       (sum, item) => sum + item.deliveredQty * item.unitPrice,
       0
@@ -92,7 +94,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     const newTotalAmount = newSubtotal + newTax;
 
     const hasMissingOrDamaged = updatedItems.some(
-      (item) => item.missingDamagedQty > 0
+      (item) => (item.missingDamagedQty || 0) > 0 || (item.damagedQty || 0) > 0
     );
 
     const isFullyDelivered = !hasMissingOrDamaged;
@@ -100,7 +102,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       ? 'DELIVERED'
       : 'PARTIALLY_DELIVERED';
 
-    const newBalanceDue = Math.max(0, newTotalAmount - paidAmount);
+    const safePaidAmount = Math.max(0, paidAmount);
+
+    const vendor = useVendorStore.getState().getVendorById(order.vendorId);
+    const currentVendorBalance = vendor ? vendor.currentBalance || 0 : 0;
+    const newBalanceDue = Math.max(0, newTotalAmount - safePaidAmount);
 
     set({
       orders: get().orders.map((o) =>
@@ -113,14 +119,96 @@ export const useOrderStore = create<OrderState>((set, get) => ({
               totalAmount: newTotalAmount,
               status: finalStatus,
               actualPaymentMode,
-              paidAmount,
+              paidAmount: safePaidAmount,
               balanceDue: newBalanceDue,
               deliveredAt: new Date().toISOString(),
-              notes: notes || o.notes,
+              notes: notes !== undefined ? notes : o.notes,
             }
           : o
       ),
     });
+
+    // Optimistically update vendor balance
+    if (vendor) {
+      const updatedVendorBalance = Math.max(0, currentVendorBalance + newTotalAmount - safePaidAmount);
+      useVendorStore.setState({
+        vendors: useVendorStore.getState().vendors.map((v) =>
+          v.id === order.vendorId || v.vendorId === order.vendorId
+            ? { ...v, currentBalance: updatedVendorBalance, currentOutstanding: updatedVendorBalance }
+            : v
+        ),
+      });
+    }
+
+    // Optimistically record ledger entry
+    const debitNote =
+      finalStatus === 'PARTIALLY_DELIVERED'
+        ? `Invoice for Order ${order.orderNumber} (Partial delivery)`
+        : `Invoice for Order ${order.orderNumber}`;
+
+    const invoiceNumber = `INV-${order.orderNumber}`;
+    const debitEntry: LedgerEntry = {
+      id: `${orderId}_debit`,
+      entryId: `${orderId}_debit`,
+      accountType: 'vendor',
+      accountId: order.vendorId,
+      partyId: order.vendorId,
+      partyName: order.shopName || order.vendorName,
+      partyType: 'VENDOR',
+      type: 'DEBIT',
+      transactionType: 'DEBIT',
+      direction: 'debit',
+      amount: newTotalAmount,
+      runningBalance: currentVendorBalance + newTotalAmount,
+      referenceId: invoiceNumber,
+      referenceNo: invoiceNumber,
+      orderId: order.id,
+      invoiceId: orderId,
+      sourceType: 'INVOICE',
+      date: new Date().toISOString(),
+      note: debitNote,
+      createdBy: order.assignedStaffName || 'Staff',
+      createdRole: 'STAFF',
+    };
+
+    const existingEntries = useLedgerStore.getState().entries;
+    const filteredEntries = existingEntries.filter(
+      (e) =>
+        e.id !== `${orderId}_debit` &&
+        e.id !== `${orderId}_credit` &&
+        e.id !== `${orderId}_advance_credit`
+    );
+    const newEntries: LedgerEntry[] = [debitEntry];
+
+    if (safePaidAmount > 0) {
+      const creditEntry: LedgerEntry = {
+        id: `${orderId}_credit`,
+        entryId: `${orderId}_credit`,
+        accountType: 'vendor',
+        accountId: order.vendorId,
+        partyId: order.vendorId,
+        partyName: order.shopName || order.vendorName,
+        partyType: 'VENDOR',
+        type: 'CREDIT',
+        transactionType: 'CREDIT',
+        direction: 'credit',
+        amount: safePaidAmount,
+        runningBalance: currentVendorBalance + newTotalAmount - safePaidAmount,
+        referenceId: `RCPT-${Date.now().toString().slice(-6)}`,
+        referenceNo: `RCPT-${Date.now().toString().slice(-6)}`,
+        orderId: order.id,
+        invoiceId: orderId,
+        sourceType: 'PAYMENT',
+        paymentMethod: actualPaymentMode,
+        date: new Date().toISOString(),
+        note: `${actualPaymentMode} payment collected at delivery for ${order.orderNumber}`,
+        createdBy: order.assignedStaffName || 'Staff',
+        createdRole: 'STAFF',
+      };
+      newEntries.unshift(creditEntry);
+    }
+
+    useLedgerStore.setState({ entries: [...newEntries, ...filteredEntries] });
 
     try {
       await orderService.recordDelivery(
@@ -140,7 +228,9 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   },
 
   getOrdersByStaff: (staffId: string) => {
-    return get().orders.filter((o) => o.assignedStaffId === staffId && o.status !== 'PENDING');
+    return get().orders.filter(
+      (o) => o.assignedStaffId === staffId && o.status !== 'PENDING' && o.status !== 'CANCELLED'
+    );
   },
 
   getOrderById: (orderId: string) => {

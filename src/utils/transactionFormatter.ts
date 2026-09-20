@@ -29,7 +29,7 @@ export interface FormattedTransaction {
   runningBalance: number;
   runningBalanceFormatted: string;
   balanceLabel: string;
-  balanceStatus: 'DUE' | 'ADVANCE' | 'SETTLED';
+  balanceStatus: 'DUE' | 'SETTLED';
   notes?: string;
   auditInfo?: {
     editedAt?: string;
@@ -45,6 +45,10 @@ const fmt = (n: number) =>
  * Centralized transaction formatter that turns a raw LedgerEntry into a rich,
  * human-readable financial presentation object.
  *
+ * Handles perspective differences:
+ * - ADMIN: Payments are money received (+ Green), Invoices are bills issued (− Red).
+ * - VENDOR: Payments are money paid out (− Red), Invoices are purchases received (+ Green).
+ *
  * @param entry       - The raw LedgerEntry from Firestore / store
  * @param perspective - 'ADMIN' (Distributor view) or 'VENDOR' (Retailer view)
  */
@@ -54,6 +58,7 @@ export function formatTransaction(
 ): FormattedTransaction {
   const isDebit = entry.type === 'DEBIT'; // Invoice / Amount billed
   const isCredit = entry.type === 'CREDIT'; // Payment / Credit received
+  const isVendor = perspective === 'VENDOR';
 
   const noteLower = (entry.note || '').toLowerCase();
   const reasonLower = (entry.reason || entry.editReason || '').toLowerCase();
@@ -62,13 +67,25 @@ export function formatTransaction(
 
   // 1. Determine Category & Title
   let category: FormattedTransaction['category'] = isDebit ? 'invoice' : 'payment';
-  let categoryLabel = isDebit ? 'Invoice' : 'Payment';
-  let title = isDebit ? 'Invoice Generated' : 'Payment Received';
+  let categoryLabel = isDebit
+    ? isVendor
+      ? 'Purchase Invoice'
+      : 'Invoice'
+    : isVendor
+    ? 'Payment Made'
+    : 'Payment Received';
+  let title = isDebit
+    ? isVendor
+      ? 'Invoice Received'
+      : 'Invoice Generated'
+    : isVendor
+    ? 'Payment Made'
+    : 'Payment Received';
   let paymentMethod: string | undefined = undefined;
   let status = isDebit ? 'Billed' : 'Verified';
   let statusColor = isDebit ? '#B45309' : colors.brandGreen;
   let statusBg = isDebit ? '#FEF3C7' : colors.brandGreenLight;
-  let iconName = isDebit ? 'document-text-outline' : 'cash-outline';
+  let iconName = isDebit ? 'receipt-outline' : 'cash-outline';
   let iconColor = isDebit ? colors.debit : colors.brandGreen;
   let iconBg = isDebit ? colors.debitLight : colors.brandGreenLight;
 
@@ -81,7 +98,7 @@ export function formatTransaction(
   ) {
     category = 'opening_balance';
     categoryLabel = 'Opening Balance';
-    title = 'Opening Balance Added';
+    title = isVendor ? 'Opening Balance' : 'Opening Balance Added';
     status = 'Verified';
     statusColor = colors.textSecondary;
     statusBg = colors.surfaceSubtle;
@@ -99,8 +116,8 @@ export function formatTransaction(
     noteLower.includes('return')
   ) {
     category = 'credit_note';
-    categoryLabel = 'Credit Note';
-    title = 'Return Credit Applied';
+    categoryLabel = isVendor ? 'Return Credit' : 'Credit Note';
+    title = isVendor ? 'Return Credit Received' : 'Return Credit Applied';
     status = 'Credit Applied';
     statusColor = '#7E22CE';
     statusBg = '#F3E8FF';
@@ -111,8 +128,8 @@ export function formatTransaction(
   // Refund check
   else if (noteLower.includes('refund') || reasonLower.includes('refund')) {
     category = 'refund';
-    categoryLabel = 'Refund';
-    title = 'Refund Issued';
+    categoryLabel = isVendor ? 'Refund Received' : 'Refund';
+    title = isVendor ? 'Refund Received' : 'Refund Issued';
     status = 'Processed';
     statusColor = colors.info;
     statusBg = colors.accentLight;
@@ -141,12 +158,12 @@ export function formatTransaction(
   // Payment Breakdown
   else if (isCredit || entry.sourceType === 'PAYMENT' || refNoUpper.startsWith('PAY-') || refNoUpper.startsWith('RCPT-')) {
     category = 'payment';
-    categoryLabel = 'Payment';
+    categoryLabel = isVendor ? 'Payment Made' : 'Payment Received';
 
     const pMethod = entry.paymentMethod || '';
     if (pMethod === 'CASH' || noteLower.includes('cash')) {
       paymentMethod = 'Cash';
-      title = 'Cash Payment Received';
+      title = isVendor ? 'Cash Payment Made' : 'Cash Payment Received';
       iconName = 'cash-outline';
     } else if (
       pMethod === 'ONLINE' ||
@@ -157,51 +174,106 @@ export function formatTransaction(
       noteLower.includes('bank')
     ) {
       paymentMethod = 'Online (UPI/Bank)';
-      title = 'Online Payment Received';
+      title = isVendor ? 'Online Payment Made' : 'Online Payment Received';
       iconName = 'qr-code-outline';
     } else {
       paymentMethod = pMethod || 'Direct Payment';
-      title = 'Payment Received';
+      title = isVendor ? 'Payment Made' : 'Payment Received';
       iconName = 'card-outline';
     }
   }
   // Invoice / Bill
   else if (isDebit || entry.sourceType === 'INVOICE' || refNoUpper.startsWith('INV-') || refNoUpper.startsWith('ORD-')) {
     category = 'invoice';
-    categoryLabel = 'Invoice';
-    title = 'Invoice Generated';
+    categoryLabel = isVendor ? 'Purchase Invoice' : 'Invoice';
+    title = isVendor ? 'Invoice Received' : 'Invoice Generated';
     iconName = 'receipt-outline';
   }
 
   // 2. Compute Description
   let description = entry.note || '';
   if (category === 'payment') {
-    if (entry.createdBy && entry.createdBy !== 'System' && entry.createdBy !== 'Admin') {
-      description = `Collected by ${entry.createdBy}`;
-    } else if (entry.paymentMethod) {
-      description = `Settled via ${entry.paymentMethod}`;
-    } else if (!description) {
-      description = 'Direct settlement on account';
+    if (isVendor) {
+      if (entry.paymentMethod) {
+        description = `Paid via ${entry.paymentMethod}`;
+      } else if (entry.createdBy && entry.createdBy !== 'System' && entry.createdBy !== 'Admin') {
+        description = `Handed over to ${entry.createdBy}`;
+      } else if (!description) {
+        description = 'Payment towards account balance';
+      }
+    } else {
+      if (entry.createdBy && entry.createdBy !== 'System' && entry.createdBy !== 'Admin') {
+        description = `Collected by ${entry.createdBy}`;
+      } else if (entry.paymentMethod) {
+        description = `Settled via ${entry.paymentMethod}`;
+      } else if (!description) {
+        description = 'Direct settlement on account';
+      }
     }
   } else if (category === 'invoice') {
     if (entry.orderId) {
       description = `Order #${entry.orderId}`;
     } else if (!description) {
-      description = 'Goods billed on credit';
+      description = isVendor ? 'Goods purchased on credit' : 'Goods billed on credit';
     }
   } else if (category === 'opening_balance' && !description) {
     description = 'Initial balance brought forward';
   } else if (category === 'credit_note' && !description) {
-    description = 'Goods return credit adjustment';
+    description = isVendor ? 'Goods return credit note' : 'Goods return credit adjustment';
   } else if (category === 'adjustment' && !description) {
     description = entry.reason || entry.editReason || 'Manual ledger adjustment';
   }
 
-  // 3. Amount & Signs
-  // For money received/collected (Credits: payments, credit notes), show + sign in green (#16A34A).
-  // For invoices/charges billed (Debits), show − sign in debit/red (#DC2626).
-  const amountWithSign = isCredit ? `+₹${fmt(entry.amount)}` : `−₹${fmt(entry.amount)}`;
-  const color = isCredit ? colors.brandGreen : colors.debit;
+  // 3. Amount, Signs & Colors (Reversed for Vendor vs Admin)
+  let amountWithSign: string;
+  let color: string;
+
+  if (isVendor) {
+    // For Vendor:
+    // When vendor pays money (Credit in ledger) -> Money Out from vendor (− Red)
+    // When vendor receives an invoice (Debit in ledger) -> Goods In / Bill Added (+ Green)
+    if (isCredit) {
+      amountWithSign = `−₹${fmt(entry.amount)}`;
+      color = colors.debit; // Red for cash paid out
+      iconColor = colors.debit;
+      iconBg = colors.debitLight;
+    } else {
+      amountWithSign = `+₹${fmt(entry.amount)}`;
+      color = colors.brandGreen; // Green for purchases received
+      iconColor = colors.brandGreen;
+      iconBg = colors.brandGreenLight;
+    }
+  } else {
+    // For Admin:
+    // When admin receives payment (Credit) -> Money In to distributor (+ Green)
+    // When admin bills invoice (Debit) -> Goods Out / Bill Given (− Red)
+    if (isCredit) {
+      amountWithSign = `+₹${fmt(entry.amount)}`;
+      color = colors.brandGreen;
+      iconColor = colors.brandGreen;
+      iconBg = colors.brandGreenLight;
+    } else {
+      amountWithSign = `−₹${fmt(entry.amount)}`;
+      color = colors.debit;
+      iconColor = colors.debit;
+      iconBg = colors.debitLight;
+    }
+  }
+
+  // Special category color overrides
+  if (category === 'credit_note') {
+    iconColor = '#7E22CE';
+    iconBg = '#F3E8FF';
+  } else if (category === 'opening_balance') {
+    iconColor = colors.accent;
+    iconBg = colors.accentLight;
+  } else if (category === 'refund') {
+    iconColor = colors.info;
+    iconBg = colors.accentLight;
+  } else if (category === 'adjustment') {
+    iconColor = '#B45309';
+    iconBg = '#FEF3C7';
+  }
 
   // 4. Date & Time formatting
   const dateObj = new Date(entry.date || entry.createdAt || Date.now());
@@ -218,17 +290,14 @@ export function formatTransaction(
 
   const fullDateFormatted = `${dateFormatted}, ${timeFormatted}`;
 
-  // 5. Running Balance Status
+  // 5. Running Balance Status & Nomenclature
   const runningBal = entry.runningBalance ?? 0;
   let balanceStatus: FormattedTransaction['balanceStatus'] = 'SETTLED';
   let balanceLabel = 'Settled (₹0.00)';
 
   if (runningBal > 0) {
     balanceStatus = 'DUE';
-    balanceLabel = `Due: ₹${fmt(runningBal)}`;
-  } else if (runningBal < 0) {
-    balanceStatus = 'ADVANCE';
-    balanceLabel = `Advance: ₹${fmt(Math.abs(runningBal))}`;
+    balanceLabel = isVendor ? `Payable: ₹${fmt(runningBal)}` : `Due: ₹${fmt(runningBal)}`;
   }
 
   // 6. Audit Info

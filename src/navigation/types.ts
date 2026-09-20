@@ -6,9 +6,15 @@ export type AuthStackParamList = {
 };
 
 export type VendorTabParamList = {
+  VendorDashboardTab: undefined;
+  ProductCatalogTab: undefined;
+  VendorOrdersTab: undefined;
+  VendorLedgerTab: undefined;
+  VendorProfileTab: undefined;
   VendorDashboard: undefined;
   ProductCatalog: undefined;
   Cart: undefined;
+  CheckoutScreen: undefined;
   VendorOrders: undefined;
   VendorOrderDetail: { orderId: string };
   VendorLedger: undefined;
