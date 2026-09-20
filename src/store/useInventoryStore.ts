@@ -11,7 +11,10 @@ interface InventoryState {
   fetchProducts: () => Promise<void>;
   subscribeInventory: () => () => void;
   updateStock: (productId: string, newStock: number) => Promise<void>;
-  addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
+  bulkUpdateStock: (updates: { productId: string; addedQty: number }[]) => Promise<void>;
+  addProduct: (product: Omit<Product, 'id'>) => Promise<Product>;
+  updateProduct: (productId: string, updates: Partial<Product>) => Promise<void>;
+  deleteProduct: (productId: string) => Promise<void>;
   getLowStockProducts: () => Product[];
   getProductById: (id: string) => Product | undefined;
   getInventoryStats: () => {
@@ -91,17 +94,96 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     }, 450);
   },
 
-  addProduct: async (productData) => {
-    const newProduct: Product = {
-      ...productData,
-      id: `prod-${Date.now()}`,
-    };
-    set({ products: [...get().products, newProduct] });
+  bulkUpdateStock: async (updates: { productId: string; addedQty: number }[]) => {
+    const previousProducts = get().products;
+    const updateMap = new Map<string, number>();
+    for (const u of updates) {
+      if (u.addedQty > 0) {
+        updateMap.set(u.productId, u.addedQty);
+      }
+    }
 
+    if (updateMap.size === 0) return;
+
+    // 1. Instant optimistic update across all targeted products
+    const updatedProducts = previousProducts.map((p) => {
+      const added = updateMap.get(p.id);
+      if (added !== undefined && added > 0) {
+        const newStock = Math.max(0, p.stockQty + added);
+        return {
+          ...p,
+          stockQty: newStock,
+          availableStock: newStock,
+        };
+      }
+      return p;
+    });
+
+    set({ products: updatedProducts });
+
+    // 2. Commit batch write to Firestore
     try {
-      await productService.addProduct(productData);
+      const batchPayload = Array.from(updateMap.entries()).map(([productId, added]) => {
+        const prod = previousProducts.find((p) => p.id === productId);
+        const newStock = Math.max(0, (prod?.stockQty || 0) + added);
+        return { productId, newStockQty: newStock };
+      });
+      await productService.bulkUpdateStock(batchPayload);
+    } catch (err) {
+      console.error('Error applying bulk stock update to Firestore:', err);
+    }
+  },
+
+  addProduct: async (productData) => {
+    try {
+      const addedProduct = await productService.addProduct(productData);
+      set((state) => {
+        const remaining = state.products.filter(
+          (p) => p.id !== addedProduct.id && p.sku !== addedProduct.sku
+        );
+        return { products: [addedProduct, ...remaining] };
+      });
+      return addedProduct;
     } catch (err) {
       console.error('Error adding product to Firestore:', err);
+      // Fallback local addition if network/Firebase is offline
+      const fallback: Product = {
+        ...productData,
+        id: `prod-${Date.now()}`,
+        productId: `prod-${Date.now()}`,
+      };
+      set((state) => ({ products: [fallback, ...state.products] }));
+      return fallback;
+    }
+  },
+
+  updateProduct: async (productId: string, updates: Partial<Product>) => {
+    const previousProducts = get().products;
+    // Optimistic update
+    set({
+      products: previousProducts.map((p) =>
+        p.id === productId ? { ...p, ...updates } : p
+      ),
+    });
+
+    try {
+      await productService.updateProduct(productId, updates);
+    } catch (err) {
+      console.error('Error updating product in Firestore:', err);
+    }
+  },
+
+  deleteProduct: async (productId: string) => {
+    const previousProducts = get().products;
+    // Optimistic remove
+    set({
+      products: previousProducts.filter((p) => p.id !== productId),
+    });
+
+    try {
+      await productService.deleteProduct(productId);
+    } catch (err) {
+      console.error('Error deleting product in Firestore:', err);
     }
   },
 
