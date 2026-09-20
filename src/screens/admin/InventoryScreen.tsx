@@ -12,6 +12,8 @@ import {
   Modal,
   TouchableWithoutFeedback,
   Alert,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useInventoryStore } from '../../store/useInventoryStore';
@@ -31,13 +33,12 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const {
     products,
     isLoading,
-    subscribeInventory,
     updateStock,
     bulkUpdateStock,
     addProduct,
     updateProduct,
     deleteProduct,
-    fetchProducts,
+    refreshCatalog,
   } = useInventoryStore();
 
   const [search, setSearch] = useState('');
@@ -54,14 +55,6 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [actionMenuProduct, setActionMenuProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // Sync real-time inventory on mount
-  useEffect(() => {
-    const unsubscribe = subscribeInventory();
-    return () => {
-      unsubscribe();
-    };
-  }, [subscribeInventory]);
 
   // Counts for summary filter chips
   const counts = useMemo(() => {
@@ -113,11 +106,30 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     });
   }, [products, debouncedSearch, selectedFilter]);
 
+  // Chunked pagination state (loads 15 products per chunk on scroll)
+  const CHUNK_SIZE = 15;
+  const [visibleCount, setVisibleCount] = useState(CHUNK_SIZE);
+
+  // Reset pagination whenever search query or category filter changes
+  useEffect(() => {
+    setVisibleCount(CHUNK_SIZE);
+  }, [debouncedSearch, selectedFilter]);
+
+  const paginatedProducts = useMemo(() => {
+    return filteredProducts.slice(0, visibleCount);
+  }, [filteredProducts, visibleCount]);
+
+  const handleLoadMore = () => {
+    if (visibleCount < filteredProducts.length) {
+      setVisibleCount((prev) => Math.min(prev + CHUNK_SIZE, filteredProducts.length));
+    }
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     setFetchError(null);
     try {
-      await fetchProducts();
+      await refreshCatalog(true);
     } catch (err) {
       setFetchError('Failed to refresh inventory. Pull down to retry.');
     } finally {
@@ -274,9 +286,15 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         </View>
       ) : (
         <FlatList
-          data={filteredProducts}
+          data={paginatedProducts}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.4}
+          initialNumToRender={CHUNK_SIZE}
+          maxToRenderPerBatch={CHUNK_SIZE}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS !== 'web'}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -363,6 +381,22 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
               </Card>
             );
           }}
+          ListFooterComponent={
+            visibleCount < filteredProducts.length ? (
+              <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.footerLoaderText}>
+                  Loading more products ({visibleCount} of {filteredProducts.length})...
+                </Text>
+              </View>
+            ) : filteredProducts.length > 0 ? (
+              <View style={styles.footerEnd}>
+                <Text style={styles.footerEndText}>
+                  Showing all {filteredProducts.length} items
+                </Text>
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
             <EmptyState
               iconName="cube-outline"
@@ -963,5 +997,27 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 11,
     marginTop: 1,
+  },
+  footerLoader: {
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  footerLoaderText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 12,
+  },
+  footerEnd: {
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerEndText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 12,
   },
 });

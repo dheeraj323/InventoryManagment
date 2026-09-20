@@ -17,8 +17,52 @@ import { db } from '../config/firebase';
 import { Product } from '../types';
 
 const PRODUCTS_COLLECTION = 'products';
+const SYSTEM_COLLECTION = 'system';
+const METADATA_DOC = 'metadata';
 
 export const productService = {
+  // Fetch system metadata (productsVersion) - exactly 1 Firestore read
+  getProductsMetadata: async (): Promise<{ productsVersion: number; lastUpdated?: string } | null> => {
+    try {
+      const metaRef = doc(db, SYSTEM_COLLECTION, METADATA_DOC);
+      const snapshot = await getDoc(metaRef);
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        return {
+          productsVersion: data.productsVersion || 1,
+          lastUpdated: data.lastUpdated,
+        };
+      }
+      return null;
+    } catch (error) {
+      console.warn('Could not fetch products metadata from Firestore:', error);
+      return null;
+    }
+  },
+
+  // Bump the productsVersion in system/metadata when catalog is modified
+  bumpProductsVersion: async (): Promise<number> => {
+    try {
+      const metaRef = doc(db, SYSTEM_COLLECTION, METADATA_DOC);
+      const snapshot = await getDoc(metaRef);
+      const currentVersion = snapshot.exists() ? (snapshot.data().productsVersion || 1) : 1;
+      const nextVersion = currentVersion + 1;
+      await setDoc(
+        metaRef,
+        {
+          productsVersion: nextVersion,
+          lastUpdated: new Date().toISOString(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      return nextVersion;
+    } catch (error) {
+      console.warn('Error bumping products version in metadata:', error);
+      return 1;
+    }
+  },
+
   // Fetch all products
   getProducts: async (): Promise<Product[]> => {
     try {
@@ -135,6 +179,11 @@ export const productService = {
       updatedAt: serverTimestamp(),
     });
 
+    // Bump catalog version in metadata asynchronously
+    productService.bumpProductsVersion().catch((err) => {
+      console.warn('Failed to bump products version on add:', err);
+    });
+
     return newProduct;
   },
 
@@ -156,6 +205,11 @@ export const productService = {
         cleanUpdates.availableStock = updates.stockQty;
       }
       await updateDoc(docRef, cleanUpdates);
+
+      // Bump catalog version in metadata
+      productService.bumpProductsVersion().catch((err) => {
+        console.warn('Failed to bump products version on update:', err);
+      });
     } catch (error) {
       console.error(`Error updating product ${productId}:`, error);
       throw error;
@@ -167,6 +221,11 @@ export const productService = {
     try {
       const docRef = doc(db, PRODUCTS_COLLECTION, productId);
       await deleteDoc(docRef);
+
+      // Bump catalog version in metadata
+      productService.bumpProductsVersion().catch((err) => {
+        console.warn('Failed to bump products version on delete:', err);
+      });
     } catch (error) {
       console.error(`Error deleting product ${productId}:`, error);
       throw error;

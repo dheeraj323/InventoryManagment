@@ -1,14 +1,24 @@
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Product, Supplier } from '../types';
 import { MOCK_PRODUCTS, MOCK_SUPPLIERS } from '../constants/mockData';
 import { productService } from '../services/productService';
 import { supplierService } from '../services/supplierService';
 
+const CACHE_KEY_PRODUCTS = '@inventory_products_cache';
+const CACHE_KEY_VERSION = '@inventory_products_version';
+const CACHE_KEY_TIMESTAMP = '@inventory_products_last_sync';
+
 interface InventoryState {
   products: Product[];
   suppliers: Supplier[];
   isLoading: boolean;
+  isSyncing: boolean;
+  cachedVersion: number;
+  lastSyncTime: string | null;
+  initInventoryCache: () => Promise<void>;
   fetchProducts: () => Promise<void>;
+  refreshCatalog: (force?: boolean) => Promise<void>;
   subscribeInventory: () => () => void;
   updateStock: (productId: string, newStock: number) => Promise<void>;
   bulkUpdateStock: (updates: { productId: string; addedQty: number }[]) => Promise<void>;
@@ -29,31 +39,142 @@ interface InventoryState {
 // Debounce timers map for inventory stock syncing
 const stockDebounceTimers: { [productId: string]: ReturnType<typeof setTimeout> } = {};
 
+// Helper to persist products to AsyncStorage asynchronously
+const saveProductsToLocalCache = async (products: Product[], version?: number) => {
+  try {
+    const pairs: [string, string][] = [
+      [CACHE_KEY_PRODUCTS, JSON.stringify(products)],
+      [CACHE_KEY_TIMESTAMP, new Date().toISOString()],
+    ];
+    if (version !== undefined) {
+      pairs.push([CACHE_KEY_VERSION, String(version)]);
+    }
+    await AsyncStorage.multiSet(pairs);
+  } catch (err) {
+    console.warn('Failed to save products to AsyncStorage cache:', err);
+  }
+};
+
 export const useInventoryStore = create<InventoryState>((set, get) => ({
   products: MOCK_PRODUCTS,
   suppliers: MOCK_SUPPLIERS,
   isLoading: false,
+  isSyncing: false,
+  cachedVersion: 0,
+  lastSyncTime: null,
 
-  fetchProducts: async () => {
-    set({ isLoading: true });
+  // 1. Hybrid App Initialization: Instant Local Read + 1 Firestore Read Check
+  initInventoryCache: async () => {
+    set({ isSyncing: true });
+    let localVersion = get().cachedVersion;
+    let hasLocalProducts = false;
+
+    // Step A: Load instantly from AsyncStorage (0ms Firestore cost, offline friendly)
     try {
-      const prods = await productService.getProducts();
-      if (prods && prods.length > 0) {
-        set({ products: prods });
+      const [[, cachedProdsJson], [, cachedVerStr], [, lastSync]] = await AsyncStorage.multiGet([
+        CACHE_KEY_PRODUCTS,
+        CACHE_KEY_VERSION,
+        CACHE_KEY_TIMESTAMP,
+      ]);
+
+      if (cachedVerStr) {
+        localVersion = parseInt(cachedVerStr, 10) || 0;
+      }
+
+      if (cachedProdsJson) {
+        const parsed = JSON.parse(cachedProdsJson) as Product[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          hasLocalProducts = true;
+          set({
+            products: parsed,
+            cachedVersion: localVersion,
+            lastSyncTime: lastSync || null,
+          });
+        }
       }
     } catch (err) {
-      console.error('Error fetching products:', err);
+      console.warn('Error reading products from AsyncStorage:', err);
+    }
+
+    // Step B: Check metadata version in Firestore (Exactly 1 Read)
+    try {
+      const remoteMeta = await productService.getProductsMetadata();
+
+      if (remoteMeta) {
+        const remoteVersion = remoteMeta.productsVersion || 1;
+
+        if (hasLocalProducts && localVersion === remoteVersion) {
+          // Version is identical -> Keep local cache (0 additional reads!)
+          set({
+            cachedVersion: remoteVersion,
+            isSyncing: false,
+          });
+          return;
+        }
+
+        // Version changed or no local cache -> Fetch all products and update storage
+        const prods = await productService.getProducts();
+        if (prods && prods.length > 0) {
+          set({
+            products: prods,
+            cachedVersion: remoteVersion,
+            lastSyncTime: new Date().toISOString(),
+          });
+          await saveProductsToLocalCache(prods, remoteVersion);
+        }
+      } else if (!hasLocalProducts) {
+        // Fallback: If metadata not found and no local cache, fetch products
+        const prods = await productService.getProducts();
+        if (prods && prods.length > 0) {
+          set({ products: prods, cachedVersion: 1 });
+          await saveProductsToLocalCache(prods, 1);
+        }
+      }
+    } catch (err) {
+      console.warn('Error syncing inventory metadata version:', err);
+    } finally {
+      set({ isSyncing: false, isLoading: false });
+    }
+  },
+
+  // 2. Fetch products (Delegates to smart init / refresh)
+  fetchProducts: async () => {
+    await get().initInventoryCache();
+  },
+
+  // 3. Manual "Refresh Catalog" / Force reload from Firestore
+  refreshCatalog: async (force = true) => {
+    set({ isLoading: true });
+    try {
+      if (force) {
+        const [prods, remoteMeta] = await Promise.all([
+          productService.getProducts(),
+          productService.getProductsMetadata(),
+        ]);
+        const newVersion = remoteMeta?.productsVersion || get().cachedVersion || 1;
+        if (prods && prods.length > 0) {
+          set({
+            products: prods,
+            cachedVersion: newVersion,
+            lastSyncTime: new Date().toISOString(),
+          });
+          await saveProductsToLocalCache(prods, newVersion);
+        }
+      } else {
+        await get().initInventoryCache();
+      }
+    } catch (err) {
+      console.error('Error refreshing catalog from Firestore:', err);
+      throw err;
     } finally {
       set({ isLoading: false });
     }
   },
 
+  // 4. Single real-time inventory subscription for suppliers
   subscribeInventory: () => {
-    const unsubProducts = productService.subscribeProducts((firestoreProds) => {
-      if (firestoreProds && firestoreProds.length > 0) {
-        set({ products: firestoreProds });
-      }
-    });
+    // Also trigger smart cache validation in background
+    get().initInventoryCache();
 
     const unsubSuppliers = supplierService.subscribeSuppliers((firestoreSups) => {
       if (firestoreSups && firestoreSups.length > 0) {
@@ -62,7 +183,6 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     });
 
     return () => {
-      unsubProducts();
       unsubSuppliers();
     };
   },
@@ -72,11 +192,13 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     const safeStock = Math.max(0, newStock);
 
     // 1. Instant optimistic state update with 0 delay
-    set({
-      products: previousProducts.map((p) =>
-        p.id === productId ? { ...p, stockQty: safeStock, availableStock: safeStock } : p
-      ),
-    });
+    const updatedProducts = previousProducts.map((p) =>
+      p.id === productId ? { ...p, stockQty: safeStock, availableStock: safeStock } : p
+    );
+    set({ products: updatedProducts });
+
+    // Persist to local cache
+    saveProductsToLocalCache(updatedProducts);
 
     // 2. Debounce Firestore write to allow seamless rapid taps
     if (stockDebounceTimers[productId]) {
@@ -120,6 +242,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     });
 
     set({ products: updatedProducts });
+    saveProductsToLocalCache(updatedProducts);
 
     // 2. Commit batch write to Firestore
     try {
@@ -137,12 +260,16 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
   addProduct: async (productData) => {
     try {
       const addedProduct = await productService.addProduct(productData);
+      const newVersion = get().cachedVersion + 1;
+      let newProducts: Product[] = [];
       set((state) => {
         const remaining = state.products.filter(
           (p) => p.id !== addedProduct.id && p.sku !== addedProduct.sku
         );
-        return { products: [addedProduct, ...remaining] };
+        newProducts = [addedProduct, ...remaining];
+        return { products: newProducts, cachedVersion: newVersion };
       });
+      saveProductsToLocalCache(newProducts, newVersion);
       return addedProduct;
     } catch (err) {
       console.error('Error adding product to Firestore:', err);
@@ -152,19 +279,27 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
         id: `prod-${Date.now()}`,
         productId: `prod-${Date.now()}`,
       };
-      set((state) => ({ products: [fallback, ...state.products] }));
+      set((state) => {
+        const list = [fallback, ...state.products];
+        saveProductsToLocalCache(list);
+        return { products: list };
+      });
       return fallback;
     }
   },
 
   updateProduct: async (productId: string, updates: Partial<Product>) => {
     const previousProducts = get().products;
+    const newVersion = get().cachedVersion + 1;
+    const updatedProducts = previousProducts.map((p) =>
+      p.id === productId ? { ...p, ...updates } : p
+    );
     // Optimistic update
     set({
-      products: previousProducts.map((p) =>
-        p.id === productId ? { ...p, ...updates } : p
-      ),
+      products: updatedProducts,
+      cachedVersion: newVersion,
     });
+    saveProductsToLocalCache(updatedProducts, newVersion);
 
     try {
       await productService.updateProduct(productId, updates);
@@ -175,10 +310,14 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
 
   deleteProduct: async (productId: string) => {
     const previousProducts = get().products;
+    const newVersion = get().cachedVersion + 1;
+    const updatedProducts = previousProducts.filter((p) => p.id !== productId);
     // Optimistic remove
     set({
-      products: previousProducts.filter((p) => p.id !== productId),
+      products: updatedProducts,
+      cachedVersion: newVersion,
     });
+    saveProductsToLocalCache(updatedProducts, newVersion);
 
     try {
       await productService.deleteProduct(productId);
@@ -203,7 +342,6 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     let lowStockCount = 0;
     let outOfStockCount = 0;
     let totalValuation = 0;
-
     for (const p of prods) {
       const stock = p.stockQty || 0;
       const threshold = p.lowStockThreshold || 0;

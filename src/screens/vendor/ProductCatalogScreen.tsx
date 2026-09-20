@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ScrollView,
   RefreshControl,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useInventoryStore } from '../../store/useInventoryStore';
@@ -23,7 +24,7 @@ import { Product } from '../../types';
 import { colors, typography, spacing } from '../../theme';
 
 export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { products, fetchProducts } = useInventoryStore();
+  const { products, refreshCatalog } = useInventoryStore();
   const { items, addItem, updateQty, setQty, getTotal, getSubtotal, getItemCount } = useCartStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,6 +63,24 @@ export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation
     });
   }, [products, debouncedSearchQuery, selectedCategory]);
 
+  // Chunked pagination state (loads 15 products per chunk on scroll)
+  const CHUNK_SIZE = 15;
+  const [visibleCount, setVisibleCount] = useState(CHUNK_SIZE);
+
+  useEffect(() => {
+    setVisibleCount(CHUNK_SIZE);
+  }, [debouncedSearchQuery, selectedCategory]);
+
+  const paginatedProducts = useMemo(() => {
+    return filteredProducts.slice(0, visibleCount);
+  }, [filteredProducts, visibleCount]);
+
+  const handleLoadMore = () => {
+    if (visibleCount < filteredProducts.length) {
+      setVisibleCount((prev) => Math.min(prev + CHUNK_SIZE, filteredProducts.length));
+    }
+  };
+
   const getQtyInCart = (productId: string) => {
     const found = items.find((i) => i.productId === productId);
     return found ? found.orderedQty : 0;
@@ -74,8 +93,13 @@ export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await fetchProducts();
-    setIsRefreshing(false);
+    try {
+      await refreshCatalog(true);
+    } catch (err) {
+      console.warn('Refresh error:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const handleModalConfirm = (newQty: number) => {
@@ -175,19 +199,21 @@ export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation
         </ScrollView>
       </View>
 
-      {/* ── Product FlatList (Optimized for 100+ items) ──────────── */}
+      {/* ── Product FlatList (Chunked pagination with scroll loading) ──── */}
       <FlatList
-        data={filteredProducts}
+        data={paginatedProducts}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[
           styles.listContent,
           totalCartUnits > 0 ? styles.listContentWithBar : null,
         ]}
         showsVerticalScrollIndicator={false}
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
-        windowSize={7}
-        removeClippedSubviews={Platform.OS === 'android'}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.4}
+        initialNumToRender={CHUNK_SIZE}
+        maxToRenderPerBatch={CHUNK_SIZE}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS !== 'web'}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -210,6 +236,22 @@ export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation
             }
           />
         )}
+        ListFooterComponent={
+          visibleCount < filteredProducts.length ? (
+            <View style={styles.footerLoader}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.footerLoaderText}>
+                Loading more items ({visibleCount} of {filteredProducts.length})...
+              </Text>
+            </View>
+          ) : filteredProducts.length > 0 ? (
+            <View style={styles.footerEnd}>
+              <Text style={styles.footerEndText}>
+                Showing all {filteredProducts.length} wholesale products
+              </Text>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <EmptyState
@@ -423,6 +465,28 @@ const styles = StyleSheet.create({
     ...typography.button,
     color: colors.textInverse,
     fontSize: 13,
+  },
+  footerLoader: {
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  footerLoaderText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 12,
+  },
+  footerEnd: {
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerEndText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 12,
   },
 });
 
