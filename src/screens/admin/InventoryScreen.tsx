@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useInventoryStore } from '../../store/useInventoryStore';
+import { useDebounce } from '../../hooks';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { EmptyState } from '../../components/common/EmptyState';
@@ -40,6 +41,7 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   } = useInventoryStore();
 
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 450);
   const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'IN_STOCK'>('ALL');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -87,7 +89,7 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
   // Filtered list
   const filteredProducts = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
 
     return products.filter((p) => {
       const matchesSearch =
@@ -109,7 +111,7 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       }
       return true;
     });
-  }, [products, search, selectedFilter]);
+  }, [products, debouncedSearch, selectedFilter]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);

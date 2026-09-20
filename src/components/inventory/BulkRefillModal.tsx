@@ -13,6 +13,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useDebounce } from '../../hooks';
 import { Button } from '../common/Button';
 import { Product } from '../../types';
 import { colors, typography, spacing } from '../../theme';
@@ -35,6 +36,7 @@ export const BulkRefillModal: React.FC<BulkRefillModalProps> = ({
   const [step, setStep] = useState<ModalStep>('EDIT');
   const [refillMap, setRefillMap] = useState<{ [productId: string]: number }>({});
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 450);
   const [submitting, setSubmitting] = useState(false);
   const [lastSubmittedSummary, setLastSubmittedSummary] = useState({ itemsCount: 0, totalUnits: 0 });
 
@@ -50,7 +52,7 @@ export const BulkRefillModal: React.FC<BulkRefillModalProps> = ({
 
   // Filter products by search query
   const filteredProducts = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     if (!q) return products;
 
     return products.filter(
@@ -58,7 +60,7 @@ export const BulkRefillModal: React.FC<BulkRefillModalProps> = ({
         p.name.toLowerCase().includes(q) ||
         (p.category && p.category.toLowerCase().includes(q))
     );
-  }, [products, search]);
+  }, [products, debouncedSearch]);
 
   // Summary counts
   const summary = useMemo(() => {

@@ -13,6 +13,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useDebounce } from '../../hooks';
 import { Button } from '../common/Button';
 import { Card } from '../common/Card';
 import { Product } from '../../types';
@@ -34,6 +35,7 @@ export const BulkRestockModal: React.FC<BulkRestockModalProps> = ({
   // Refill quantities map: { [productId]: addedQuantityNumber }
   const [refillMap, setRefillMap] = useState<{ [productId: string]: number }>({});
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 450);
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [submitting, setSubmitting] = useState(false);
 
@@ -55,7 +57,7 @@ export const BulkRestockModal: React.FC<BulkRestockModalProps> = ({
 
   // Filter products
   const filteredProducts = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
 
     return products.filter((p) => {
       const matchesSearch =
@@ -73,7 +75,7 @@ export const BulkRestockModal: React.FC<BulkRestockModalProps> = ({
       }
       return true;
     });
-  }, [products, search, filterCategory]);
+  }, [products, debouncedSearch, filterCategory]);
 
   // Summary counts
   const summary = useMemo(() => {

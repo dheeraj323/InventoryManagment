@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useVendorStore } from '../../store/useVendorStore';
 import { useLedgerStore } from '../../store/useLedgerStore';
+import { useDebounce } from '../../hooks';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { Input } from '../../components/common/Input';
@@ -18,13 +19,19 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const { vendors } = useVendorStore();
   const { getPartyRunningBalance } = useLedgerStore();
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 450);
 
-  const filteredVendors = vendors.filter(
-    (v) =>
-      v.shopName.toLowerCase().includes(search.toLowerCase()) ||
-      v.name.toLowerCase().includes(search.toLowerCase()) ||
-      v.area.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredVendors = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    if (!q) return vendors;
+
+    return vendors.filter(
+      (v) =>
+        v.shopName.toLowerCase().includes(q) ||
+        v.name.toLowerCase().includes(q) ||
+        v.area.toLowerCase().includes(q)
+    );
+  }, [vendors, debouncedSearch]);
 
   return (
     <SafeAreaView style={styles.container}>

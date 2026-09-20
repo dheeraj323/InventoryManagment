@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useInventoryStore } from '../../store/useInventoryStore';
 import { useCartStore } from '../../store/useCartStore';
+import { useDebounce } from '../../hooks';
 import { ProductCard } from '../../components/catalog/ProductCard';
 import { QuantityModal } from '../../components/catalog/QuantityModal';
 import { Input } from '../../components/common/Input';
@@ -26,6 +27,7 @@ export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation
   const { items, addItem, updateQty, setQty, getTotal, getSubtotal, getItemCount } = useCartStore();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 450);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedProductForModal, setSelectedProductForModal] = useState<{
@@ -47,7 +49,7 @@ export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation
   }, [products]);
 
   const filteredProducts = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = debouncedSearchQuery.trim().toLowerCase();
     return products.filter((p) => {
       const matchesSearch =
         !q ||
@@ -58,7 +60,7 @@ export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation
         selectedCategory === 'ALL' || p.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [products, searchQuery, selectedCategory]);
+  }, [products, debouncedSearchQuery, selectedCategory]);
 
   const getQtyInCart = (productId: string) => {
     const found = items.find((i) => i.productId === productId);
