@@ -91,14 +91,6 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
       subtitle: 'Receivables & payables overview',
       route: 'AdminFinance',
     },
-    {
-      icon: 'shield-checkmark-outline',
-      iconColor: colors.primary,
-      iconBg: colors.surfaceSubtle,
-      title: 'Audit Trail',
-      subtitle: 'Immutable adjustment history',
-      route: 'AuditHistory',
-    },
   ];
 
   const renderModule = (mod: Module) => (
