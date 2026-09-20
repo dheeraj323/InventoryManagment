@@ -15,14 +15,18 @@ import { Header } from '../../components/common/Header';
 import { colors, typography, spacing } from '../../theme';
 
 export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { getPartyRunningBalance } = useLedgerStore();
+  const { getVendorAccountSummary } = useLedgerStore();
   const { suppliers } = useInventoryStore();
   const { vendors } = useVendorStore();
 
-  const vendorBalances = vendors.map((v) => ({
-    ...v,
-    balance: getPartyRunningBalance(v.id),
-  }));
+  // Build enriched vendor rows using VendorAccountSummary for consistent calculation
+  const vendorBalances = vendors.map((v) => {
+    const summary = getVendorAccountSummary(v.id, v);
+    return {
+      ...v,
+      balance: summary.currentOutstanding,
+    };
+  });
 
   const totalVendorReceivables = vendorBalances.reduce(
     (sum, v) => sum + (v.balance > 0 ? v.balance : 0),
@@ -93,20 +97,20 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
 
             <View style={styles.heroRow}>
               <View style={styles.heroStat}>
-                <View style={[styles.heroDot, { backgroundColor: colors.debit }]} />
+                <View style={[styles.heroDot, { backgroundColor: colors.brandGreen }]} />
                 <View>
                   <Text style={styles.heroStatLabel}>Vendor Receivables</Text>
-                  <Text style={[styles.heroStatValue, { color: colors.debit }]}>
+                  <Text style={[styles.heroStatValue, { color: colors.brandGreen }]}>
                     ₹{fmt(totalVendorReceivables)}
                   </Text>
                 </View>
               </View>
               <View style={styles.heroDivider} />
               <View style={styles.heroStat}>
-                <View style={[styles.heroDot, { backgroundColor: colors.brandGreen }]} />
+                <View style={[styles.heroDot, { backgroundColor: colors.debit }]} />
                 <View>
                   <Text style={styles.heroStatLabel}>Supplier Payables</Text>
-                  <Text style={[styles.heroStatValue, { color: colors.brandGreen }]}>
+                  <Text style={[styles.heroStatValue, { color: colors.debit }]}>
                     ₹{fmt(totalSupplierPayables)}
                   </Text>
                 </View>
@@ -130,8 +134,8 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
                 onPress={() => navigation.navigate('VendorDetail', { vendorId: v.id })}
                 activeOpacity={0.7}
               >
-                <View style={[styles.avatar, { backgroundColor: colors.accentLight }]}>
-                  <Text style={[styles.avatarText, { color: colors.accent }]}>
+                <View style={[styles.avatar, { backgroundColor: colors.brandGreenLight }]}>
+                  <Text style={[styles.avatarText, { color: colors.brandGreen }]}>
                     {getInitials(v.shopName)}
                   </Text>
                 </View>
@@ -141,7 +145,7 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
                 </View>
                 <View style={styles.partyBalance}>
                   <Text style={styles.balanceLabel}>Due Balance</Text>
-                  <Text style={[styles.balanceValue, { color: isPositive ? colors.debit : colors.brandGreen }]}>
+                  <Text style={[styles.balanceValue, { color: isPositive ? colors.brandGreen : colors.textSecondary }]}>
                     ₹{fmt(v.balance)}
                   </Text>
                 </View>
@@ -153,8 +157,8 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
             const payable = s.balancePayable || s.outstandingPayable || 0;
             return (
               <View style={styles.partyRow}>
-                <View style={[styles.avatar, { backgroundColor: colors.brandGreenLight }]}>
-                  <Text style={[styles.avatarText, { color: colors.brandGreen }]}>
+                <View style={[styles.avatar, { backgroundColor: colors.debitLight }]}>
+                  <Text style={[styles.avatarText, { color: colors.debit }]}>
                     {getInitials(s.name)}
                   </Text>
                 </View>
@@ -164,7 +168,7 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
                 </View>
                 <View style={styles.partyBalance}>
                   <Text style={styles.balanceLabel}>Payable</Text>
-                  <Text style={[styles.balanceValue, { color: colors.brandGreen }]}>
+                  <Text style={[styles.balanceValue, { color: colors.debit }]}>
                     ₹{fmt(payable)}
                   </Text>
                 </View>

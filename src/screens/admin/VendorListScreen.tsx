@@ -84,9 +84,7 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                     ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </Text>
                   <View style={styles.creditPill}>
-                    <Text style={styles.creditPillText}>
-                      {item.payLaterEligible ? 'Khata Enabled' : 'Cash Only'}
-                    </Text>
+                    <Text style={styles.creditPillText}>Khata Active</Text>
                   </View>
                 </View>
 
@@ -153,10 +151,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   balanceDue: {
-    color: colors.debit,
+    color: colors.brandGreen,
   },
   balanceClear: {
-    color: colors.credit,
+    color: colors.textSecondary,
   },
   creditPill: {
     backgroundColor: colors.surfaceSubtle,

@@ -72,7 +72,12 @@ service cloud.firestore {
       allow update: if isAdmin() || isStaff() || (
         isVendor() &&
         resource.data.vendorId == getUserData().vendorId &&
-        resource.data.status == 'PENDING'
+        resource.data.status == 'PENDING' &&
+        // Vendors cannot modify financial or delivery fields
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'paidAmount', 'balanceDue', 'deliveryFinalized', 'actualPaymentMode',
+          'totalAmount', 'subtotal', 'tax', 'invoiceId'
+        ])
       );
       allow delete: if isAdmin();
     }
@@ -87,9 +92,19 @@ service cloud.firestore {
     // LEDGER ENTRIES Collection (Immutable audit trail)
     match /ledgerEntries/{entryId} {
       allow read: if isAuthenticated();
+      // Only Admin and Staff (via financialTransactionService) may create entries
       allow create: if isAdmin() || isStaff();
       allow update: if isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasAny(['editedAt', 'editedBy', 'editReason', 'amount']);
-      allow delete: if false; // Immutable ledger
+      allow delete: if false; // Immutable ledger — entries may never be deleted
+    }
+
+    // INVOICES Collection — written only by financialTransactionService on delivery
+    match /invoices/{invoiceId} {
+      allow read: if isAuthenticated();
+      // Admin and Staff create invoices via financialTransactionService
+      allow create, update: if isAdmin() || isStaff();
+      // Invoices are immutable once finalized — only Admin may update status
+      allow delete: if false;
     }
 
     // CASH SETTLEMENTS Collection
@@ -111,7 +126,7 @@ service cloud.firestore {
     // AUDIT LOGS Collection (Immutable)
     match /auditLogs/{logId} {
       allow read: if isAdmin();
-      allow create: if isAdmin();
+      allow create: if isAdmin() || isStaff();
       allow update, delete: if false; // Immutable audit log
     }
   }

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Vendor } from '../types';
+import { MOCK_VENDORS } from '../constants/mockData';
 import { vendorService } from '../services/vendorService';
 
 interface VendorState {
@@ -12,7 +13,7 @@ interface VendorState {
 }
 
 export const useVendorStore = create<VendorState>((set, get) => ({
-  vendors: [],
+  vendors: MOCK_VENDORS,
   isLoading: false,
 
   fetchVendors: async () => {

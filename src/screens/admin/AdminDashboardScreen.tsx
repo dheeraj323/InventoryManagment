@@ -13,6 +13,7 @@ import { useLedgerStore } from '../../store/useLedgerStore';
 import { useInventoryStore } from '../../store/useInventoryStore';
 import { useCashStore } from '../../store/useCashStore';
 import { useOrderStore } from '../../store/useOrderStore';
+import { useVendorStore } from '../../store/useVendorStore';
 import { Header } from '../../components/common/Header';
 import { colors, typography, spacing } from '../../theme';
 
@@ -28,18 +29,26 @@ type Module = {
 
 export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { switchRole, activeRole, currentUser } = useAuthStore();
-  const { entries } = useLedgerStore();
+  const { getVendorAccountSummary } = useLedgerStore();
   const { getLowStockProducts } = useInventoryStore();
   const { getPendingSettlements } = useCashStore();
   const { orders } = useOrderStore();
+  const { vendors } = useVendorStore();
 
   const pendingSettlements = getPendingSettlements();
   const lowStockItems = getLowStockProducts();
   const pendingOrdersCount = orders.filter((o) => o.status === 'PENDING').length;
 
-  const totalReceivables = entries
-    .filter((e) => e.partyType === 'VENDOR' && e.type === 'DEBIT')
-    .reduce((sum, e) => sum + e.amount, 0);
+  // Sum only positive outstanding balances (net receivables, not gross invoiced amount)
+  const totalReceivables = vendors.reduce((sum, v) => {
+    const outstanding = getVendorAccountSummary(v.id, v).currentOutstanding;
+    return sum + (outstanding > 0 ? outstanding : 0);
+  }, 0);
+
+  // Pending credit-limit override orders requiring Admin attention
+  const pendingOverrideCount = orders.filter(
+    (o) => o.pendingAdminOverride === true && o.status === 'PENDING'
+  ).length;
 
   const fmt = (n: number) =>
     n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -60,7 +69,10 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
       title: 'Orders',
       subtitle: 'Approve, assign & track',
       route: 'AdminOrders',
-      badge: pendingOrdersCount > 0 ? pendingOrdersCount : undefined,
+      badge:
+        pendingOrdersCount + pendingOverrideCount > 0
+          ? pendingOrdersCount + pendingOverrideCount
+          : undefined,
     },
     {
       icon: 'cube-outline',
@@ -85,8 +97,8 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
     },
     {
       icon: 'trending-up-outline',
-      iconColor: colors.debit,
-      iconBg: colors.debitLight,
+      iconColor: colors.brandGreen,
+      iconBg: colors.brandGreenLight,
       title: 'Finance & Ledgers',
       subtitle: 'Receivables & payables overview',
       route: 'AdminFinance',
@@ -164,12 +176,12 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
         {/* ── Quick stat grid ───────────────────────────────────────────── */}
         <View style={styles.statsGrid}>
           <TouchableOpacity
-            style={[styles.statCard, { borderTopColor: colors.debit }]}
+            style={[styles.statCard, { borderTopColor: colors.brandGreen }]}
             onPress={() => navigation.navigate('AdminFinance')}
             activeOpacity={0.8}
           >
             <Text style={styles.statLabel}>Vendor Receivables</Text>
-            <Text style={[styles.statValue, { color: colors.debit }]}>₹{fmt(totalReceivables)}</Text>
+            <Text style={[styles.statValue, { color: colors.brandGreen }]}>₹{fmt(totalReceivables)}</Text>
             <Text style={styles.statLink}>View ledgers →</Text>
           </TouchableOpacity>
 

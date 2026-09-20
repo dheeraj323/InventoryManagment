@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useOrderStore } from '../../store/useOrderStore';
-import { useLedgerStore } from '../../store/useLedgerStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { PAYMENT_METHOD_LABELS } from '../../constants/rules';
 import { Header } from '../../components/common/Header';
@@ -25,7 +24,6 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
 }) => {
   const { orderId, updatedItems, calculatedTotal } = route.params || {};
   const { getOrderById, recordDelivery } = useOrderStore();
-  const { addEntry } = useLedgerStore();
   const { activeStaffId, currentUser } = useAuthStore();
 
   const order = getOrderById(orderId);
@@ -53,7 +51,7 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
     );
   }
 
-  const handleConfirmDeliveryAndPayment = () => {
+  const handleConfirmDeliveryAndPayment = async () => {
     setErrorMsg('');
     const collectedNum = parseFloat(amountCollectedStr);
     if (isNaN(collectedNum) || collectedNum < 0) {
@@ -63,9 +61,12 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
 
     setLoading(true);
 
-    setTimeout(() => {
-      // 1. Record delivery in order store
-      recordDelivery(
+    try {
+      // recordDelivery delegates to financialTransactionService.finalizeDelivery
+      // which atomically handles: order update, inventory restoration,
+      // DEBIT ledger entry (invoice), CREDIT ledger entry (payment), vendor balance,
+      // invoice document, and audit log — all in one Firestore transaction.
+      await recordDelivery(
         order.id,
         updatedItems || order.items,
         actualMethod,
@@ -73,32 +74,20 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
         notes
       );
 
-      // 2. If cash/online collected, record CREDIT ledger entry (You Got)
-      if (collectedNum > 0) {
-        addEntry({
-          partyId: order.vendorId,
-          partyName: order.shopName,
-          partyType: 'VENDOR',
-          type: 'CREDIT', // Payment received
-          amount: collectedNum,
-          referenceNo: `RCPT-${Date.now().toString().slice(-4)}`,
-          orderId: order.id,
-          date: new Date().toISOString(),
-          note: `${actualMethod} collected by ${currentUser?.name || 'Staff'}`,
-          paymentMethod: actualMethod,
-          createdBy: currentUser?.name || 'Staff',
-          createdRole: 'STAFF',
-        });
-      }
-
       setLoading(false);
 
-      // 3. Return to Staff Dashboard
+      // Navigate back to Staff Dashboard
       navigation.reset({
         index: 0,
         routes: [{ name: 'StaffDashboard' }],
       });
-    }, 600);
+    } catch (err: any) {
+      console.error('[ActualPaymentScreen] Delivery finalization error:', err);
+      setErrorMsg(
+        err.message || 'Failed to record delivery. Please try again.'
+      );
+      setLoading(false);
+    }
   };
 
   return (

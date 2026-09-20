@@ -24,33 +24,32 @@ export const useCashStore = create<CashState>((set, get) => ({
   isLoading: false,
 
   getStaffCashInHand: (staffId: string, orders?: any[]) => {
-    // Baseline gross cash collected by staff
-    const baselineCollections = 6888;
-
-    // Additional cash collected from orders in state if any
-    const orderCollections = orders
+    // Cash collected from orders physically assigned to this staff member.
+    // Only count DELIVERED or PARTIALLY_DELIVERED orders where actual payment
+    // was collected in CASH or ONLINE (PAY_LATER means no cash was collected).
+    const collectedCash = orders
       ? orders
           .filter(
             (o) =>
-              (o.assignedStaffId === staffId || !o.assignedStaffId) &&
-              (o.actualPaymentMode === 'CASH' || o.preferredPaymentMode === 'CASH') &&
-              (o.status === 'DELIVERED' || o.status === 'PARTIALLY_DELIVERED')
+              o.assignedStaffId === staffId && // strict match — no fallback
+              (o.status === 'DELIVERED' || o.status === 'PARTIALLY_DELIVERED') &&
+              (o.actualPaymentMode === 'CASH' || o.actualPaymentMode === 'ONLINE')
           )
           .reduce((sum, o) => sum + (o.paidAmount || 0), 0)
       : 0;
 
-    const totalGrossCollected = baselineCollections + orderCollections;
-
-    // Total cash handed over across all submitted and verified settlements for this staff
-    const totalHandedOver = get().settlements
-      .filter((s) => s.staffId === staffId)
+    // Subtract cash already handed over in VERIFIED settlements.
+    // PENDING_VERIFICATION settlements are not yet confirmed, so don't subtract them.
+    const alreadySettled = get()
+      .settlements.filter(
+        (s) => s.staffId === staffId && s.status === 'VERIFIED'
+      )
       .reduce(
-        (sum, s) =>
-          sum + (s.handedOverCash || s.amountHandedOver || s.totalCashCollected || 0),
+        (sum, s) => sum + (s.handedOverCash || s.amountHandedOver || 0),
         0
       );
 
-    return Math.max(0, totalGrossCollected - totalHandedOver);
+    return Math.max(0, collectedCash - alreadySettled);
   },
 
   subscribeSettlements: () => {

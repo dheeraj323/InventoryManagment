@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import { LedgerEntry, AuditLog } from '../types';
+import { LedgerEntry, AuditLog, Vendor, VendorAccountSummary } from '../types';
 import { MOCK_LEDGER_ENTRIES, MOCK_AUDIT_LOGS, MOCK_VENDORS } from '../constants/mockData';
 import { ledgerService } from '../services/ledgerService';
+import { useVendorStore } from './useVendorStore';
 
 interface LedgerState {
   entries: LedgerEntry[];
@@ -18,6 +19,13 @@ interface LedgerState {
   ) => Promise<void>;
   getLedgerForParty: (partyId: string) => LedgerEntry[];
   getPartyRunningBalance: (partyId: string) => number;
+  /**
+   * Returns a computed summary of a vendor's account position.
+   * Uses ledger entry history + vendor master data for credit limit info.
+   * @param vendorId - The vendor document ID
+   * @param vendor   - Optional Vendor object for credit limit and name context
+   */
+  getVendorAccountSummary: (vendorId: string, vendor?: Vendor) => VendorAccountSummary;
   getVendorReceivables: () => { vendorId: string; name: string; balance: number }[];
 }
 
@@ -50,7 +58,11 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
 
   addEntry: async (entryData) => {
     const partyEntries = get().getLedgerForParty(entryData.partyId);
-    const prevBalance = partyEntries.length > 0 ? partyEntries[0].runningBalance : 0;
+    const vendor = useVendorStore.getState().getVendorById(entryData.partyId);
+    const prevBalance =
+      partyEntries.length > 0
+        ? partyEntries[0].runningBalance
+        : (vendor?.currentBalance ?? 0);
 
     const delta = entryData.type === 'DEBIT' ? entryData.amount : -entryData.amount;
     const newRunningBalance = prevBalance + delta;
@@ -118,24 +130,71 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
       .sort((a, b) => {
         const timeA = new Date(a.date || a.createdAt || 0).getTime();
         const timeB = new Date(b.date || b.createdAt || 0).getTime();
-        return timeB - timeA;
+        if (timeB !== timeA) return timeB - timeA;
+        // Deterministic secondary sort: in descending chronological order,
+        // CREDIT (payment settlement) occurred after DEBIT (invoice billing)
+        if (a.type === 'CREDIT' && b.type === 'DEBIT') return -1;
+        if (a.type === 'DEBIT' && b.type === 'CREDIT') return 1;
+        return 0;
       });
   },
 
   getPartyRunningBalance: (partyId: string) => {
+    const summary = get().getVendorAccountSummary(partyId);
+    return summary.lastLedgerBalance;
+  },
+
+  getVendorAccountSummary: (partyId: string, vendor?: Vendor): VendorAccountSummary => {
     const entries = get().getLedgerForParty(partyId);
-    if (entries.length === 0) {
-      const vendor = MOCK_VENDORS.find((v) => v.id === partyId);
-      return vendor ? vendor.currentBalance : 0;
-    }
-    return entries[0].runningBalance;
+    const vendorObj = vendor || useVendorStore.getState().getVendorById(partyId);
+
+    const creditLimit = vendorObj?.creditLimit ?? 0;
+    // openingBalance: use explicitly set opening balance, or fall back to currentBalance
+    // (for migrated vendors who had a balance before ledger entries were created)
+    const openingBalance = vendorObj?.openingBalance ?? vendorObj?.currentBalance ?? 0;
+
+    // Total Invoiced = Sum of all DEBIT entries
+    const totalDebits = entries
+      .filter((e) => e.type === 'DEBIT')
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    // Total Paid = Sum of all CREDIT entries
+    const totalCredits = entries
+      .filter((e) => e.type === 'CREDIT')
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    // Outstanding Due = Total Invoiced (Debits) − Total Paid (Credits)
+    // When no ledger entries exist yet, fall back to opening balance
+    const outstandingDue =
+      entries.length > 0 ? totalDebits - totalCredits : openingBalance;
+
+    const currentOutstanding = Math.max(0, outstandingDue);
+
+    // availableCredit = 0 when no limit is set (treat as "no limit")
+    const availableCredit =
+      creditLimit > 0 ? Math.max(0, creditLimit - currentOutstanding) : 0;
+
+    return {
+      vendorId: partyId,
+      vendorName: vendorObj?.name ?? '',
+      shopName: vendorObj?.shopName ?? '',
+      creditLimit,
+      openingBalance,
+      totalDebits,
+      totalCredits,
+      currentOutstanding,
+      availableCredit,
+      lastLedgerBalance: outstandingDue,
+    };
   },
 
   getVendorReceivables: () => {
-    return MOCK_VENDORS.map((v) => ({
+    const vendors = useVendorStore.getState().vendors;
+    const vendorList = vendors.length > 0 ? vendors : MOCK_VENDORS;
+    return vendorList.map((v) => ({
       vendorId: v.id,
       name: v.shopName,
-      balance: get().getPartyRunningBalance(v.id),
+      balance: get().getVendorAccountSummary(v.id, v).currentOutstanding,
     }));
   },
 }));

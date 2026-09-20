@@ -24,7 +24,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const { items, getSubtotal, getTax, getTotal, clearCart } = useCartStore();
   const { createOrder } = useOrderStore();
   const { activeVendorId } = useAuthStore();
-  const { getPartyRunningBalance, addEntry } = useLedgerStore();
+  const { getVendorAccountSummary } = useLedgerStore();
   const { getVendorById } = useVendorStore();
 
   const vendor = getVendorById(activeVendorId) || {
@@ -38,22 +38,39 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     payLaterEligible: true,
     preferredPaymentMode: 'PAY_LATER' as const,
   };
-  const runningBalance = getPartyRunningBalance(vendor.id);
+  const runningBalance = getVendorAccountSummary(vendor.id, vendor);
 
   const totalAmount = getTotal();
   const subtotal = getSubtotal();
   const tax = getTax();
 
   const [selectedPaymentMode, setSelectedPaymentMode] = useState<PaymentMethod>(
-    vendor.payLaterEligible ? 'PAY_LATER' : 'CASH'
+    vendor.preferredPaymentMode || 'PAY_LATER'
   );
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  // Warn (not block) when PAY_LATER order exceeds vendor credit limit
+  const [creditWarning, setCreditWarning] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handlePlaceOrder = async () => {
     setErrorMsg('');
+    setCreditWarning('');
     setLoading(true);
+
+    // Credit limit pre-flight check for PAY_LATER orders
+    // Non-blocking: order is still created but flagged pendingAdminOverride
+    let pendingAdminOverrideLocal = false;
+    if (selectedPaymentMode === 'PAY_LATER' && vendor.creditLimit && vendor.creditLimit > 0) {
+      const outstanding = runningBalance.currentOutstanding;
+      if (outstanding + totalAmount > vendor.creditLimit) {
+        pendingAdminOverrideLocal = true;
+        setCreditWarning(
+          `⚠️ This order exceeds your credit limit. Outstanding: ₹${outstanding.toLocaleString('en-IN')}, ` +
+          `Limit: ₹${vendor.creditLimit.toLocaleString('en-IN')}. The order will require Admin approval.`
+        );
+      }
+    }
 
     try {
       const newOrder = await createOrder({
@@ -76,25 +93,13 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         assignedStaffId: 'staff-1',
         assignedStaffName: 'Suresh Kumar',
         notes: notes.trim() || '',
+        // Propagate credit limit override flag if applicable
+        pendingAdminOverride: pendingAdminOverrideLocal || undefined,
       });
 
-      // If Pay Later, record ledger debit entry immediately
-      if (selectedPaymentMode === 'PAY_LATER') {
-        await addEntry({
-          partyId: vendor.id,
-          partyName: vendor.shopName,
-          partyType: 'VENDOR',
-          type: 'DEBIT',
-          amount: totalAmount,
-          referenceNo: newOrder.orderNumber,
-          orderId: newOrder.id,
-          date: new Date().toISOString(),
-          note: `Pay Later order ${newOrder.orderNumber}`,
-          paymentMethod: 'PAY_LATER',
-          createdBy: vendor.name,
-          createdRole: 'VENDOR',
-        });
-      }
+      // NOTE: No ledger write here. The ledger DEBIT entry is created by
+      // financialTransactionService.finalizeDelivery() when the staff
+      // confirms physical delivery. This prevents double billing.
 
       clearCart();
       setLoading(false);
@@ -129,7 +134,6 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
           {(['PAY_LATER', 'CASH', 'ONLINE'] as PaymentMethod[]).map((mode) => {
             const isSelected = selectedPaymentMode === mode;
-            const isPayLaterDisabled = mode === 'PAY_LATER' && !vendor.payLaterEligible;
 
             return (
               <TouchableOpacity
@@ -137,25 +141,16 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 style={[
                   styles.paymentOption,
                   isSelected ? styles.paymentOptionSelected : null,
-                  isPayLaterDisabled ? styles.paymentOptionDisabled : null,
                 ]}
-                onPress={() => {
-                  if (!isPayLaterDisabled) setSelectedPaymentMode(mode);
-                }}
+                onPress={() => setSelectedPaymentMode(mode)}
                 activeOpacity={0.8}
-                disabled={isPayLaterDisabled}
               >
                 <View style={styles.radioCircle}>
                   {isSelected && <View style={styles.radioDot} />}
                 </View>
 
                 <View style={styles.paymentCol}>
-                  <Text
-                    style={[
-                      styles.paymentName,
-                      isPayLaterDisabled ? styles.disabledText : null,
-                    ]}
-                  >
+                  <Text style={styles.paymentName}>
                     {PAYMENT_METHOD_LABELS[mode]}
                   </Text>
                   {mode === 'PAY_LATER' && (
@@ -186,6 +181,13 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             <Text style={styles.totalVal}>₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
         </Card>
+
+        {creditWarning ? (
+          <View style={styles.warningBanner}>
+            <Ionicons name="warning-outline" size={18} color={colors.statusPendingText} />
+            <Text style={styles.warningBannerText}>{creditWarning}</Text>
+          </View>
+        ) : null}
 
         {errorMsg ? (
           <View style={styles.errorBanner}>
@@ -301,6 +303,21 @@ const styles = StyleSheet.create({
     color: colors.danger,
     marginLeft: spacing.sm,
     flex: 1,
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.statusPendingBg,
+    padding: spacing.md,
+    borderRadius: spacing.borderRadiusMd,
+    marginBottom: spacing.md,
+  },
+  warningBannerText: {
+    ...typography.captionBold,
+    color: colors.statusPendingText,
+    marginLeft: spacing.sm,
+    flex: 1,
+    lineHeight: 18,
   },
   footerContainer: {
     padding: spacing.screenPadding,

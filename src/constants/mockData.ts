@@ -79,7 +79,7 @@ export const MOCK_VENDORS: Vendor[] = [
     address: '88 Station Road, Old Town',
     area: 'Old Town',
     currentBalance: 2500,
-    payLaterEligible: false,
+    payLaterEligible: true,
     preferredPaymentMode: 'ONLINE',
   },
 ];

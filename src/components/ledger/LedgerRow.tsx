@@ -28,9 +28,11 @@ export const LedgerRow: React.FC<LedgerRowProps> = ({
 
   const getTransactionLabel = () => {
     if (perspective === 'VENDOR') {
-      return isDebit ? 'BILLED / ORDER' : 'PAYMENT PAID';
+      // From the vendor's perspective: DEBIT = you were invoiced, CREDIT = you made a payment
+      return isDebit ? 'INVOICE' : 'PAYMENT';
     }
-    return isDebit ? 'GOODS GIVEN' : 'COLLECTED';
+    // From the Admin/Distributor perspective: DEBIT = we issued invoice, CREDIT = we received payment
+    return isDebit ? 'INVOICE' : 'PAYMENT RECEIVED';
   };
 
   return (

@@ -74,10 +74,10 @@ export const ProfileScreen: React.FC = () => {
             <Text
               style={[
                 styles.statVal,
-                { color: vendor.payLaterEligible ? colors.success : colors.danger },
+                { color: colors.success },
               ]}
             >
-              {vendor.payLaterEligible ? 'Enabled' : 'Disabled'}
+              Enabled
             </Text>
           </View>
           <View style={styles.statRow}>

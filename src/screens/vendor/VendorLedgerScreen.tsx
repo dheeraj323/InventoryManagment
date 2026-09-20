@@ -20,12 +20,12 @@ type FilterType = 'ALL' | 'DEBIT' | 'CREDIT';
 
 const FILTERS: { key: FilterType; label: string }[] = [
   { key: 'ALL', label: 'All' },
-  { key: 'DEBIT', label: 'Billed (Orders)' },
-  { key: 'CREDIT', label: 'Paid (Payments)' },
+  { key: 'DEBIT', label: 'Invoices' },
+  { key: 'CREDIT', label: 'Payments' },
 ];
 
 export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { getLedgerForParty, getPartyRunningBalance } = useLedgerStore();
+  const { getLedgerForParty, getVendorAccountSummary } = useLedgerStore();
   const { activeVendorId } = useAuthStore();
   const { getVendorById } = useVendorStore();
 
@@ -36,13 +36,14 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
     phone: '',
     address: '',
     area: '',
-    currentBalance: 0,
+    currentBalance: 3450,
     payLaterEligible: true,
     preferredPaymentMode: 'PAY_LATER' as const,
   };
 
   const entries = getLedgerForParty(vendor.id);
-  const runningBalance = getPartyRunningBalance(vendor.id);
+  const accountSummary = getVendorAccountSummary(vendor.id, vendor);
+  const runningBalance = accountSummary.lastLedgerBalance;
 
   const [filter, setFilter] = useState<FilterType>('ALL');
 
@@ -81,7 +82,7 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
                 currentBalance={runningBalance}
                 totalGave={totalBilled}
                 totalGot={totalPaid}
-                debitLabel="Total Billed"
+                debitLabel="Total Invoiced"
                 creditLabel="Total Paid"
                 partyName={vendor.shopName}
               />

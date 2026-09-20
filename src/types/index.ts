@@ -27,6 +27,7 @@ export interface Vendor {
   area: string;
   assignedStaffId?: string;
   creditLimit?: number;
+  openingBalance?: number; // Bootstrap balance for migrated vendors; used when no ledger entries exist
   currentBalance: number; // Positive = Receivable (Vendor owes us), Negative = Advance paid
   currentOutstanding?: number;
   payLaterEligible: boolean;
@@ -112,6 +113,8 @@ export interface OrderItem {
   orderedQty: number;
   deliveredQty: number;
   missingDamagedQty: number;
+  damagedQty?: number;   // Items physically damaged — NOT returned to stock
+  missingQty?: number;  // Items not delivered / lost in transit — returned to stock
   totalAmount: number;
 }
 
@@ -141,6 +144,9 @@ export interface Order {
   assignedStaffName?: string;
   deliveredAt?: string;
   notes?: string;
+  deliveryFinalized?: boolean;    // Idempotency guard: set to true once financial transaction is written
+  invoiceId?: string;             // ID of the corresponding Invoice document (same as orderId)
+  pendingAdminOverride?: boolean; // True when order exceeds vendor credit limit; requires Admin approval
   createdAt?: string;
   updatedAt?: string;
 }
@@ -188,6 +194,10 @@ export interface LedgerEntry {
   editedAt?: string;
   editedBy?: string;
   editReason?: string;
+  invoiceId?: string;        // Link to invoice document when sourced from a delivery
+  sourceType?: 'INVOICE' | 'PAYMENT' | 'CREDIT_NOTE' | 'MANUAL_ADJUSTMENT' | 'OPENING_BALANCE';
+  idempotencyKey?: string;   // Format: `${orderId}:DEBIT` or `${orderId}:CREDIT`
+  isReversed?: boolean;      // True if this entry was reversed by a credit note
   createdAt?: string;
 }
 
@@ -238,6 +248,68 @@ export interface AuditLog {
   reason: string;
   details: string;
   createdAt?: string;
+}
+
+// ─── New Financial Types (Phase 1 — Additive) ──────────────────────────────
+
+/** Tracks per-item delivery exception (damaged or missing quantities) */
+export interface DamagedItem {
+  productId: string;
+  productName: string;
+  orderedQty: number;
+  deliveredQty: number;
+  damagedQty: number;       // Physically damaged — written off, NOT returned to stock
+  missingQty: number;       // Not delivered / lost in transit — IS returned to stock
+  returnedToStock: boolean; // Whether missingQty was successfully restocked
+}
+
+export type InvoiceStatus =
+  | 'DRAFT'
+  | 'FINALIZED'
+  | 'PARTIALLY_PAID'
+  | 'PAID'
+  | 'OVERDUE'
+  | 'CANCELLED';
+
+/** Persisted in the `invoices` Firestore collection; created when delivery is finalized */
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  orderId: string;
+  vendorId: string;
+  vendorName: string;
+  shopName: string;
+  status: InvoiceStatus;
+  lineItems: OrderItem[];
+  subtotal: number;
+  taxAmount: number;
+  discountAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  balanceDue: number;
+  invoiceDate: string;
+  dueDate?: string;
+  deliveryFinalized: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Computed (not stored) summary of a vendor's account position.
+ * Derived from ledger entries + vendor master data.
+ */
+export interface VendorAccountSummary {
+  vendorId: string;
+  vendorName: string;
+  shopName: string;
+  creditLimit: number;       // 0 = no limit enforced
+  openingBalance: number;
+  totalDebits: number;       // Sum of all DEBIT ledger entries
+  totalCredits: number;      // Sum of all CREDIT ledger entries
+  currentOutstanding: number; // Net amount the vendor owes (positive = receivable)
+  availableCredit: number;   // creditLimit - currentOutstanding (0 if no limit)
+  lastLedgerBalance: number; // Running balance of the most recent ledger entry
 }
 
 export interface AppNotification {

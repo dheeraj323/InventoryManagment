@@ -13,12 +13,12 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Order, OrderStatus, PaymentMethod, OrderItem, Vendor, Product, LedgerEntry } from '../types';
+import { Order, OrderStatus, PaymentMethod, OrderItem, Vendor, Product } from '../types';
+import { financialTransactionService } from './financialTransactionService';
 
 const ORDERS_COLLECTION = 'orders';
 const VENDORS_COLLECTION = 'vendors';
 const PRODUCTS_COLLECTION = 'products';
-const LEDGER_COLLECTION = 'ledgerEntries';
 
 function cleanFirestoreData<T extends Record<string, any>>(obj: T): T {
   const cleaned: any = {};
@@ -83,18 +83,9 @@ export const orderService = {
     const newOrderRef = doc(collection(db, ORDERS_COLLECTION));
 
     return await runTransaction(db, async (transaction) => {
-      // 1. Fetch Vendor Document to validate account status
+      // 1. Fetch Vendor Document
       const vendorRef = doc(db, VENDORS_COLLECTION, orderData.vendorId);
       const vendorSnap = await transaction.get(vendorRef);
-
-      if (vendorSnap.exists()) {
-        const vendor = vendorSnap.data() as Vendor;
-        if (orderData.preferredPaymentMode === 'PAY_LATER') {
-          if (!vendor.payLaterEligible && !vendor.payLaterEnabled) {
-            throw new Error('Pay Later is not enabled for this vendor account.');
-          }
-        }
-      }
 
       // 2. Fetch and validate stock for all items first (ALL READS)
       const productUpdates: { ref: any; newStock: number }[] = [];
@@ -123,12 +114,31 @@ export const orderService = {
       const timestampPart = Date.now().toString().slice(-4);
       const orderNumber = `ORD-2026-${timestampPart}`;
 
+      // Credit limit check: if PAY_LATER order would exceed the vendor's credit limit,
+      // flag it as pendingAdminOverride instead of blocking the order outright.
+      // The Admin must then approve or reject the override before the order proceeds.
+      let pendingAdminOverride = false;
+      if (
+        orderData.preferredPaymentMode === 'PAY_LATER' &&
+        vendorSnap.exists()
+      ) {
+        const vendor = vendorSnap.data() as Vendor;
+        const limit = vendor.creditLimit || 0;
+        if (limit > 0) {
+          const currentOutstanding = vendor.currentBalance || 0;
+          if (currentOutstanding + orderData.totalAmount > limit) {
+            pendingAdminOverride = true;
+          }
+        }
+      }
+
       const newOrder: Order = {
         ...orderData,
         id: newOrderRef.id,
         orderId: newOrderRef.id,
         orderNumber,
         notes: orderData.notes || '',
+        pendingAdminOverride,
         createdAt: new Date().toISOString(),
       };
 
@@ -153,7 +163,21 @@ export const orderService = {
     });
   },
 
-  // Record Delivery (Staff Action) with atomic balance and ledger recording
+  /**
+   * Record Delivery — delegates all financial writes to financialTransactionService.
+   *
+   * The financial service:
+   * - Checks the idempotency guard (deliveryFinalized flag)
+   * - Recalculates totals from delivered quantities
+   * - Restores missing stock to inventory
+   * - Writes DEBIT ledger entry (invoice)
+   * - Writes CREDIT ledger entry (if payment collected)
+   * - Updates vendor outstanding balance
+   * - Creates Invoice document
+   * - Creates AuditLog
+   *
+   * This function no longer contains any inline ledger writes.
+   */
   recordDelivery: async (
     orderId: string,
     updatedItems: OrderItem[],
@@ -161,135 +185,12 @@ export const orderService = {
     paidAmount: number,
     notes?: string
   ): Promise<void> => {
-    await runTransaction(db, async (transaction) => {
-      // --- PHASE 1: ALL READS FIRST ---
-      const orderRef = doc(db, ORDERS_COLLECTION, orderId);
-      const orderSnap = await transaction.get(orderRef);
-
-      if (!orderSnap.exists()) {
-        throw new Error('Order not found.');
-      }
-
-      const existingOrder = orderSnap.data() as Order;
-
-      // Fetch Vendor Document before any writes
-      const vendorRef = doc(db, VENDORS_COLLECTION, existingOrder.vendorId);
-      const vendorSnap = await transaction.get(vendorRef);
-
-      // --- PHASE 2: CALCULATIONS & PREPARATIONS ---
-      // Recalculate delivered totals
-      const newSubtotal = updatedItems.reduce(
-        (sum, item) => sum + item.deliveredQty * item.unitPrice,
-        0
-      );
-      const newTax = newSubtotal * 0.05;
-      const newTotalAmount = newSubtotal + newTax;
-
-      const hasMissingOrDamaged = updatedItems.some(
-        (item) => item.missingDamagedQty > 0
-      );
-      const finalStatus: OrderStatus = !hasMissingOrDamaged
-        ? 'DELIVERED'
-        : 'PARTIALLY_DELIVERED';
-
-      const safePaidAmount = Math.max(0, paidAmount);
-      const newBalanceDue = Math.max(0, newTotalAmount - safePaidAmount);
-      const nowStr = new Date().toISOString();
-
-      // --- PHASE 3: ALL WRITES ---
-      // 1. Update Order Document
-      const orderUpdatePayload = cleanFirestoreData({
-        items: updatedItems,
-        subtotal: newSubtotal,
-        tax: newTax,
-        totalAmount: newTotalAmount,
-        status: finalStatus,
-        actualPaymentMode,
-        paidAmount: safePaidAmount,
-        balanceDue: newBalanceDue,
-        deliveredAt: nowStr,
-        notes: notes || existingOrder.notes || '',
-        updatedAt: serverTimestamp(),
-      });
-
-      transaction.update(orderRef, orderUpdatePayload);
-
-      // 2. If vendor exists, update outstanding balance and write ledger entries
-      if (vendorSnap.exists()) {
-        const vendor = vendorSnap.data() as Vendor;
-        const currentBal = vendor.currentBalance || 0;
-        // Vendor balance increases by balance due (Receivable)
-        const updatedVendorBalance = currentBal + newBalanceDue;
-
-        transaction.update(vendorRef, {
-          currentBalance: updatedVendorBalance,
-          currentOutstanding: updatedVendorBalance,
-          updatedAt: serverTimestamp(),
-        });
-
-        // 3. Record Debit Ledger Entry for the Order Invoice
-        const ledgerRef = doc(collection(db, LEDGER_COLLECTION));
-        const debitEntry: LedgerEntry = {
-          id: ledgerRef.id,
-          entryId: ledgerRef.id,
-          accountType: 'vendor',
-          accountId: existingOrder.vendorId,
-          partyId: existingOrder.vendorId,
-          partyName: existingOrder.shopName || existingOrder.vendorName,
-          partyType: 'VENDOR',
-          type: 'DEBIT',
-          transactionType: 'DEBIT',
-          direction: 'debit',
-          amount: newTotalAmount,
-          runningBalance: currentBal + newTotalAmount,
-          referenceId: existingOrder.orderNumber,
-          referenceNo: existingOrder.orderNumber,
-          orderId: existingOrder.id,
-          date: nowStr,
-          note: `Invoice for Order ${existingOrder.orderNumber}`,
-          createdBy: existingOrder.assignedStaffName || 'Delivery Executive',
-          createdRole: 'STAFF',
-          createdAt: nowStr,
-        };
-
-        transaction.set(ledgerRef, cleanFirestoreData({
-          ...debitEntry,
-          createdAt: serverTimestamp(),
-        }));
-
-        // 4. Record Credit Ledger Entry if payment was collected at delivery
-        if (safePaidAmount > 0) {
-          const creditLedgerRef = doc(collection(db, LEDGER_COLLECTION));
-          const creditEntry: LedgerEntry = {
-            id: creditLedgerRef.id,
-            entryId: creditLedgerRef.id,
-            accountType: 'vendor',
-            accountId: existingOrder.vendorId,
-            partyId: existingOrder.vendorId,
-            partyName: existingOrder.shopName || existingOrder.vendorName,
-            partyType: 'VENDOR',
-            type: 'CREDIT',
-            transactionType: 'CREDIT',
-            direction: 'credit',
-            amount: safePaidAmount,
-            runningBalance: currentBal + newTotalAmount - safePaidAmount,
-            referenceId: `RCPT-${Date.now().toString().slice(-4)}`,
-            referenceNo: `RCPT-${Date.now().toString().slice(-4)}`,
-            orderId: existingOrder.id,
-            date: nowStr,
-            note: `${actualPaymentMode} payment collected at delivery`,
-            paymentMethod: actualPaymentMode,
-            createdBy: existingOrder.assignedStaffName || 'Delivery Executive',
-            createdRole: 'STAFF',
-            createdAt: nowStr,
-          };
-
-          transaction.set(creditLedgerRef, cleanFirestoreData({
-            ...creditEntry,
-            createdAt: serverTimestamp(),
-          }));
-        }
-      }
-    });
+    await financialTransactionService.finalizeDelivery(
+      orderId,
+      updatedItems,
+      actualPaymentMode,
+      paidAmount,
+      notes
+    );
   },
 };
