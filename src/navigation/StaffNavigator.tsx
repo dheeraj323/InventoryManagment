@@ -13,6 +13,7 @@ import { colors, typography } from '../theme';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// 1. Staff Home Stack
 const StaffHomeStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="StaffDashboard" component={StaffDashboardScreen} />
@@ -20,6 +21,29 @@ const StaffHomeStack = () => (
     <Stack.Screen name="DeliveryDetail" component={DeliveryDetailScreen} />
     <Stack.Screen name="ActualPayment" component={ActualPaymentScreen} />
     <Stack.Screen name="CashSettlement" component={CashSettlementScreen} />
+  </Stack.Navigator>
+);
+
+// 2. Deliveries Stack
+const StaffDeliveriesStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="TodayDeliveries" component={TodayDeliveriesScreen} />
+    <Stack.Screen name="DeliveryDetail" component={DeliveryDetailScreen} />
+    <Stack.Screen name="ActualPayment" component={ActualPaymentScreen} />
+  </Stack.Navigator>
+);
+
+// 3. Cash Settlement Stack
+const StaffSettlementStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="CashSettlement" component={CashSettlementScreen} />
+  </Stack.Navigator>
+);
+
+// 4. Staff Profile Stack
+const StaffProfileStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="StaffProfile" component={ProfileScreen} />
   </Stack.Navigator>
 );
 
@@ -59,17 +83,17 @@ export const StaffNavigator: React.FC = () => {
       />
       <Tab.Screen
         name="TodayDeliveriesTab"
-        component={TodayDeliveriesScreen}
+        component={StaffDeliveriesStack}
         options={{ title: 'Deliveries' }}
       />
       <Tab.Screen
         name="CashSettlementTab"
-        component={CashSettlementScreen}
+        component={StaffSettlementStack}
         options={{ title: 'Cash Settlement' }}
       />
       <Tab.Screen
         name="StaffProfileTab"
-        component={ProfileScreen}
+        component={StaffProfileStack}
         options={{ title: 'Profile' }}
       />
     </Tab.Navigator>

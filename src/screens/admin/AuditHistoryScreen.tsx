@@ -21,8 +21,10 @@ export const AuditHistoryScreen: React.FC<{ navigation: any }> = ({ navigation }
       <Header
         title="Immutable Audit Trail"
         subtitle={`${auditLogs.length} Security & Adjustment Logs`}
-        showBack
-        onBackPress={() => navigation.goBack()}
+        showBack={navigation.canGoBack()}
+        onBackPress={() => {
+          if (navigation.canGoBack()) navigation.goBack();
+        }}
       />
 
       <FlatList

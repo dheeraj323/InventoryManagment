@@ -78,8 +78,10 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
       <Header
         title="Finance"
         subtitle="Receivables & Payables"
-        showBack
-        onBackPress={() => navigation.goBack()}
+        showBack={navigation.canGoBack()}
+        onBackPress={() => {
+          if (navigation.canGoBack()) navigation.goBack();
+        }}
       />
 
       <SectionList

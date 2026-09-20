@@ -46,7 +46,13 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
         title={`Order #${order.orderNumber}`}
         subtitle={`Vendor: ${order.shopName}`}
         showBack
-        onBackPress={() => navigation.goBack()}
+        onBackPress={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate('AdminOrders');
+          }
+        }}
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>

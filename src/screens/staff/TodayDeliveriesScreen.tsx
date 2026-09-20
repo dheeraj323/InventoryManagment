@@ -24,8 +24,10 @@ export const TodayDeliveriesScreen: React.FC<{ navigation: any }> = ({ navigatio
       <Header
         title="Today's Deliveries"
         subtitle={`${assignedOrders.length} Assigned Shipments`}
-        showBack
-        onBackPress={() => navigation.goBack()}
+        showBack={navigation.canGoBack()}
+        onBackPress={() => {
+          if (navigation.canGoBack()) navigation.goBack();
+        }}
       />
 
       <FlatList

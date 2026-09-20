@@ -66,8 +66,10 @@ export const StaffSettlementsScreen: React.FC<{ navigation: any }> = ({ navigati
       <Header
         title="Staff Cash Settlements"
         subtitle="Audit & verify end-of-day cash handovers"
-        showBack
-        onBackPress={() => navigation.goBack()}
+        showBack={navigation.canGoBack()}
+        onBackPress={() => {
+          if (navigation.canGoBack()) navigation.goBack();
+        }}
       />
 
       <FlatList

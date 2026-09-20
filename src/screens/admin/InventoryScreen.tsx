@@ -197,8 +197,10 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       <Header
         title="Inventory"
         subtitle={`${products.length} Products Monitored`}
-        showBack
-        onBackPress={() => navigation.goBack()}
+        showBack={navigation.canGoBack()}
+        onBackPress={() => {
+          if (navigation.canGoBack()) navigation.goBack();
+        }}
         rightAction={
           <TouchableOpacity
             style={styles.headerAddBtn}

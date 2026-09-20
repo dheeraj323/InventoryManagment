@@ -30,8 +30,10 @@ export const AdminOrdersScreen: React.FC<{ navigation: any }> = ({ navigation })
       <Header
         title="Admin Order Management"
         subtitle={`${orders.length} Total Orders Recorded`}
-        showBack
-        onBackPress={() => navigation.goBack()}
+        showBack={navigation.canGoBack()}
+        onBackPress={() => {
+          if (navigation.canGoBack()) navigation.goBack();
+        }}
       />
 
       <View style={styles.filterWrapper}>

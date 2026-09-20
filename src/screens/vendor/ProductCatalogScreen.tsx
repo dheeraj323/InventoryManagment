@@ -118,8 +118,10 @@ export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation
       <Header
         title="Wholesale Catalog"
         subtitle={`${products.length} Products Monitored`}
-        showBack
-        onBackPress={() => navigation.goBack()}
+        showBack={navigation.canGoBack()}
+        onBackPress={() => {
+          if (navigation.canGoBack()) navigation.goBack();
+        }}
         rightAction={
           <TouchableOpacity
             style={styles.cartIconBtn}

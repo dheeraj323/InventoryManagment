@@ -15,6 +15,8 @@ export interface User {
   updatedAt?: string;
 }
 
+export type VendorStatus = 'ACTIVE' | 'PENDING_APPROVAL' | 'ON_HOLD' | 'SUSPENDED';
+
 export interface Vendor {
   id: string;
   vendorId?: string;
@@ -23,17 +25,25 @@ export interface Vendor {
   shopName: string;
   businessName?: string;
   phone: string;
+  email?: string;
   address: string;
   area: string;
+  vendorType?: string; // e.g. "Retailer", "Supermarket", "Kirana Store", "Wholesaler"
+  paymentTerms?: string; // e.g. "Net 15 Days", "Payment On Delivery", "Weekly"
   assignedStaffId?: string;
   creditLimit?: number;
   openingBalance?: number; // Bootstrap balance for migrated vendors; used when no ledger entries exist
   currentBalance: number; // Positive = Receivable (Vendor owes us), Negative = Advance paid
   currentOutstanding?: number;
+  overdueAmount?: number;
+  lastOrderDate?: string;
+  lastPaymentDate?: string;
   payLaterEligible: boolean;
   payLaterEnabled?: boolean;
   preferredPaymentMode: 'CASH' | 'ONLINE' | 'PAY_LATER';
+  status?: VendorStatus;
   active?: boolean;
+  notes?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -155,16 +165,25 @@ export interface Payment {
   id: string;
   paymentId?: string;
   vendorId?: string;
+  vendorName?: string;
+  shopName?: string;
   supplierId?: string;
   orderId?: string;
+  invoiceId?: string;
   amount: number;
   paymentMode: PaymentMethod;
   paymentType: 'receivable' | 'payable';
   collectedBy?: string;
   paymentDate: string;
   referenceNumber?: string;
+  verificationStatus?: 'PENDING_VERIFICATION' | 'VERIFIED' | 'REJECTED' | 'DISPUTED';
+  verifiedBy?: string;
+  verifiedAt?: string;
+  allocatedAmount?: number;
+  unallocatedAmount?: number;
   notes?: string;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export type LedgerEntryType = 'DEBIT' | 'CREDIT'; // DEBIT = You Gave / Bill; CREDIT = You Got / Payment Received

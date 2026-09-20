@@ -18,6 +18,7 @@ import { colors, typography } from '../theme';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// 1. Overview Stack (Dashboard hub with deep links)
 const AdminHomeStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
@@ -30,6 +31,42 @@ const AdminHomeStack = () => (
     <Stack.Screen name="AdminFinance" component={AdminFinanceScreen} />
     <Stack.Screen name="StaffSettlements" component={StaffSettlementsScreen} />
     <Stack.Screen name="AuditHistory" component={AuditHistoryScreen} />
+  </Stack.Navigator>
+);
+
+// 2. Orders Stack (Orders list -> Order detail)
+const AdminOrdersStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="AdminOrders" component={AdminOrdersScreen} />
+    <Stack.Screen name="AdminOrderDetail" component={AdminOrderDetailScreen} />
+  </Stack.Navigator>
+);
+
+// 3. Vendors Stack (Vendors list -> Vendor 360 cockpit -> Order detail)
+const AdminVendorsStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="VendorList" component={VendorListScreen} />
+    <Stack.Screen name="VendorDetail" component={VendorDetailScreen} />
+    <Stack.Screen name="AdminOrderDetail" component={AdminOrderDetailScreen} />
+  </Stack.Navigator>
+);
+
+// 4. Finance Stack (Finance summary -> Settlements, Audit, Supplier, Vendor Detail)
+const AdminFinanceStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="AdminFinance" component={AdminFinanceScreen} />
+    <Stack.Screen name="StaffSettlements" component={StaffSettlementsScreen} />
+    <Stack.Screen name="AuditHistory" component={AuditHistoryScreen} />
+    <Stack.Screen name="Supplier" component={SupplierScreen} />
+    <Stack.Screen name="VendorDetail" component={VendorDetailScreen} />
+    <Stack.Screen name="AdminOrderDetail" component={AdminOrderDetailScreen} />
+  </Stack.Navigator>
+);
+
+// 5. Settings Stack
+const AdminSettingsStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="Profile" component={ProfileScreen} />
   </Stack.Navigator>
 );
 
@@ -70,22 +107,22 @@ export const AdminNavigator: React.FC = () => {
       />
       <Tab.Screen
         name="AdminOrdersTab"
-        component={AdminOrdersScreen}
+        component={AdminOrdersStack}
         options={{ title: 'Orders' }}
       />
       <Tab.Screen
         name="VendorListTab"
-        component={VendorListScreen}
+        component={AdminVendorsStack}
         options={{ title: 'Vendors' }}
       />
       <Tab.Screen
         name="AdminFinanceTab"
-        component={AdminFinanceScreen}
+        component={AdminFinanceStack}
         options={{ title: 'Finance' }}
       />
       <Tab.Screen
         name="AdminSettingsTab"
-        component={ProfileScreen}
+        component={AdminSettingsStack}
         options={{ title: 'Settings' }}
       />
     </Tab.Navigator>

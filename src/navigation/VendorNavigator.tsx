@@ -15,6 +15,7 @@ import { colors, typography } from '../theme';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// 1. Vendor Home Stack
 const VendorHomeStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="VendorDashboard" component={VendorDashboardScreen} />
@@ -27,10 +28,35 @@ const VendorHomeStack = () => (
   </Stack.Navigator>
 );
 
+// 2. Vendor Catalog Stack
+const VendorCatalogStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="ProductCatalog" component={ProductCatalogScreen} />
+    <Stack.Screen name="Cart" component={CartScreen} />
+    <Stack.Screen name="CheckoutScreen" component={CheckoutScreen} />
+    <Stack.Screen name="VendorOrderDetail" component={VendorOrderDetailScreen} />
+  </Stack.Navigator>
+);
+
+// 3. Vendor Orders Stack
 const VendorOrdersStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="VendorOrdersMain" component={VendorOrdersScreen} />
     <Stack.Screen name="VendorOrderDetail" component={VendorOrderDetailScreen} />
+  </Stack.Navigator>
+);
+
+// 4. Vendor Ledger Stack
+const VendorLedgerStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="VendorLedger" component={VendorLedgerScreen} />
+  </Stack.Navigator>
+);
+
+// 5. Vendor Profile Stack
+const VendorProfileStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="VendorProfile" component={ProfileScreen} />
   </Stack.Navigator>
 );
 
@@ -71,7 +97,7 @@ export const VendorNavigator: React.FC = () => {
       />
       <Tab.Screen
         name="ProductCatalogTab"
-        component={ProductCatalogScreen}
+        component={VendorCatalogStack}
         options={{ title: 'Catalog' }}
       />
       <Tab.Screen
@@ -81,12 +107,12 @@ export const VendorNavigator: React.FC = () => {
       />
       <Tab.Screen
         name="VendorLedgerTab"
-        component={VendorLedgerScreen}
+        component={VendorLedgerStack}
         options={{ title: 'Ledger' }}
       />
       <Tab.Screen
         name="VendorProfileTab"
-        component={ProfileScreen}
+        component={VendorProfileStack}
         options={{ title: 'Profile' }}
       />
     </Tab.Navigator>

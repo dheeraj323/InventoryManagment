@@ -228,8 +228,10 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       <Header
         title="Suppliers & Payables"
         subtitle={`${suppliers.length} Active Partners`}
-        showBack
-        onBackPress={() => navigation.goBack()}
+        showBack={navigation.canGoBack()}
+        onBackPress={() => {
+          if (navigation.canGoBack()) navigation.goBack();
+        }}
         rightAction={
           <TouchableOpacity
             style={styles.addBtn}

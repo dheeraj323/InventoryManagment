@@ -122,8 +122,10 @@ export const CashSettlementScreen: React.FC<{ navigation: any }> = ({ navigation
       <Header
         title="Cash Handover"
         subtitle={`Staff: ${staff.name}`}
-        showBack
-        onBackPress={() => navigation.goBack()}
+        showBack={navigation.canGoBack()}
+        onBackPress={() => {
+          if (navigation.canGoBack()) navigation.goBack();
+        }}
       />
 
       <ScrollView

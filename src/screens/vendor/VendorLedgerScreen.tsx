@@ -65,8 +65,10 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
       <Header
         title="Khata"
         subtitle={vendor.shopName}
-        showBack
-        onBackPress={() => navigation.goBack()}
+        showBack={navigation.canGoBack()}
+        onBackPress={() => {
+          if (navigation.canGoBack()) navigation.goBack();
+        }}
       />
 
       <FlatList

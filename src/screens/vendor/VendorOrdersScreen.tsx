@@ -35,8 +35,10 @@ export const VendorOrdersScreen: React.FC<{ navigation: any }> = ({ navigation }
       <Header
         title="Order History"
         subtitle={`${vendorOrders.length} Orders Placed`}
-        showBack
-        onBackPress={() => navigation.goBack()}
+        showBack={navigation.canGoBack()}
+        onBackPress={() => {
+          if (navigation.canGoBack()) navigation.goBack();
+        }}
       />
 
       {/* Filter Tabs */}
