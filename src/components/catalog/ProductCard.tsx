@@ -26,21 +26,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   return (
     <Card style={styles.card} outlined elevation="sm">
-      {/* ── Top Metadata Row: Category ─────────────────────────── */}
-      <View style={styles.topMetaRow}>
-        <View style={styles.categoryChip}>
-          <Text style={styles.categoryText}>{product.category}</Text>
-        </View>
-      </View>
-
       {/* ── Product Title & Packaging Unit ──────────────────────── */}
       <View style={styles.contentBlock}>
         <Text style={styles.productName} numberOfLines={2}>
           {product.name}
         </Text>
-        <Text style={styles.unitDetail}>
-          Packaging: <Text style={styles.unitValue}>{product.unit}</Text>
-        </Text>
+        {Boolean(product.unit && product.unit.trim()) && (
+          <Text style={styles.unitDetail}>{product.unit}</Text>
+        )}
       </View>
 
       {/* ── Divider ─────────────────────────────────────────────── */}
@@ -53,7 +46,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             <Text style={styles.priceAmount}>
               ₹{product.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Text>
-            <Text style={styles.unitSuffix}>/ {product.unit.split(' ')[0] || 'unit'}</Text>
           </View>
 
           {/* Stock Status Badge */}

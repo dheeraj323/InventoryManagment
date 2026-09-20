@@ -312,14 +312,9 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
             return (
               <Card style={styles.productCard} outlined elevation="sm">
-                {/* Top Row: Category + Overflow Menu */}
+                {/* Top Row: Overflow Menu */}
                 <View style={styles.cardHeaderRow}>
-                  <View style={styles.categoryBadge}>
-                    <Text style={styles.categoryBadgeText}>
-                      {item.category || 'General'}
-                    </Text>
-                  </View>
-
+                  <View style={{ flex: 1 }} />
                   <TouchableOpacity
                     style={styles.moreOptionsBtn}
                     onPress={() => setActionMenuProduct(item)}
@@ -336,10 +331,11 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     <Text style={styles.productName} numberOfLines={2}>
                       {item.name}
                     </Text>
-                    <Text style={styles.packagingText}>Packaging: {unitLabel}</Text>
+                    {Boolean(item.unit && item.unit.trim()) && (
+                      <Text style={styles.packagingText}>{item.unit}</Text>
+                    )}
                     <Text style={styles.priceText}>
                       ₹{item.price.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      <Text style={styles.priceUnitText}> / {unitLabel}</Text>
                     </Text>
                   </View>
 
@@ -462,9 +458,6 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                   {/* Header */}
                   <View style={styles.menuHeaderRow}>
                     <View style={styles.menuHeaderInfo}>
-                      <Text style={styles.menuProductCategory}>
-                        {actionMenuProduct.category || 'General'}
-                      </Text>
                       <Text style={styles.menuProductTitle} numberOfLines={1}>
                         {actionMenuProduct.name}
                       </Text>

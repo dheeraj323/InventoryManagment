@@ -114,14 +114,16 @@ export const SkuModal: React.FC<SkuModalProps> = ({
       newErrors.name = 'Product name is required.';
     }
 
-    const finalCat = category === 'CUSTOM' ? customCategory.trim() : category;
-    if (!finalCat) {
-      newErrors.category = 'Please select or enter a category.';
-    }
+    if (!isEdit) {
+      const finalCat = category === 'CUSTOM' ? customCategory.trim() : category;
+      if (!finalCat) {
+        newErrors.category = 'Please select or enter a category.';
+      }
 
-    const finalUnit = unit === 'CUSTOM' ? customUnit.trim() : unit;
-    if (!finalUnit) {
-      newErrors.unit = 'Please select or enter a packaging unit.';
+      const finalUnit = unit === 'CUSTOM' ? customUnit.trim() : unit;
+      if (!finalUnit) {
+        newErrors.unit = 'Please select or enter a packaging unit.';
+      }
     }
 
     const parsedPrice = parseFloat(priceStr);
@@ -148,8 +150,16 @@ export const SkuModal: React.FC<SkuModalProps> = ({
 
     setSubmitting(true);
     try {
-      const finalCategory = category === 'CUSTOM' ? customCategory.trim() : category;
-      const finalUnit = unit === 'CUSTOM' ? customUnit.trim() : unit;
+      const finalCategory = isEdit
+        ? product?.category || 'General'
+        : category === 'CUSTOM'
+        ? customCategory.trim()
+        : category;
+      const finalUnit = isEdit
+        ? product?.unit || 'Piece'
+        : unit === 'CUSTOM'
+        ? customUnit.trim()
+        : unit;
       const parsedPrice = parseFloat(priceStr);
       const parsedStock = parseInt(stockStr, 10);
       const parsedThreshold = parseInt(thresholdStr, 10);
@@ -207,7 +217,7 @@ export const SkuModal: React.FC<SkuModalProps> = ({
                       </Text>
                       <Text style={styles.subtitle}>
                         {isEdit
-                          ? 'Modify product name, price, category or stock'
+                          ? 'Modify product name, price, and stock levels'
                           : 'Register a new item in catalog & stock inventory'}
                       </Text>
                     </View>
@@ -242,127 +252,139 @@ export const SkuModal: React.FC<SkuModalProps> = ({
                     />
                   </View>
 
-                  {/* Category Chips */}
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.fieldLabel}>Category</Text>
-                    <View style={styles.chipGrid}>
-                      {PRESET_CATEGORIES.map((cat) => {
-                        const isSelected = category === cat;
-                        return (
-                          <TouchableOpacity
-                            key={cat}
-                            style={[
-                              styles.chip,
-                              isSelected && styles.chipSelected,
-                            ]}
-                            onPress={() => {
-                              setCategory(cat);
-                              if (errors.category) setErrors((prev) => ({ ...prev, category: '' }));
-                            }}
-                            activeOpacity={0.7}
-                          >
-                            <Text
+                  {/* Category Chips (Only when adding) */}
+                  {!isEdit && (
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.fieldLabel}>Category</Text>
+                      <View style={styles.chipGrid}>
+                        {PRESET_CATEGORIES.map((cat) => {
+                          const isSelected = category === cat;
+                          return (
+                            <TouchableOpacity
+                              key={cat}
                               style={[
-                                styles.chipText,
-                                isSelected && styles.chipTextSelected,
+                                styles.chip,
+                                isSelected && styles.chipSelected,
                               ]}
+                              onPress={() => {
+                                setCategory(cat);
+                                if (errors.category) setErrors((prev) => ({ ...prev, category: '' }));
+                              }}
+                              activeOpacity={0.7}
                             >
-                              {cat}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                      <TouchableOpacity
-                        style={[
-                          styles.chip,
-                          category === 'CUSTOM' && styles.chipSelected,
-                        ]}
-                        onPress={() => setCategory('CUSTOM')}
-                        activeOpacity={0.7}
-                      >
-                        <Text
+                              <Text
+                                style={[
+                                  styles.chipText,
+                                  isSelected && styles.chipTextSelected,
+                                ]}
+                              >
+                                {cat}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                        <TouchableOpacity
                           style={[
-                            styles.chipText,
-                            category === 'CUSTOM' && styles.chipTextSelected,
+                            styles.chip,
+                            category === 'CUSTOM' && styles.chipSelected,
                           ]}
+                          onPress={() => setCategory('CUSTOM')}
+                          activeOpacity={0.7}
                         >
-                          + Custom
-                        </Text>
-                      </TouchableOpacity>
+                          <Text
+                            style={[
+                              styles.chipText,
+                              category === 'CUSTOM' && styles.chipTextSelected,
+                            ]}
+                          >
+                            + Custom
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                      {category === 'CUSTOM' && (
+                        <Input
+                          placeholder="Enter custom category name..."
+                          value={customCategory}
+                          onChangeText={setCustomCategory}
+                          containerStyle={styles.customFieldInput}
+                        />
+                      )}
+                      {errors.category && (
+                        <Text style={styles.errorText}>{errors.category}</Text>
+                      )}
                     </View>
-                    {category === 'CUSTOM' && (
-                      <Input
-                        placeholder="Enter custom category name..."
-                        value={customCategory}
-                        onChangeText={setCustomCategory}
-                        containerStyle={styles.customFieldInput}
-                      />
-                    )}
-                    {errors.category && (
-                      <Text style={styles.errorText}>{errors.category}</Text>
-                    )}
-                  </View>
+                  )}
 
-                  {/* Packaging Unit Chips */}
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.fieldLabel}>Packaging / Unit Format</Text>
-                    <View style={styles.chipGrid}>
-                      {PRESET_UNITS.map((u) => {
-                        const isSelected = unit === u;
-                        return (
-                          <TouchableOpacity
-                            key={u}
-                            style={[
-                              styles.chip,
-                              isSelected && styles.chipSelected,
-                            ]}
-                            onPress={() => {
-                              setUnit(u);
-                              if (errors.unit) setErrors((prev) => ({ ...prev, unit: '' }));
-                            }}
-                            activeOpacity={0.7}
-                          >
-                            <Text
-                              style={[
-                                styles.chipText,
-                                isSelected && styles.chipTextSelected,
-                              ]}
-                            >
-                              {u}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                      <TouchableOpacity
-                        style={[
-                          styles.chip,
-                          unit === 'CUSTOM' && styles.chipSelected,
-                        ]}
-                        onPress={() => setUnit('CUSTOM')}
-                        activeOpacity={0.7}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            unit === 'CUSTOM' && styles.chipTextSelected,
-                          ]}
-                        >
-                          + Custom
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                    {unit === 'CUSTOM' && (
+                  {/* Packaging Unit (In Edit mode, keep direct quantity/unit input) */}
+                  {isEdit ? (
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.fieldLabel}>Quantity / Packaging Unit (Optional)</Text>
                       <Input
-                        placeholder="e.g. Pack of 6 Bottles, Tin (15kg)"
+                        placeholder="e.g. 500 ml, 1 Ltr, 200 gm, 10 kg, Box of 12"
                         value={customUnit}
                         onChangeText={setCustomUnit}
-                        containerStyle={styles.customFieldInput}
+                        containerStyle={styles.cleanInputContainer}
                       />
-                    )}
-                    {errors.unit && (
-                      <Text style={styles.errorText}>{errors.unit}</Text>
-                    )}
-                  </View>
+                    </View>
+                  ) : (
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.fieldLabel}>Packaging / Unit Format</Text>
+                      <View style={styles.chipGrid}>
+                        {PRESET_UNITS.map((u) => {
+                          const isSelected = unit === u;
+                          return (
+                            <TouchableOpacity
+                              key={u}
+                              style={[
+                                styles.chip,
+                                isSelected && styles.chipSelected,
+                              ]}
+                              onPress={() => {
+                                setUnit(u);
+                                if (errors.unit) setErrors((prev) => ({ ...prev, unit: '' }));
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <Text
+                                style={[
+                                  styles.chipText,
+                                  isSelected && styles.chipTextSelected,
+                                ]}
+                              >
+                                {u}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                        <TouchableOpacity
+                          style={[
+                            styles.chip,
+                            unit === 'CUSTOM' && styles.chipSelected,
+                          ]}
+                          onPress={() => setUnit('CUSTOM')}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              unit === 'CUSTOM' && styles.chipTextSelected,
+                            ]}
+                          >
+                            + Custom
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                      {unit === 'CUSTOM' && (
+                        <Input
+                          placeholder="e.g. Barrel (200L), 500g Tub"
+                          value={customUnit}
+                          onChangeText={setCustomUnit}
+                          containerStyle={styles.customFieldInput}
+                        />
+                      )}
+                      {errors.unit && <Text style={styles.errorText}>{errors.unit}</Text>}
+                    </View>
+                  )}
 
                   {/* Price & Stock in Two Columns */}
                   <View style={styles.twoColRow}>
