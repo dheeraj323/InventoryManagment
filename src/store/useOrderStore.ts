@@ -12,6 +12,10 @@ interface OrderState {
   subscribeToOrders: (vendorId?: string, staffId?: string) => () => void;
   createOrder: (newOrder: Omit<Order, 'id' | 'orderNumber'>) => Promise<Order>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+  assignStaffAndDispatch: (
+    orderId: string,
+    staff: { staffId: string; name: string; phone?: string }
+  ) => Promise<void>;
   recordDelivery: (
     orderId: string,
     updatedItems: OrderItem[],
@@ -77,6 +81,28 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       await orderService.updateOrderStatus(orderId, status);
     } catch (err) {
       console.error(`Error updating status for order ${orderId}:`, err);
+    }
+  },
+
+  assignStaffAndDispatch: async (orderId, staff) => {
+    set({
+      orders: get().orders.map((o) =>
+        o.id === orderId
+          ? {
+              ...o,
+              status: 'OUT_FOR_DELIVERY',
+              assignedStaffId: staff.staffId,
+              assignedStaffName: staff.name,
+              assignedStaffPhone: staff.phone || '',
+              dispatchedAt: new Date().toISOString(),
+            }
+          : o
+      ),
+    });
+    try {
+      await orderService.assignStaffAndDispatch(orderId, staff);
+    } catch (err) {
+      console.error(`Error assigning staff and dispatching order ${orderId}:`, err);
     }
   },
 

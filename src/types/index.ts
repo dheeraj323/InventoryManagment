@@ -157,6 +157,8 @@ export interface Order {
   deliveryDate: string;
   assignedStaffId?: string;
   assignedStaffName?: string;
+  assignedStaffPhone?: string;
+  dispatchedAt?: string;
   deliveredAt?: string;
   notes?: string;
   deliveryFinalized?: boolean;    // Idempotency guard: set to true once financial transaction is written

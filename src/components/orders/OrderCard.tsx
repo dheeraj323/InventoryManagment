@@ -62,6 +62,15 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         </View>
       )}
 
+      {order.assignedStaffName ? (
+        <View style={styles.staffTagRow}>
+          <Ionicons name="bicycle-outline" size={13} color="#0284C7" />
+          <Text style={styles.staffTagText} numberOfLines={1}>
+            Delivery: {order.assignedStaffName}
+          </Text>
+        </View>
+      ) : null}
+
       {/* Items summary */}
       <Text style={styles.itemsSummary} numberOfLines={2}>
         {order.items.map((i) => `${i.productName} ×${i.orderedQty}`).join('  ·  ')}
@@ -194,5 +203,23 @@ const styles = StyleSheet.create({
   },
   deliverNowText: {
     color: colors.brandGreen,
+  },
+  staffTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  staffTagText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0369A1',
   },
 });

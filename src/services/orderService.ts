@@ -171,6 +171,22 @@ export const orderService = {
     });
   },
 
+  // Assign Delivery Staff and Dispatch Order (Status -> OUT_FOR_DELIVERY)
+  assignStaffAndDispatch: async (
+    orderId: string,
+    staff: { staffId: string; name: string; phone?: string }
+  ): Promise<void> => {
+    const docRef = doc(db, ORDERS_COLLECTION, orderId);
+    await updateDoc(docRef, {
+      status: 'OUT_FOR_DELIVERY',
+      assignedStaffId: staff.staffId,
+      assignedStaffName: staff.name,
+      assignedStaffPhone: staff.phone || '',
+      dispatchedAt: new Date().toISOString(),
+      updatedAt: serverTimestamp(),
+    });
+  },
+
   /**
    * Record Delivery — delegates all financial writes to financialTransactionService.
    *

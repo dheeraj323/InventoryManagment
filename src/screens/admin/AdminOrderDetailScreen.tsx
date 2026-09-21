@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
   ScrollView,
+  TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useOrderStore } from '../../store/useOrderStore';
@@ -14,7 +15,8 @@ import { Button } from '../../components/common/Button';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { StatusTracker } from '../../components/orders/StatusTracker';
 import { OrderItemRow } from '../../components/orders/OrderItemRow';
-import { OrderStatus } from '../../types';
+import { DispatchStaffModal } from '../../components/orders/DispatchStaffModal';
+import { OrderStatus, Staff } from '../../types';
 import { formatDate } from '../../utils/dateFormatter';
 import { colors, typography, spacing } from '../../theme';
 
@@ -23,8 +25,11 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
   navigation,
 }) => {
   const { orderId, hideVendorProfile } = route.params || {};
-  const { getOrderById, updateOrderStatus } = useOrderStore();
+  const { getOrderById, updateOrderStatus, assignStaffAndDispatch } = useOrderStore();
   const order = getOrderById(orderId);
+
+  const [dispatchModalVisible, setDispatchModalVisible] = useState(false);
+  const [dispatching, setDispatching] = useState(false);
 
   if (!order) {
     return (
@@ -39,6 +44,22 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
 
   const handleUpdateStatus = (status: OrderStatus) => {
     updateOrderStatus(order.id, status);
+  };
+
+  const handleConfirmDispatch = async (staff: Staff) => {
+    setDispatching(true);
+    try {
+      await assignStaffAndDispatch(order.id, {
+        staffId: staff.staffId || staff.id,
+        name: staff.name,
+        phone: staff.phone,
+      });
+      setDispatchModalVisible(false);
+    } catch (err) {
+      console.error('Error dispatching order to staff:', err);
+    } finally {
+      setDispatching(false);
+    }
   };
 
   return (
@@ -66,7 +87,7 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
           <StatusTracker status={order.status} />
 
           {/* Admin Status Override Actions */}
-          <Text style={styles.adminActionTitle}>ADMIN STATUS OVERRIDE</Text>
+          <Text style={styles.adminActionTitle}>ADMIN STATUS & DISPATCH ACTIONS</Text>
           <View style={styles.statusBtnRow}>
             {order.status === 'PENDING' && (
               <>
@@ -86,16 +107,52 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
               </>
             )}
 
-            {order.status === 'APPROVED' && (
+            {(order.status === 'APPROVED' || order.status === 'OUT_FOR_DELIVERY') && (
               <Button
-                title="Dispatch / Out for Delivery"
-                onPress={() => handleUpdateStatus('OUT_FOR_DELIVERY')}
+                title={
+                  order.status === 'OUT_FOR_DELIVERY'
+                    ? 'Reassign Delivery Staff'
+                    : 'Dispatch / Out for Delivery'
+                }
+                onPress={() => setDispatchModalVisible(true)}
                 size="sm"
+                variant={order.status === 'OUT_FOR_DELIVERY' ? 'outline' : 'primary'}
                 style={styles.statusBtn}
               />
             )}
           </View>
         </Card>
+
+        {/* Assigned Delivery Executive Card */}
+        {order.assignedStaffName ? (
+          <Card style={styles.card} outlined elevation="sm">
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.cardTitle}>ASSIGNED DELIVERY EXECUTIVE</Text>
+              <TouchableOpacity
+                onPress={() => setDispatchModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.reassignText}>Change Staff</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.staffDisplayRow}>
+              <View style={styles.staffAvatar}>
+                <Ionicons name="bicycle" size={20} color={colors.primary} />
+              </View>
+              <View style={styles.staffTextCol}>
+                <Text style={styles.staffNameText}>{order.assignedStaffName}</Text>
+                <Text style={styles.staffSubText}>
+                  {order.assignedStaffPhone ? `+91 ${order.assignedStaffPhone}` : 'Delivery Staff'}
+                </Text>
+              </View>
+              <View style={styles.dispatchedBadge}>
+                <Text style={styles.dispatchedBadgeText}>
+                  {order.status === 'OUT_FOR_DELIVERY' ? 'ON ROUTE' : 'ASSIGNED'}
+                </Text>
+              </View>
+            </View>
+          </Card>
+        ) : null}
 
         {/* Vendor Profile & Delivery Details */}
         {!hideVendorProfile && (
@@ -106,11 +163,6 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
             <Text style={styles.detailText}>Phone: {order.phone}</Text>
             {Boolean(order.address) && <Text style={styles.detailText}>Address: {order.address}</Text>}
             <Text style={styles.detailText}>Delivery Date: {formatDate(order.deliveryDate)}</Text>
-            {order.assignedStaffName && (
-              <Text style={styles.detailText}>
-                Delivery Executive: {order.assignedStaffName}
-              </Text>
-            )}
           </Card>
         )}
 
@@ -143,6 +195,15 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
           </View>
         </Card>
       </ScrollView>
+
+      {/* Dispatch Staff Selection Modal */}
+      <DispatchStaffModal
+        visible={dispatchModalVisible}
+        orderNumber={order.orderNumber}
+        onClose={() => setDispatchModalVisible(false)}
+        onConfirm={handleConfirmDispatch}
+        isLoading={dispatching}
+      />
     </SafeAreaView>
   );
 };
@@ -173,6 +234,58 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 0.5,
     marginBottom: spacing.xs,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  reassignText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  staffDisplayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: spacing.xs,
+    gap: 12,
+  },
+  staffAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  staffTextCol: {
+    flex: 1,
+  },
+  staffNameText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  staffSubText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  dispatchedBadge: {
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  dispatchedBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#16A34A',
+    letterSpacing: 0.5,
   },
   statusHeader: {
     flexDirection: 'row',

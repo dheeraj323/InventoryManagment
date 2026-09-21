@@ -277,6 +277,40 @@ export const authService = {
     }
   },
 
+  // ── 5b. Fetch Active Field & Delivery Staff Members ────────────────────────
+  getActiveStaff: async (): Promise<Staff[]> => {
+    try {
+      const q = query(collection(db, 'staff'), where('active', '==', true));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        return snap.docs.map((d) => ({ ...d.data(), id: d.id, staffId: d.id } as Staff));
+      }
+      // Fallback: check users collection for active staff
+      const uq = query(
+        collection(db, 'users'),
+        where('role', '==', 'STAFF'),
+        where('status', '==', 'ACTIVE')
+      );
+      const uSnap = await getDocs(uq);
+      return uSnap.docs.map((d) => {
+        const u = d.data();
+        return {
+          id: u.staffId || d.id,
+          staffId: u.staffId || d.id,
+          name: u.name || 'Staff Member',
+          phone: u.phone || '',
+          activeArea: u.area || 'All Areas',
+          todayAssignedDeliveries: 0,
+          cashInHand: 0,
+          active: true,
+        } as Staff;
+      });
+    } catch (error) {
+      console.error('Error fetching active staff:', error);
+      return [];
+    }
+  },
+
   // ── 6. Admin Actions: Approve Staff Member ──────────────────────────────────
   approveStaff: async (userId: string, staffId: string, assignedArea?: string): Promise<void> => {
     const userRef = doc(db, 'users', userId);

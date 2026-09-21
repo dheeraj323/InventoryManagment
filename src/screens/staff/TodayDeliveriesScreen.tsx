@@ -15,9 +15,10 @@ import { colors, typography, spacing } from '../../theme';
 
 export const TodayDeliveriesScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { getOrdersByStaff } = useOrderStore();
-  const { activeStaffId } = useAuthStore();
+  const { activeStaffId, currentUser } = useAuthStore();
 
-  const assignedOrders = getOrdersByStaff(activeStaffId);
+  const effectiveStaffId = activeStaffId || currentUser?.staffId || currentUser?.uid || currentUser?.id || '';
+  const assignedOrders = getOrdersByStaff(effectiveStaffId);
 
   return (
     <SafeAreaView style={styles.container}>

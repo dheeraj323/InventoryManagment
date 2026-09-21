@@ -5,6 +5,8 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
+  TouchableOpacity,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useOrderStore } from '../../store/useOrderStore';
@@ -46,6 +48,12 @@ export const VendorOrderDetailScreen: React.FC<{ route: any; navigation: any }> 
 
   const orderDateFormatted = formatDateTime(order.orderDate);
 
+  const handleCallStaff = () => {
+    if (order.assignedStaffPhone) {
+      Linking.openURL(`tel:${order.assignedStaffPhone}`);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <Header
@@ -64,6 +72,36 @@ export const VendorOrderDetailScreen: React.FC<{ route: any; navigation: any }> 
           </View>
           <StatusTracker status={order.status} />
         </Card>
+
+        {/* Delivery Executive Info (When Assigned) */}
+        {order.assignedStaffName ? (
+          <Card style={styles.card} outlined elevation="sm">
+            <Text style={styles.cardTitle}>DELIVERY EXECUTIVE</Text>
+            <View style={styles.staffRow}>
+              <View style={styles.staffAvatar}>
+                <Ionicons name="bicycle" size={22} color={colors.primary} />
+              </View>
+              <View style={styles.staffInfo}>
+                <Text style={styles.staffName}>{order.assignedStaffName}</Text>
+                <Text style={styles.staffSubText}>
+                  {order.status === 'OUT_FOR_DELIVERY'
+                    ? 'Out for delivery with your order'
+                    : 'Assigned for delivery'}
+                </Text>
+              </View>
+              {order.assignedStaffPhone ? (
+                <TouchableOpacity
+                  style={styles.callButton}
+                  onPress={handleCallStaff}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="call" size={15} color="#FFFFFF" />
+                  <Text style={styles.callButtonText}>Call</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </Card>
+        ) : null}
 
         {/* Itemized Order List */}
         <Card style={styles.card} outlined elevation="sm">
@@ -194,5 +232,46 @@ const styles = StyleSheet.create({
   totalVal: {
     ...typography.currency,
     color: colors.primary,
+  },
+  staffRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingTop: 4,
+  },
+  staffAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  staffInfo: {
+    flex: 1,
+  },
+  staffName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  staffSubText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  callButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.brandGreen,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  callButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
