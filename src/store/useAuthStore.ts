@@ -30,7 +30,13 @@ interface AuthState {
     preferredArea?: string;
   }) => Promise<void>;
   refreshCurrentUser: () => Promise<void>;
-  updateProfile: (updates: { name?: string; phone?: string; area?: string }) => Promise<void>;
+  updateProfile: (updates: {
+    name?: string;
+    phone?: string;
+    area?: string;
+    address?: string;
+    businessName?: string;
+  }) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
@@ -196,7 +202,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  updateProfile: async (updates: { name?: string; phone?: string; area?: string }) => {
+  updateProfile: async (updates: {
+    name?: string;
+    phone?: string;
+    area?: string;
+    address?: string;
+    businessName?: string;
+  }) => {
     const { currentUser } = get();
     if (!currentUser?.uid) return;
 

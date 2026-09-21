@@ -1,101 +1,352 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
   ScrollView,
+  TouchableOpacity,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useVendorStore } from '../../store/useVendorStore';
 import { Header } from '../../components/common/Header';
-import { Card } from '../../components/common/Card';
+import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
-import { colors, typography, spacing } from '../../theme';
+import { colors, spacing } from '../../theme';
 
 export const ProfileScreen: React.FC = () => {
-  const { currentUser, activeVendorId, logout } = useAuthStore();
-  const { getVendorById } = useVendorStore();
+  const { currentUser, activeVendorId, updateProfile, logout, sendPasswordReset } =
+    useAuthStore();
+  const { getVendorById, updateVendorProfile } = useVendorStore();
 
   const effectiveVendorId = activeVendorId || currentUser?.vendorId || '';
-  const vendor = getVendorById(effectiveVendorId) || {
-    id: effectiveVendorId,
-    name: currentUser?.name || 'Account User',
-    shopName: currentUser?.businessName || currentUser?.name || 'Store',
-    phone: currentUser?.phone || 'Not provided',
-    address: currentUser?.address || 'Not provided',
-    area: currentUser?.area || 'General',
-    currentBalance: 0,
-    payLaterEligible: false,
-    preferredPaymentMode: 'CASH' as const,
+  const vendor = getVendorById(effectiveVendorId);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState(currentUser?.name || vendor?.name || '');
+  const [shopName, setShopName] = useState(
+    currentUser?.businessName || vendor?.shopName || ''
+  );
+  const [phone, setPhone] = useState(currentUser?.phone || vendor?.phone || '');
+  const [address, setAddress] = useState(
+    currentUser?.address || vendor?.address || ''
+  );
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{
+    visible: boolean;
+    text: string;
+    type: 'success' | 'error';
+  }>({
+    visible: false,
+    text: '',
+    type: 'success',
+  });
+
+  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
+    setToast({ visible: true, text, type });
+    setTimeout(() => {
+      setToast((prev) => ({ ...prev, visible: false }));
+    }, 3000);
   };
+
+  useEffect(() => {
+    setName(currentUser?.name || vendor?.name || '');
+    setShopName(currentUser?.businessName || vendor?.shopName || '');
+    setPhone(currentUser?.phone || vendor?.phone || '');
+    setAddress(currentUser?.address || vendor?.address || '');
+  }, [currentUser, vendor]);
+
+  const handleSave = async () => {
+    if (!name.trim()) {
+      showToast('Please enter proprietor / full name.', 'error');
+      return;
+    }
+    if (!shopName.trim()) {
+      showToast('Please enter your shop name.', 'error');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // 1. Update user profile document in Auth/Users
+      await updateProfile({
+        name: name.trim(),
+        businessName: shopName.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+      });
+
+      // 2. Synchronize vendor record in Firestore
+      if (effectiveVendorId) {
+        await updateVendorProfile(
+          effectiveVendorId,
+          {
+            name: name.trim(),
+            shopName: shopName.trim(),
+            phone: phone.trim(),
+            address: address.trim(),
+          },
+          name.trim()
+        );
+      }
+
+      setIsEditing(false);
+      showToast('Profile updated successfully!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Could not save profile changes.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setName(currentUser?.name || vendor?.name || '');
+    setShopName(currentUser?.businessName || vendor?.shopName || '');
+    setPhone(currentUser?.phone || vendor?.phone || '');
+    setAddress(currentUser?.address || vendor?.address || '');
+    setIsEditing(false);
+  };
+
+  const handlePasswordReset = () => {
+    if (!currentUser?.email) return;
+    Alert.alert(
+      'Reset Password',
+      `Send a password reset link to ${currentUser.email}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Send Link',
+          onPress: async () => {
+            try {
+              await sendPasswordReset(currentUser.email!);
+              showToast(`Reset link sent to ${currentUser.email}`, 'success');
+            } catch (err: any) {
+              showToast(err.message || 'Failed to send reset email.', 'error');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleLogout = () => {
+    Alert.alert('Log Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Log Out', style: 'destructive', onPress: logout },
+    ]);
+  };
+
+  const displayShopName =
+    currentUser?.businessName || vendor?.shopName || 'My Store';
+  const displayProprietorName =
+    currentUser?.name || vendor?.name || 'Shop Owner';
+  const displayPhone = currentUser?.phone || vendor?.phone || '';
+  const displayAddress =
+    currentUser?.address || vendor?.address || 'Not specified';
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Shop & Account Profile" />
-
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* User Card */}
-        <Card style={styles.card} outlined elevation="sm">
-          <View style={styles.avatarRow}>
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>{vendor.name.charAt(0)}</Text>
-            </View>
-            <View style={styles.nameCol}>
-              <Text style={styles.vendorName}>{vendor.shopName}</Text>
-              <Text style={styles.ownerName}>Proprietor: {vendor.name}</Text>
-              <Text style={styles.roleBadgeText}>ROLE: {currentUser?.role || 'VENDOR'}</Text>
-            </View>
-          </View>
-        </Card>
-
-        {/* Business Info */}
-        <Card style={styles.card} outlined elevation="sm">
-          <Text style={styles.cardTitle}>SHOP DETAILS</Text>
-          <View style={styles.infoRow}>
-            <Ionicons name="call-outline" size={16} color={colors.accent} />
-            <Text style={styles.infoText}>{vendor.phone}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={16} color={colors.accent} />
-            <Text style={styles.infoText}>{vendor.address}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Ionicons name="map-outline" size={16} color={colors.accent} />
-            <Text style={styles.infoText}>Assigned Market Area: {vendor.area}</Text>
-          </View>
-        </Card>
-
-        {/* Payment & Khata Terms */}
-        <Card style={styles.card} outlined elevation="sm">
-          <Text style={styles.cardTitle}>PAYMENT & KHATA TERMS</Text>
-          <View style={styles.statRow}>
-            <Text style={styles.statLabel}>Pay Later / Khata Option</Text>
-            <Text
-              style={[
-                styles.statVal,
-                { color: colors.success },
-              ]}
+      <Header
+        title="Profile"
+        rightAction={
+          !isEditing ? (
+            <TouchableOpacity
+              onPress={() => setIsEditing(true)}
+              style={styles.headerEditBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              activeOpacity={0.7}
             >
-              {vendor.payLaterEligible ? 'Enabled' : 'Disabled'}
-            </Text>
-          </View>
-          <View style={styles.statRow}>
-            <Text style={styles.statLabel}>Default Payment Mode</Text>
-            <Text style={styles.statVal}>{vendor.preferredPaymentMode}</Text>
-          </View>
-        </Card>
+              <Ionicons name="pencil-outline" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          ) : undefined
+        }
+      />
 
-        {/* Logout Button */}
-        <Button
-          title="LOGOUT FROM APP"
-          onPress={logout}
-          variant="danger"
-          size="md"
-          style={styles.logoutBtn}
-        />
-      </ScrollView>
+      {/* In-App Toast Notification */}
+      {toast.visible && (
+        <View
+          style={[
+            styles.toastContainer,
+            toast.type === 'error' ? styles.toastError : styles.toastSuccess,
+          ]}
+        >
+          <Ionicons
+            name={toast.type === 'success' ? 'checkmark-circle' : 'alert-circle'}
+            size={18}
+            color={toast.type === 'success' ? '#16A34A' : '#DC2626'}
+          />
+          <Text
+            style={[
+              styles.toastText,
+              toast.type === 'error'
+                ? styles.toastErrorText
+                : styles.toastSuccessText,
+            ]}
+          >
+            {toast.text}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setToast((prev) => ({ ...prev, visible: false }))}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons
+              name="close"
+              size={16}
+              color={toast.type === 'success' ? '#16A34A' : '#DC2626'}
+            />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.flex}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Avatar Section */}
+          <View style={styles.avatarSection}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>
+                {displayShopName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <Text style={styles.userName}>{displayShopName}</Text>
+            <Text style={styles.userSubtitle}>Proprietor: {displayProprietorName}</Text>
+          </View>
+
+          {/* Shop & Personal Details Form */}
+          <View style={styles.card}>
+            <Text style={styles.sectionHeading}>SHOP & PERSONAL DETAILS</Text>
+
+            {isEditing ? (
+              <View>
+                <Input
+                  label="Shop / Business Name"
+                  value={shopName}
+                  onChangeText={setShopName}
+                  autoCapitalize="words"
+                />
+
+                <Input
+                  label="Proprietor / Full Name"
+                  value={name}
+                  onChangeText={setName}
+                  autoCapitalize="words"
+                />
+
+                <Input
+                  label="Email Address"
+                  value={currentUser?.email || ''}
+                  editable={false}
+                />
+
+                <Input
+                  label="Phone Number"
+                  value={phone}
+                  onChangeText={setPhone}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  prefix="+91"
+                />
+
+                <Input
+                  label="Shop Address"
+                  value={address}
+                  onChangeText={setAddress}
+                  multiline
+                />
+
+                <View style={styles.editActionRow}>
+                  <Button
+                    title="Cancel"
+                    variant="outline"
+                    onPress={handleCancel}
+                    disabled={saving}
+                    style={styles.cancelBtn}
+                  />
+                  <Button
+                    title={saving ? 'Saving...' : 'Save Changes'}
+                    onPress={handleSave}
+                    disabled={saving}
+                    style={styles.saveBtn}
+                  />
+                </View>
+              </View>
+            ) : (
+              <View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Shop / Business Name</Text>
+                  <Text style={styles.infoValue}>{displayShopName}</Text>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Proprietor Name</Text>
+                  <Text style={styles.infoValue}>{displayProprietorName}</Text>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Email</Text>
+                  <Text style={styles.infoValue}>
+                    {currentUser?.email || 'Not specified'}
+                  </Text>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Phone Number</Text>
+                  <Text style={styles.infoValue}>
+                    {displayPhone ? `+91 ${displayPhone}` : 'Not added'}
+                  </Text>
+                </View>
+
+                <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+                  <Text style={styles.infoLabel}>Shop Address</Text>
+                  <Text style={styles.infoValue}>{displayAddress}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Account Actions */}
+          {!isEditing && (
+            <View style={styles.card}>
+              <Text style={styles.sectionHeading}>ACCOUNT</Text>
+
+              <TouchableOpacity
+                style={styles.menuRow}
+                onPress={handlePasswordReset}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="key-outline" size={18} color="#64748B" />
+                <Text style={styles.menuText}>Change Password</Text>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.menuRow, { borderBottomWidth: 0 }]}
+                onPress={handleLogout}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="log-out-outline"
+                  size={18}
+                  color={colors.danger}
+                />
+                <Text style={[styles.menuText, { color: colors.danger }]}>
+                  Log Out
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -103,85 +354,131 @@ export const ProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#F8FAFC',
   },
-  scrollContent: {
-    padding: spacing.screenPadding,
+  flex: {
+    flex: 1,
   },
-  card: {
-    marginBottom: spacing.md,
-  },
-  avatarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  avatarCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary,
+  headerEditBtn: {
+    padding: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: {
-    ...typography.h2,
-    color: colors.textInverse,
+  toastContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 8,
   },
-  nameCol: {
-    marginLeft: spacing.md,
+  toastSuccess: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  toastError: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  toastText: {
     flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
   },
-  vendorName: {
-    ...typography.h3,
-    color: colors.textPrimary,
+  toastSuccessText: {
+    color: '#166534',
   },
-  ownerName: {
-    ...typography.caption,
-    color: colors.textSecondary,
+  toastErrorText: {
+    color: '#991B1B',
+  },
+  scrollContent: {
+    padding: spacing.md,
+    paddingBottom: spacing.xxl,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    marginVertical: spacing.lg,
+  },
+  avatarCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  avatarText: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  userSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
     marginTop: 2,
   },
-  roleBadgeText: {
-    ...typography.captionBold,
-    fontSize: 10,
-    color: colors.accent,
-    marginTop: 4,
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  cardTitle: {
-    ...typography.captionBold,
-    color: colors.textMuted,
-    fontSize: 10,
+  sectionHeading: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
     letterSpacing: 0.5,
     marginBottom: spacing.md,
   },
   infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  infoText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginLeft: spacing.sm,
+  infoLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  editActionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  cancelBtn: {
     flex: 1,
   },
-  statRow: {
+  saveBtn: {
+    flex: 1.5,
+  },
+  menuRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    gap: 12,
   },
-  statLabel: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  statVal: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-  },
-  roleBtn: {
-    marginBottom: spacing.xs,
-  },
-  logoutBtn: {
-    marginTop: spacing.sm,
+  menuText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#0F172A',
   },
 });
