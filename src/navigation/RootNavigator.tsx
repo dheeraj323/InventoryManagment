@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Image, ActivityIndicator, StyleSheet, Animated } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '../store/useAuthStore';
@@ -54,10 +54,38 @@ export const RootNavigator: React.FC = () => {
     };
   }, [currentUser, activeRole, activeVendorId, activeStaffId]);
 
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (isLoading && !currentUser) {
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.05,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 0.95,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulse.start();
+      return () => pulse.stop();
+    }
+  }, [isLoading, currentUser, pulseAnim]);
+
   if (isLoading && !currentUser) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
+        <Animated.Image
+          source={require('../../assets/logo.png')}
+          style={[styles.splashLogo, { transform: [{ scale: pulseAnim }] }]}
+          resizeMode="contain"
+        />
+        <ActivityIndicator size="small" color={colors.primary} style={styles.loader} />
       </View>
     );
   }
@@ -84,8 +112,16 @@ export const RootNavigator: React.FC = () => {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  splashLogo: {
+    width: 150,
+    height: 150,
+    borderRadius: 30,
+  },
+  loader: {
+    marginTop: 24,
   },
 });

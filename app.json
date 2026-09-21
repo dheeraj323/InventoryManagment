@@ -1,15 +1,28 @@
 {
   "expo": {
-    "name": "Distributor Management System",
-    "slug": "distributor-management-system",
+    "name": "Panihaar Milk Dairy",
+    "slug": "panihaar-milk-dairy",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "ios": {
       "supportsTablet": true
     },
-    "android": {},
-    "web": {},
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "favicon": "./assets/icon.png"
+    },
     "plugins": [
       "expo-font"
     ]

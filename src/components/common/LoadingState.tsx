@@ -1,19 +1,28 @@
 import React from 'react';
-import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, Image } from 'react-native';
 import { colors, typography, spacing } from '../../theme';
 
 export interface LoadingStateProps {
   message?: string;
   fullScreen?: boolean;
+  showLogo?: boolean;
 }
 
 export const LoadingState: React.FC<LoadingStateProps> = ({
   message = 'Loading data...',
   fullScreen = false,
+  showLogo = true,
 }) => {
   if (fullScreen) {
     return (
       <View style={styles.fullScreen}>
+        {showLogo && (
+          <Image
+            source={require('../../../assets/logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        )}
         <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.message}>{message}</Text>
       </View>
@@ -44,6 +53,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.xl,
     backgroundColor: colors.background,
+  },
+  logo: {
+    width: 64,
+    height: 64,
+    borderRadius: 14,
+    marginBottom: spacing.md,
   },
   message: {
     ...typography.body,

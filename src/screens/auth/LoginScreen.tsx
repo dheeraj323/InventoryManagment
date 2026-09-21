@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   SafeAreaView,
   TouchableOpacity,
@@ -153,12 +154,14 @@ export const LoginScreen: React.FC = () => {
         >
           {/* Header Brand */}
           <View style={styles.header}>
-            <View style={styles.logoBox}>
-              <Ionicons name="cube" size={28} color="#FFFFFF" />
-            </View>
-            <Text style={styles.appTitle}>
-              {authMode === 'FORGOT_PASSWORD' ? 'Reset Password' : 'Distributor Management'}
-            </Text>
+            <Image
+              source={require('../../../assets/logo.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+            {authMode === 'FORGOT_PASSWORD' && (
+              <Text style={styles.appTitle}>Reset Password</Text>
+            )}
             <Text style={styles.appSubtitle}>
               {authMode === 'LOGIN'
                 ? 'Sign in to access your inventory and orders'
@@ -515,13 +518,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xl,
   },
-  logoBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logoImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 20,
     marginBottom: spacing.md,
   },
   appTitle: {
@@ -529,12 +529,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0F172A',
     textAlign: 'center',
+    marginBottom: spacing.xs,
   },
   appSubtitle: {
     fontSize: 13,
     color: '#64748B',
     textAlign: 'center',
-    marginTop: 4,
+    marginTop: 2,
     maxWidth: 280,
   },
   tabBar: {
