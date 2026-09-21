@@ -13,7 +13,7 @@ import { AdminFinanceScreen } from '../screens/admin/AdminFinanceScreen';
 import { StaffSettlementsScreen } from '../screens/admin/StaffSettlementsScreen';
 import { AuditHistoryScreen } from '../screens/admin/AuditHistoryScreen';
 import { StaffApprovalScreen } from '../screens/admin/StaffApprovalScreen';
-import { ProfileScreen } from '../screens/vendor/ProfileScreen';
+import { AdminProfileScreen } from '../screens/admin/AdminProfileScreen';
 import { colors, typography } from '../theme';
 
 const Stack = createNativeStackNavigator();
@@ -65,11 +65,12 @@ const AdminFinanceStack = () => (
   </Stack.Navigator>
 );
 
-// 5. Settings Stack
-const AdminSettingsStack = () => (
+// 5. Admin Profile Stack
+const AdminProfileStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="Profile" component={ProfileScreen} />
+    <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
     <Stack.Screen name="StaffApproval" component={StaffApprovalScreen} />
+    <Stack.Screen name="AuditHistory" component={AuditHistoryScreen} />
   </Stack.Navigator>
 );
 
@@ -97,7 +98,7 @@ export const AdminNavigator: React.FC = () => {
           else if (route.name === 'AdminOrdersTab') iconName = 'receipt-outline';
           else if (route.name === 'VendorListTab') iconName = 'storefront-outline';
           else if (route.name === 'AdminFinanceTab') iconName = 'bar-chart-outline';
-          else if (route.name === 'AdminSettingsTab') iconName = 'settings-outline';
+          else if (route.name === 'AdminProfileTab') iconName = 'person-outline';
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
@@ -124,9 +125,9 @@ export const AdminNavigator: React.FC = () => {
         options={{ title: 'Finance' }}
       />
       <Tab.Screen
-        name="AdminSettingsTab"
-        component={AdminSettingsStack}
-        options={{ title: 'Settings' }}
+        name="AdminProfileTab"
+        component={AdminProfileStack}
+        options={{ title: 'Profile' }}
       />
     </Tab.Navigator>
   );

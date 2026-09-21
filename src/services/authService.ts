@@ -348,7 +348,16 @@ export const authService = {
     }
   },
 
-  // ── 9. Logout User ──────────────────────────────────────────────────────────
+  // ── 9. Update User Profile ──────────────────────────────────────────────────
+  updateUserProfile: async (uid: string, updates: { name?: string; phone?: string; area?: string }): Promise<void> => {
+    const userRef = doc(db, 'users', uid);
+    await updateDoc(userRef, {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    });
+  },
+
+  // ── 10. Logout User ─────────────────────────────────────────────────────────
   logout: async (): Promise<void> => {
     await signOut(auth);
   },

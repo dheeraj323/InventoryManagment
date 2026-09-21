@@ -30,6 +30,7 @@ interface AuthState {
     preferredArea?: string;
   }) => Promise<void>;
   refreshCurrentUser: () => Promise<void>;
+  updateProfile: (updates: { name?: string; phone?: string; area?: string }) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
@@ -192,6 +193,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error) {
       console.error('Error refreshing user status:', error);
       set({ isLoading: false });
+    }
+  },
+
+  updateProfile: async (updates: { name?: string; phone?: string; area?: string }) => {
+    const { currentUser } = get();
+    if (!currentUser?.uid) return;
+
+    set({ isLoading: true });
+    try {
+      await authService.updateUserProfile(currentUser.uid, updates);
+      set((state) => ({
+        currentUser: state.currentUser ? { ...state.currentUser, ...updates } : null,
+        isLoading: false,
+      }));
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      set({ isLoading: false });
+      throw error;
     }
   },
 
