@@ -224,6 +224,7 @@ export const financialTransactionService = {
       // 2. Restore MISSING (non-damaged) stock to inventory
       // Rule: Missing items (lost in transit) return to sellable stock.
       //       Damaged items are flagged but do NOT return to stock.
+      const restoredStockMap: Record<string, number> = {};
       for (const { ref, currentStock, item } of productReads) {
         const damagedQty = item.damagedQty || 0;
         // missingQty = items that were ordered, not delivered, and not damaged
@@ -239,7 +240,14 @@ export const financialTransactionService = {
             availableStock: restoredStock,
             updatedAt: serverTimestamp(),
           });
+          restoredStockMap[item.productId] = restoredStock;
         }
+      }
+
+      // Update consolidated Live Stock Map in transaction
+      if (Object.keys(restoredStockMap).length > 0) {
+        const stockRef = doc(db, 'system', 'live_stock');
+        transaction.set(stockRef, restoredStockMap, { merge: true });
       }
 
       // 3. Update vendor outstanding balance

@@ -66,13 +66,13 @@ service cloud.firestore {
     // ── PRODUCTS Collection ────────────────────────────────────────────
     match /products/{productId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || isStaff();
+      allow write: if isAuthenticated();
     }
 
     // ── SYSTEM Collection ──────────────────────────────────────────────
     match /system/{docId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || isStaff();
+      allow write: if isAuthenticated();
     }
 
     // ── SUPPLIERS Collection (Confidential: Admin Only) ────────────────

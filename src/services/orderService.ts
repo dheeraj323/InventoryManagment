@@ -88,7 +88,7 @@ export const orderService = {
       const vendorSnap = await transaction.get(vendorRef);
 
       // 2. Fetch and validate stock for all items first (ALL READS)
-      const productUpdates: { ref: any; newStock: number }[] = [];
+      const productUpdates: { ref: any; productId: string; newStock: number }[] = [];
       for (const item of orderData.items) {
         const productRef = doc(db, PRODUCTS_COLLECTION, item.productId);
         const productSnap = await transaction.get(productRef);
@@ -98,17 +98,25 @@ export const orderService = {
             throw new Error(`Insufficient stock for product ${product.name}. Available: ${product.stockQty}, Requested: ${item.orderedQty}`);
           }
           const newStock = product.stockQty - item.orderedQty;
-          productUpdates.push({ ref: productRef, newStock });
+          productUpdates.push({ ref: productRef, productId: item.productId, newStock });
         }
       }
 
       // 3. NOW PERFORM ALL WRITES
+      const liveStockUpdates: Record<string, number> = {};
       for (const pUpdate of productUpdates) {
         transaction.update(pUpdate.ref, {
           stockQty: pUpdate.newStock,
           availableStock: pUpdate.newStock,
           updatedAt: serverTimestamp(),
         });
+        liveStockUpdates[pUpdate.productId] = pUpdate.newStock;
+      }
+
+      // Update consolidated Live Stock Map in transaction
+      if (Object.keys(liveStockUpdates).length > 0) {
+        const stockRef = doc(db, 'system', 'live_stock');
+        transaction.set(stockRef, liveStockUpdates, { merge: true });
       }
 
       const timestampPart = Date.now().toString().slice(-4);

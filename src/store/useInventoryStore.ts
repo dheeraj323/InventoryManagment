@@ -18,6 +18,8 @@ interface InventoryState {
   initInventoryCache: () => Promise<void>;
   fetchProducts: () => Promise<void>;
   refreshCatalog: (force?: boolean) => Promise<void>;
+  mergeLiveStock: (stockMap: Record<string, number>) => void;
+  subscribeLiveStock: () => () => void;
   subscribeInventory: () => () => void;
   updateStock: (productId: string, newStock: number) => Promise<void>;
   bulkUpdateStock: (updates: { productId: string; addedQty: number }[]) => Promise<void>;
@@ -180,18 +182,43 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     }
   },
 
-  // 4. Real-time inventory subscription for products and suppliers
-  subscribeInventory: () => {
-    // 1. Subscribe to real-time products in Firestore
-    const unsubProducts = productService.subscribeProducts((firestoreProds) => {
-      if (firestoreProds && firestoreProds.length > 0) {
-        set({ products: firestoreProds, isLoading: false });
-        saveProductsToLocalCache(firestoreProds);
-      } else {
-        // If Firestore returned empty, fall back to initial smart cache
-        get().initInventoryCache();
+  // 4. Merge real-time Live Stock Map into in-memory catalog
+  mergeLiveStock: (stockMap: Record<string, number>) => {
+    if (!stockMap || Object.keys(stockMap).length === 0) return;
+    const currentProducts = get().products;
+    if (currentProducts.length === 0) return;
+
+    let hasChanges = false;
+    const updatedProducts = currentProducts.map((p) => {
+      const liveQty = stockMap[p.id];
+      if (liveQty !== undefined && liveQty !== p.stockQty) {
+        hasChanges = true;
+        return {
+          ...p,
+          stockQty: liveQty,
+          availableStock: liveQty,
+        };
       }
+      return p;
     });
+
+    if (hasChanges) {
+      set({ products: updatedProducts });
+      saveProductsToLocalCache(updatedProducts);
+    }
+  },
+
+  // 5. Subscribe to lightweight 1-document live stock map (1 Read on load + 1 Read per stock change)
+  subscribeLiveStock: () => {
+    return productService.subscribeLiveStock((stockMap) => {
+      get().mergeLiveStock(stockMap);
+    });
+  },
+
+  // 6. Real-time inventory subscription (Stock Map + Suppliers)
+  subscribeInventory: () => {
+    // 1. Subscribe to consolidated Live Stock Map (1 document)
+    const unsubLiveStock = get().subscribeLiveStock();
 
     // 2. Subscribe to suppliers in Firestore
     const unsubSuppliers = supplierService.subscribeSuppliers((firestoreSups) => {
@@ -199,7 +226,7 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     });
 
     return () => {
-      unsubProducts();
+      unsubLiveStock();
       unsubSuppliers();
     };
   },

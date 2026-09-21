@@ -6,6 +6,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   writeBatch,
   onSnapshot,
   query,
@@ -19,6 +20,7 @@ import { Product } from '../types';
 const PRODUCTS_COLLECTION = 'products';
 const SYSTEM_COLLECTION = 'system';
 const METADATA_DOC = 'metadata';
+const LIVE_STOCK_DOC = 'live_stock';
 
 export const productService = {
   // Fetch system metadata (productsVersion) - exactly 1 Firestore read
@@ -98,7 +100,7 @@ export const productService = {
     }
   },
 
-  // Real-time listener for products
+  // Real-time listener for products (used only when full catalog subscription is specifically requested)
   subscribeProducts: (callback: (products: Product[]) => void) => {
     const q = query(collection(db, PRODUCTS_COLLECTION));
     return onSnapshot(q, (snapshot) => {
@@ -113,6 +115,61 @@ export const productService = {
     });
   },
 
+  // Fetch consolidated Live Stock Map (1 Read)
+  getLiveStock: async (): Promise<Record<string, number>> => {
+    try {
+      const stockRef = doc(db, SYSTEM_COLLECTION, LIVE_STOCK_DOC);
+      const snapshot = await getDoc(stockRef);
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        const stockMap: Record<string, number> = {};
+        for (const [key, val] of Object.entries(data)) {
+          if (typeof val === 'number') {
+            stockMap[key] = val;
+          }
+        }
+        return stockMap;
+      }
+      return {};
+    } catch (error) {
+      console.warn('Could not fetch live stock map:', error);
+      return {};
+    }
+  },
+
+  // Real-time listener on consolidated Live Stock Map (Exactly 1 Read on load + 1 Read per stock change)
+  subscribeLiveStock: (callback: (stockMap: Record<string, number>) => void) => {
+    const stockRef = doc(db, SYSTEM_COLLECTION, LIVE_STOCK_DOC);
+    return onSnapshot(
+      stockRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          const stockMap: Record<string, number> = {};
+          for (const [key, val] of Object.entries(data)) {
+            if (typeof val === 'number') {
+              stockMap[key] = val;
+            }
+          }
+          callback(stockMap);
+        }
+      },
+      (error) => {
+        console.error('Real-time live stock subscription error:', error);
+      }
+    );
+  },
+
+  // Update Live Stock Map in Firestore
+  updateLiveStockMap: async (updates: Record<string, any>): Promise<void> => {
+    try {
+      const stockRef = doc(db, SYSTEM_COLLECTION, LIVE_STOCK_DOC);
+      await setDoc(stockRef, updates, { merge: true });
+    } catch (error) {
+      console.warn('Error updating live stock map in Firestore:', error);
+    }
+  },
+
   // Update stock level
   updateStock: async (productId: string, newStockQty: number): Promise<void> => {
     const safeStock = Math.max(0, newStockQty);
@@ -122,12 +179,19 @@ export const productService = {
       availableStock: safeStock,
       updatedAt: serverTimestamp(),
     });
+
+    // Sync consolidated live stock map
+    productService.updateLiveStockMap({
+      [productId]: safeStock,
+    }).catch((err) => console.warn('Failed to sync live stock map:', err));
   },
 
   // Bulk update stock levels across multiple products in a single batch
   bulkUpdateStock: async (updates: { productId: string; newStockQty: number }[]): Promise<void> => {
     try {
       const batch = writeBatch(db);
+      const liveStockUpdates: Record<string, number> = {};
+
       for (const item of updates) {
         const safeStock = Math.max(0, item.newStockQty);
         const docRef = doc(db, PRODUCTS_COLLECTION, item.productId);
@@ -136,7 +200,13 @@ export const productService = {
           availableStock: safeStock,
           updatedAt: serverTimestamp(),
         });
+        liveStockUpdates[item.productId] = safeStock;
       }
+
+      // Also batch-update the single live_stock document
+      const stockRef = doc(db, SYSTEM_COLLECTION, LIVE_STOCK_DOC);
+      batch.set(stockRef, liveStockUpdates, { merge: true });
+
       await batch.commit();
     } catch (error) {
       console.error('Error in bulk stock update:', error);
@@ -154,6 +224,8 @@ export const productService = {
     const randCode = Math.floor(1000 + Math.random() * 9000);
     const backendGeneratedSku = productData.sku || `SKU-${catCode}-${randCode}`;
 
+    const initialStock = Math.max(0, productData.stockQty || 0);
+
     const newProduct: Product = {
       id: docRef.id,
       productId: docRef.id,
@@ -162,8 +234,8 @@ export const productService = {
       unit: productData.unit || 'Piece',
       price: productData.price || 0,
       sellingPrice: productData.price || 0,
-      stockQty: productData.stockQty || 0,
-      availableStock: productData.stockQty || 0,
+      stockQty: initialStock,
+      availableStock: initialStock,
       lowStockThreshold: productData.lowStockThreshold || 10,
       minimumStock: productData.lowStockThreshold || 10,
       sku: backendGeneratedSku,
@@ -178,6 +250,11 @@ export const productService = {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+
+    // Update live stock map
+    productService.updateLiveStockMap({
+      [docRef.id]: initialStock,
+    }).catch((err) => console.warn('Failed to add product to live stock map:', err));
 
     // Bump catalog version in metadata asynchronously
     productService.bumpProductsVersion().catch((err) => {
@@ -206,6 +283,12 @@ export const productService = {
       }
       await updateDoc(docRef, cleanUpdates);
 
+      if (updates.stockQty !== undefined) {
+        productService.updateLiveStockMap({
+          [productId]: Math.max(0, updates.stockQty),
+        }).catch((err) => console.warn('Failed to sync live stock map on product update:', err));
+      }
+
       // Bump catalog version in metadata
       productService.bumpProductsVersion().catch((err) => {
         console.warn('Failed to bump products version on update:', err);
@@ -221,6 +304,11 @@ export const productService = {
     try {
       const docRef = doc(db, PRODUCTS_COLLECTION, productId);
       await deleteDoc(docRef);
+
+      // Remove from live stock map
+      productService.updateLiveStockMap({
+        [productId]: deleteField(),
+      }).catch((err) => console.warn('Failed to remove product from live stock map:', err));
 
       // Bump catalog version in metadata
       productService.bumpProductsVersion().catch((err) => {
