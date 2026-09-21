@@ -18,13 +18,19 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.dheeraj33.panihaarmilkdairy"
     },
     "web": {
       "favicon": "./assets/icon.png"
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e08a5073-a0fd-427c-855c-857407c9205d"
+      }
+    }
   }
 }
