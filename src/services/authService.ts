@@ -3,6 +3,7 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   User as FirebaseUser,
 } from 'firebase/auth';
 import {
@@ -18,13 +19,6 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { User, UserRole, AccountStatus, Vendor, Staff } from '../types';
-
-export const ADMIN_CREDENTIALS = {
-  email: 'dheerajkalyan2004@gmail.com',
-  password: 'Dheeraj@1234',
-  name: 'Dheeraj Kalyan (Admin)',
-  phone: '+91 98765 43210',
-};
 
 export const authService = {
   // ── 1. Listen to Auth State Changes ─────────────────────────────────────────
@@ -48,15 +42,14 @@ export const authService = {
             status: userData.status || (userData.active ? 'ACTIVE' : 'PENDING_VERIFICATION'),
           });
         } else {
-          // Check if this is the predefined Admin
-          const isAdmin = firebaseUser.email?.toLowerCase() === ADMIN_CREDENTIALS.email.toLowerCase();
+          // Dynamic profile fallback
           const defaultUser: User = {
             id: firebaseUser.uid,
             uid: firebaseUser.uid,
-            name: firebaseUser.displayName || (isAdmin ? ADMIN_CREDENTIALS.name : 'User'),
+            name: firebaseUser.displayName || 'User',
             email: firebaseUser.email || '',
-            phone: firebaseUser.phoneNumber || (isAdmin ? ADMIN_CREDENTIALS.phone : ''),
-            role: isAdmin ? 'ADMIN' : 'VENDOR',
+            phone: firebaseUser.phoneNumber || '',
+            role: 'VENDOR',
             status: 'ACTIVE',
             active: true,
             createdAt: new Date().toISOString(),
@@ -86,32 +79,11 @@ export const authService = {
   // ── 2. Sign In with Email & Password ────────────────────────────────────────
   signInWithEmail: async (email: string, pass: string): Promise<User> => {
     const trimmedEmail = email.trim().toLowerCase();
-    let cred;
-
-    try {
-      cred = await signInWithEmailAndPassword(auth, trimmedEmail, pass);
-    } catch (err: any) {
-      // If admin account doesn't exist yet in Firebase Auth, attempt auto-creation
-      if (
-        trimmedEmail === ADMIN_CREDENTIALS.email.toLowerCase() &&
-        pass === ADMIN_CREDENTIALS.password &&
-        (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-email')
-      ) {
-        try {
-          cred = await createUserWithEmailAndPassword(auth, trimmedEmail, pass);
-        } catch (createErr) {
-          throw err;
-        }
-      } else {
-        throw err;
-      }
-    }
+    const cred = await signInWithEmailAndPassword(auth, trimmedEmail, pass);
 
     const uid = cred.user.uid;
     const userDocRef = doc(db, 'users', uid);
     const userSnap = await getDoc(userDocRef);
-
-    const isAdmin = trimmedEmail === ADMIN_CREDENTIALS.email.toLowerCase();
 
     if (userSnap.exists()) {
       const userData = userSnap.data() as User;
@@ -127,10 +99,10 @@ export const authService = {
     const newUser: User = {
       id: uid,
       uid: uid,
-      name: isAdmin ? ADMIN_CREDENTIALS.name : cred.user.displayName || trimmedEmail.split('@')[0],
+      name: cred.user.displayName || trimmedEmail.split('@')[0],
       email: trimmedEmail,
-      phone: isAdmin ? ADMIN_CREDENTIALS.phone : '',
-      role: isAdmin ? 'ADMIN' : 'VENDOR',
+      phone: '',
+      role: 'VENDOR',
       status: 'ACTIVE',
       active: true,
       createdAt: new Date().toISOString(),
@@ -144,6 +116,15 @@ export const authService = {
     });
 
     return newUser;
+  },
+
+  // ── 2b. Send Password Reset Email ───────────────────────────────────────────
+  sendPasswordReset: async (email: string): Promise<void> => {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail) {
+      throw new Error('Please enter a valid email address.');
+    }
+    await sendPasswordResetEmail(auth, trimmedEmail);
   },
 
   // ── 3. Register Vendor ──────────────────────────────────────────────────────
@@ -333,6 +314,17 @@ export const authService = {
         updatedAt: serverTimestamp(),
       });
     }
+  },
+
+  // ── 8. Admin Actions: Promote User / Staff to Co-Admin ──────────────────────
+  promoteToAdmin: async (userId: string): Promise<void> => {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      active: true,
+      updatedAt: serverTimestamp(),
+    });
   },
 
   // ── 8. Refresh Current User Profile ─────────────────────────────────────────

@@ -118,9 +118,7 @@ export const PendingApprovalScreen: React.FC = () => {
         </View>
 
         <Text style={styles.contactNotice}>
-          Need urgent access? Contact your distributor administrator directly at:
-          {'\n'}
-          <Text style={styles.adminContact}>dheerajkalyan2004@gmail.com</Text>
+          Need urgent access? Please reach out to your distributor administrator to expedite verification.
         </Text>
       </View>
     </SafeAreaView>

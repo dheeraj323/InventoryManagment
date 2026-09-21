@@ -17,7 +17,7 @@ import { Input } from '../../components/common/Input';
 import { useAuthStore } from '../../store/useAuthStore';
 import { colors, typography, spacing } from '../../theme';
 
-type AuthMode = 'LOGIN' | 'REGISTER';
+type AuthMode = 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD';
 type RegisterRole = 'VENDOR' | 'STAFF';
 
 export const LoginScreen: React.FC = () => {
@@ -25,6 +25,7 @@ export const LoginScreen: React.FC = () => {
     loginWithEmail,
     registerVendor,
     registerStaff,
+    sendPasswordReset,
     authError,
     clearError,
   } = useAuthStore();
@@ -42,6 +43,7 @@ export const LoginScreen: React.FC = () => {
   const [area, setArea] = useState('');
   const [address, setAddress] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
@@ -53,6 +55,37 @@ export const LoginScreen: React.FC = () => {
     clearError();
     try {
       await loginWithEmail(email.trim(), password);
+    } catch (err: any) {
+      // Handled by store
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      Alert.alert('Email Required', 'Please enter your registered email address.');
+      return;
+    }
+
+    setSubmitting(true);
+    clearError();
+    try {
+      await sendPasswordReset(email.trim());
+      setResetSent(true);
+      Alert.alert(
+        'Reset Email Sent',
+        `A password reset link has been sent to ${email.trim()}. Please check your inbox and follow the instructions.`,
+        [
+          {
+            text: 'Back to Sign In',
+            onPress: () => {
+              setAuthMode('LOGIN');
+              setResetSent(false);
+            },
+          },
+        ]
+      );
     } catch (err: any) {
       // Handled by store
     } finally {
@@ -123,52 +156,58 @@ export const LoginScreen: React.FC = () => {
             <View style={styles.logoBox}>
               <Ionicons name="cube" size={28} color="#FFFFFF" />
             </View>
-            <Text style={styles.appTitle}>Distributor Management</Text>
+            <Text style={styles.appTitle}>
+              {authMode === 'FORGOT_PASSWORD' ? 'Reset Password' : 'Distributor Management'}
+            </Text>
             <Text style={styles.appSubtitle}>
               {authMode === 'LOGIN'
                 ? 'Sign in to access your inventory and orders'
+                : authMode === 'FORGOT_PASSWORD'
+                ? 'Enter your registered email to receive a password reset link'
                 : 'Create a new account to get started'}
             </Text>
           </View>
 
-          {/* Mode Switcher Pills */}
-          <View style={styles.tabBar}>
-            <TouchableOpacity
-              style={[styles.tabItem, authMode === 'LOGIN' && styles.tabItemActive]}
-              onPress={() => {
-                setAuthMode('LOGIN');
-                clearError();
-              }}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  authMode === 'LOGIN' && styles.tabTextActive,
-                ]}
+          {/* Mode Switcher Pills (Hidden during Forgot Password flow) */}
+          {authMode !== 'FORGOT_PASSWORD' ? (
+            <View style={styles.tabBar}>
+              <TouchableOpacity
+                style={[styles.tabItem, authMode === 'LOGIN' && styles.tabItemActive]}
+                onPress={() => {
+                  setAuthMode('LOGIN');
+                  clearError();
+                }}
+                activeOpacity={0.8}
               >
-                Sign In
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.tabText,
+                    authMode === 'LOGIN' && styles.tabTextActive,
+                  ]}
+                >
+                  Sign In
+                </Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.tabItem, authMode === 'REGISTER' && styles.tabItemActive]}
-              onPress={() => {
-                setAuthMode('REGISTER');
-                clearError();
-              }}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  authMode === 'REGISTER' && styles.tabTextActive,
-                ]}
+              <TouchableOpacity
+                style={[styles.tabItem, authMode === 'REGISTER' && styles.tabItemActive]}
+                onPress={() => {
+                  setAuthMode('REGISTER');
+                  clearError();
+                }}
+                activeOpacity={0.8}
               >
-                Register
-              </Text>
-            </TouchableOpacity>
-          </View>
+                <Text
+                  style={[
+                    styles.tabText,
+                    authMode === 'REGISTER' && styles.tabTextActive,
+                  ]}
+                >
+                  Register
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           {/* Form Card */}
           <View style={styles.formContainer}>
@@ -179,7 +218,46 @@ export const LoginScreen: React.FC = () => {
               </View>
             )}
 
-            {authMode === 'LOGIN' ? (
+            {authMode === 'FORGOT_PASSWORD' ? (
+              // ── FORGOT PASSWORD FORM ───────────────────────────────────────
+              <View>
+                <Input
+                  label="Registered Email Address"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChangeText={(t) => {
+                    setEmail(t);
+                    if (authError) clearError();
+                  }}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  leftIcon={
+                    <Ionicons name="mail-outline" size={18} color="#64748B" />
+                  }
+                />
+
+                <Button
+                  title={submitting ? 'Sending Link...' : 'Send Password Reset Link'}
+                  onPress={handleForgotPassword}
+                  disabled={submitting}
+                  size="lg"
+                  style={styles.submitBtn}
+                />
+
+                <View style={styles.switchModeFooter}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setAuthMode('LOGIN');
+                      clearError();
+                    }}
+                    style={styles.backToLoginBtn}
+                  >
+                    <Ionicons name="arrow-back" size={16} color="#2563EB" />
+                    <Text style={styles.switchModeLink}> Back to Sign In</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : authMode === 'LOGIN' ? (
               // ── SIGN IN FORM ──────────────────────────────────────────────
               <View>
                 <Input
@@ -222,6 +300,18 @@ export const LoginScreen: React.FC = () => {
                     </TouchableOpacity>
                   }
                 />
+
+                {/* Forgot Password Link */}
+                <TouchableOpacity
+                  style={styles.forgotPasswordWrap}
+                  onPress={() => {
+                    setAuthMode('FORGOT_PASSWORD');
+                    clearError();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                </TouchableOpacity>
 
                 <Button
                   title={submitting ? 'Signing in...' : 'Sign In'}
@@ -555,6 +645,23 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     backgroundColor: colors.primary,
     borderRadius: 10,
+  },
+  forgotPasswordWrap: {
+    alignSelf: 'flex-end',
+    marginTop: -4,
+    marginBottom: spacing.md,
+    paddingVertical: 4,
+  },
+  forgotPasswordText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
+  backToLoginBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
   },
   switchModeFooter: {
     flexDirection: 'row',

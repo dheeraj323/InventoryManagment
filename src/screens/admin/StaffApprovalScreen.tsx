@@ -19,7 +19,7 @@ import { Button } from '../../components/common/Button';
 import { colors, typography, spacing } from '../../theme';
 
 export const StaffApprovalScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { pendingStaff, fetchPendingStaff, approveStaff, rejectStaff } = useAuthStore();
+  const { pendingStaff, fetchPendingStaff, approveStaff, rejectStaff, promoteToAdmin } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<User | null>(null);
   const [assignedArea, setAssignedArea] = useState('Central Zone');
@@ -55,6 +55,33 @@ export const StaffApprovalScreen: React.FC<{ navigation: any }> = ({ navigation 
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handlePromoteToAdmin = (staff: User) => {
+    Alert.alert(
+      'Grant Admin Privileges',
+      `Are you sure you want to promote ${staff.name} (${staff.email}) to full Administrator? They will have complete control over inventory, orders, staff, and ledgers.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Promote to Admin',
+          style: 'default',
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              await promoteToAdmin(staff.id);
+              setIsModalVisible(false);
+              Alert.alert('Success', `${staff.name} has been promoted to Administrator.`);
+              fetchPendingStaff();
+            } catch (err) {
+              Alert.alert('Error', 'Failed to promote user to Admin.');
+            } finally {
+              setActionLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleReject = (staff: User) => {
@@ -174,7 +201,7 @@ export const StaffApprovalScreen: React.FC<{ navigation: any }> = ({ navigation 
       <Modal visible={isModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Approve Staff Member</Text>
+            <Text style={styles.modalTitle}>Verify & Assign Staff</Text>
             <Text style={styles.modalSub}>
               Assign delivery operational zone for{' '}
               <Text style={{ fontWeight: '700' }}>{selectedStaff?.name}</Text>:
@@ -200,13 +227,29 @@ export const StaffApprovalScreen: React.FC<{ navigation: any }> = ({ navigation 
                 disabled={actionLoading}
               />
               <Button
-                title={actionLoading ? 'Approving...' : 'Confirm & Activate'}
+                title={actionLoading ? 'Approving...' : 'Approve as Staff'}
                 variant="primary"
                 onPress={handleConfirmApprove}
                 style={styles.modalConfirmBtn}
                 disabled={actionLoading}
               />
             </View>
+
+            <View style={styles.promoteAdminDivider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <TouchableOpacity
+              style={styles.promoteAdminBtn}
+              onPress={() => selectedStaff && handlePromoteToAdmin(selectedStaff)}
+              disabled={actionLoading}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="shield-checkmark" size={16} color={colors.accent} />
+              <Text style={styles.promoteAdminBtnText}>Grant Full Co-Admin Privileges</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -401,5 +444,37 @@ const styles = StyleSheet.create({
   },
   modalConfirmBtn: {
     flex: 1.5,
+  },
+  promoteAdminDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.md,
+    gap: spacing.sm,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    ...typography.captionBold,
+    color: colors.textMuted,
+    fontSize: 10,
+  },
+  promoteAdminBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.sm + 2,
+    borderRadius: spacing.borderRadiusSm,
+    backgroundColor: colors.accentLight,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    gap: 6,
+  },
+  promoteAdminBtnText: {
+    ...typography.captionBold,
+    color: colors.accent,
+    fontSize: 12,
   },
 });

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { User, UserRole } from '../types';
-import { authService, ADMIN_CREDENTIALS } from '../services/authService';
+import { authService } from '../services/authService';
 
 interface AuthState {
   currentUser: User | null;
@@ -30,6 +30,7 @@ interface AuthState {
     preferredArea?: string;
   }) => Promise<void>;
   refreshCurrentUser: () => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
   
@@ -37,6 +38,7 @@ interface AuthState {
   fetchPendingStaff: () => Promise<void>;
   approveStaff: (userId: string, staffId: string, area?: string) => Promise<void>;
   rejectStaff: (userId: string, staffId: string, reason?: string) => Promise<void>;
+  promoteToAdmin: (userId: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -149,6 +151,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  sendPasswordReset: async (email: string) => {
+    set({ isLoading: true, authError: null });
+    try {
+      await authService.sendPasswordReset(email);
+      set({ isLoading: false, authError: null });
+    } catch (err: any) {
+      console.error('Password reset error:', err);
+      let message = 'Failed to send password reset email.';
+      if (err.code === 'auth/user-not-found') {
+        message = 'No account found with this email address.';
+      } else if (err.code === 'auth/invalid-email') {
+        message = 'Please enter a valid email address.';
+      } else if (err.message) {
+        message = err.message;
+      }
+      set({ isLoading: false, authError: message });
+      throw new Error(message);
+    }
+  },
+
   refreshCurrentUser: async () => {
     const { currentUser } = get();
     if (!currentUser?.uid) return;
@@ -219,6 +241,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }));
     } catch (error) {
       console.error('Error rejecting staff:', error);
+      throw error;
+    }
+  },
+
+  promoteToAdmin: async (userId: string) => {
+    try {
+      await authService.promoteToAdmin(userId);
+      set((state) => ({
+        pendingStaff: state.pendingStaff.filter((s) => s.id !== userId),
+      }));
+    } catch (error) {
+      console.error('Error promoting to admin:', error);
       throw error;
     }
   },
