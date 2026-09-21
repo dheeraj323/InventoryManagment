@@ -7,7 +7,7 @@ import { TodayDeliveriesScreen } from '../screens/staff/TodayDeliveriesScreen';
 import { DeliveryDetailScreen } from '../screens/staff/DeliveryDetailScreen';
 import { ActualPaymentScreen } from '../screens/staff/ActualPaymentScreen';
 import { CashSettlementScreen } from '../screens/staff/CashSettlementScreen';
-import { ProfileScreen } from '../screens/vendor/ProfileScreen';
+import { StaffProfileScreen } from '../screens/staff/StaffProfileScreen';
 import { colors, typography } from '../theme';
 
 const Stack = createNativeStackNavigator();
@@ -43,7 +43,7 @@ const StaffSettlementStack = () => (
 // 4. Staff Profile Stack
 const StaffProfileStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="StaffProfile" component={ProfileScreen} />
+    <Stack.Screen name="StaffProfile" component={StaffProfileScreen} />
   </Stack.Navigator>
 );
 
