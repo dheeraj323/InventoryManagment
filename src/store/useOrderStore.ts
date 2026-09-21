@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { Order, OrderStatus, PaymentMethod, OrderItem, LedgerEntry } from '../types';
-import { MOCK_ORDERS } from '../constants/mockData';
 import { orderService } from '../services/orderService';
 import { useVendorStore } from './useVendorStore';
 import { useLedgerStore } from './useLedgerStore';

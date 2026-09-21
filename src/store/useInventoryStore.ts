@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Product, Supplier } from '../types';
-import { MOCK_PRODUCTS, MOCK_SUPPLIERS } from '../constants/mockData';
 import { productService } from '../services/productService';
 import { supplierService } from '../services/supplierService';
 
@@ -66,8 +65,8 @@ const saveProductsToLocalCache = async (products: Product[], version?: number) =
 };
 
 export const useInventoryStore = create<InventoryState>((set, get) => ({
-  products: MOCK_PRODUCTS,
-  suppliers: MOCK_SUPPLIERS,
+  products: [],
+  suppliers: [],
   isLoading: false,
   isSyncing: false,
   cachedVersion: 0,
@@ -181,16 +180,26 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     }
   },
 
-  // 4. Single real-time inventory subscription for suppliers
+  // 4. Real-time inventory subscription for products and suppliers
   subscribeInventory: () => {
-    // Also trigger smart cache validation in background
-    get().initInventoryCache();
+    // 1. Subscribe to real-time products in Firestore
+    const unsubProducts = productService.subscribeProducts((firestoreProds) => {
+      if (firestoreProds && firestoreProds.length > 0) {
+        set({ products: firestoreProds, isLoading: false });
+        saveProductsToLocalCache(firestoreProds);
+      } else {
+        // If Firestore returned empty, fall back to initial smart cache
+        get().initInventoryCache();
+      }
+    });
 
+    // 2. Subscribe to suppliers in Firestore
     const unsubSuppliers = supplierService.subscribeSuppliers((firestoreSups) => {
       set({ suppliers: firestoreSups || [] });
     });
 
     return () => {
+      unsubProducts();
       unsubSuppliers();
     };
   },

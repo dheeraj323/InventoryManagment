@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { LedgerEntry, AuditLog, Vendor, VendorAccountSummary } from '../types';
-import { MOCK_LEDGER_ENTRIES, MOCK_AUDIT_LOGS, MOCK_VENDORS } from '../constants/mockData';
 import { ledgerService } from '../services/ledgerService';
 import { useVendorStore } from './useVendorStore';
 

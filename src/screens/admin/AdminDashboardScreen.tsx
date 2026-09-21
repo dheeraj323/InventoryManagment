@@ -28,12 +28,16 @@ type Module = {
 };
 
 export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { switchRole, activeRole, currentUser } = useAuthStore();
+  const { activeRole, currentUser, pendingStaff, fetchPendingStaff } = useAuthStore();
   const { getVendorAccountSummary } = useLedgerStore();
   const { getLowStockProducts } = useInventoryStore();
   const { getPendingSettlements } = useCashStore();
   const { orders } = useOrderStore();
   const { vendors } = useVendorStore();
+
+  React.useEffect(() => {
+    fetchPendingStaff();
+  }, []);
 
   const pendingSettlements = getPendingSettlements();
   const lowStockItems = getLowStockProducts();
@@ -73,6 +77,15 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
         pendingOrdersCount + pendingOverrideCount > 0
           ? pendingOrdersCount + pendingOverrideCount
           : undefined,
+    },
+    {
+      icon: 'shield-checkmark-outline',
+      iconColor: colors.primary,
+      iconBg: colors.accentLight,
+      title: 'Staff Verification',
+      subtitle: 'Approve & assign new staff accounts',
+      route: 'StaffApproval',
+      badge: pendingStaff.length > 0 ? pendingStaff.length : undefined,
     },
     {
       icon: 'cube-outline',
@@ -144,14 +157,26 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
         title="Dashboard"
         subtitle={`${currentUser?.name || 'Administrator'} · Admin`}
         activeRole={activeRole}
-        onRoleSwitch={() => switchRole('VENDOR')}
       />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* ── Alerts strip ─────────────────────────────────────────────── */}
-        {(pendingSettlements.length > 0 || lowStockItems.length > 0) && (
+        {(pendingSettlements.length > 0 || lowStockItems.length > 0 || pendingStaff.length > 0) && (
           <View style={styles.alertsContainer}>
+            {pendingStaff.length > 0 && (
+              <TouchableOpacity
+                style={[styles.alertRow, { borderLeftColor: colors.accent }]}
+                onPress={() => navigation.navigate('StaffApproval')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="shield-checkmark-outline" size={15} color={colors.accent} />
+                <Text style={[styles.alertText, { color: colors.accent }]}>
+                  {pendingStaff.length} staff account{pendingStaff.length > 1 ? 's' : ''} awaiting admin verification
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.accent} />
+              </TouchableOpacity>
+            )}
             {pendingSettlements.length > 0 && (
               <TouchableOpacity
                 style={[styles.alertRow, { borderLeftColor: colors.warning }]}

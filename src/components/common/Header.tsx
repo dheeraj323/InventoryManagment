@@ -48,8 +48,8 @@ export const Header: React.FC<HeaderProps> = ({
       </View>
 
       <View style={styles.rightRow}>
-        {activeRole && onRoleSwitch && (
-          <TouchableOpacity
+        {activeRole && (
+          <View
             style={[
               styles.roleBadge,
               activeRole === 'ADMIN'
@@ -58,12 +58,20 @@ export const Header: React.FC<HeaderProps> = ({
                 ? styles.roleStaff
                 : styles.roleVendor,
             ]}
-            onPress={onRoleSwitch}
-            activeOpacity={0.8}
           >
-            <Ionicons name="swap-horizontal-outline" size={13} color={colors.textInverse} />
+            <Ionicons
+              name={
+                activeRole === 'ADMIN'
+                  ? 'shield-checkmark'
+                  : activeRole === 'STAFF'
+                  ? 'bicycle'
+                  : 'storefront'
+              }
+              size={12}
+              color={colors.textInverse}
+            />
             <Text style={styles.roleText}>{activeRole}</Text>
-          </TouchableOpacity>
+          </View>
         )}
         {rightAction}
       </View>

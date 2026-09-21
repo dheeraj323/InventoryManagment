@@ -8,29 +8,108 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { useAuthStore } from '../../store/useAuthStore';
-import { UserRole } from '../../types';
+import { ADMIN_CREDENTIALS } from '../../services/authService';
 import { colors, typography, spacing } from '../../theme';
 
-export const LoginScreen: React.FC = () => {
-  const { loginAsRole } = useAuthStore();
-  const [phone, setPhone] = useState('9988776655');
-  const [otp, setOtp] = useState('1234');
-  const [step, setStep] = useState<'PHONE' | 'OTP'>('PHONE');
-  const [selectedRole, setSelectedRole] = useState<UserRole>('VENDOR');
+type AuthMode = 'LOGIN' | 'REGISTER';
+type RegisterRole = 'VENDOR' | 'STAFF';
 
-  const handleSendOtp = () => {
-    if (phone.length >= 10) {
-      setStep('OTP');
+export const LoginScreen: React.FC = () => {
+  const {
+    loginWithEmail,
+    registerVendor,
+    registerStaff,
+    authError,
+    clearError,
+  } = useAuthStore();
+
+  const [authMode, setAuthMode] = useState<AuthMode>('LOGIN');
+  const [registerRole, setRegisterRole] = useState<RegisterRole>('VENDOR');
+
+  // Form Fields
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [shopName, setShopName] = useState('');
+  const [area, setArea] = useState('');
+  const [address, setAddress] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Quick fill Admin credentials
+  const handleFillAdmin = () => {
+    setEmail(ADMIN_CREDENTIALS.email);
+    setPassword(ADMIN_CREDENTIALS.password);
+    clearError();
+  };
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert('Missing Fields', 'Please enter both your email address and password.');
+      return;
+    }
+
+    setSubmitting(true);
+    clearError();
+    try {
+      await loginWithEmail(email.trim(), password);
+    } catch (err: any) {
+      // Error handled by store
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleVerifyOtp = () => {
-    loginAsRole(selectedRole);
+  const handleRegister = async () => {
+    if (!email.trim() || !password || !fullName.trim() || !phone.trim()) {
+      Alert.alert('Missing Fields', 'Please fill in all required registration fields.');
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert('Weak Password', 'Password must be at least 6 characters long.');
+      return;
+    }
+
+    if (registerRole === 'VENDOR' && !shopName.trim()) {
+      Alert.alert('Missing Shop Name', 'Please provide the name of your shop or business.');
+      return;
+    }
+
+    setSubmitting(true);
+    clearError();
+    try {
+      if (registerRole === 'VENDOR') {
+        await registerVendor({
+          name: fullName.trim(),
+          email: email.trim(),
+          pass: password,
+          phone: phone.trim(),
+          shopName: shopName.trim(),
+          area: area.trim() || 'Central',
+          address: address.trim() || '',
+        });
+      } else {
+        await registerStaff({
+          name: fullName.trim(),
+          email: email.trim(),
+          pass: password,
+          phone: phone.trim(),
+          preferredArea: area.trim() || 'Central Zone',
+        });
+      }
+    } catch (err: any) {
+      // Error handled by store
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -39,7 +118,12 @@ export const LoginScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header Brand */}
           <View style={styles.brandHeader}>
             <View style={styles.logoCircle}>
               <Ionicons name="cube" size={36} color={colors.textInverse} />
@@ -50,119 +134,267 @@ export const LoginScreen: React.FC = () => {
             </Text>
           </View>
 
+          {/* Mode Switch Tabs (Sign In / Create Account) */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tabButton, authMode === 'LOGIN' && styles.tabButtonActive]}
+              onPress={() => {
+                setAuthMode('LOGIN');
+                clearError();
+              }}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.tabButtonText,
+                  authMode === 'LOGIN' && styles.tabButtonTextActive,
+                ]}
+              >
+                Sign In
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.tabButton, authMode === 'REGISTER' && styles.tabButtonActive]}
+              onPress={() => {
+                setAuthMode('REGISTER');
+                clearError();
+              }}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.tabButtonText,
+                  authMode === 'REGISTER' && styles.tabButtonTextActive,
+                ]}
+              >
+                Register
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Main Form Card */}
           <View style={styles.card}>
-            <Text style={styles.roleHeaderLabel}>Select Demo Role to Login:</Text>
-            <View style={styles.roleToggleRow}>
-              {(['ADMIN', 'STAFF', 'VENDOR'] as UserRole[]).map((role) => {
-                const isActive = selectedRole === role;
-                return (
+            {authError && (
+              <View style={styles.errorBanner}>
+                <Ionicons name="alert-circle" size={18} color={colors.danger} />
+                <Text style={styles.errorBannerText}>{authError}</Text>
+              </View>
+            )}
+
+            {authMode === 'LOGIN' ? (
+              // ── SIGN IN FORM ──────────────────────────────────────────────
+              <View>
+                <Input
+                  label="Email Address"
+                  placeholder="name@business.com"
+                  value={email}
+                  onChangeText={(t) => {
+                    setEmail(t);
+                    if (authError) clearError();
+                  }}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  leftIcon={
+                    <Ionicons name="mail-outline" size={18} color={colors.textMuted} />
+                  }
+                />
+
+                <Input
+                  label="Password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChangeText={(t) => {
+                    setPassword(t);
+                    if (authError) clearError();
+                  }}
+                  secureTextEntry={!showPassword}
+                  leftIcon={
+                    <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} />
+                  }
+                  rightIcon={
+                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                      <Ionicons
+                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={18}
+                        color={colors.textMuted}
+                      />
+                    </TouchableOpacity>
+                  }
+                />
+
+                <Button
+                  title={submitting ? 'Signing In...' : 'Sign In to Account'}
+                  onPress={handleLogin}
+                  disabled={submitting}
+                  style={styles.mainBtn}
+                />
+
+                {/* Quick Admin Helper */}
+                <TouchableOpacity
+                  style={styles.adminQuickFill}
+                  onPress={handleFillAdmin}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="shield-checkmark-outline" size={14} color={colors.accent} />
+                  <Text style={styles.adminQuickFillText}>
+                    Fill Admin Credentials (dheerajkalyan2004@gmail.com)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              // ── REGISTRATION FORM ─────────────────────────────────────────
+              <View>
+                {/* Role Selector: Vendor vs Staff */}
+                <Text style={styles.subHeading}>I am registering as:</Text>
+                <View style={styles.rolePickerRow}>
                   <TouchableOpacity
-                    key={role}
                     style={[
-                      styles.roleChip,
-                      isActive ? styles.roleChipActive : null,
+                      styles.rolePickerChip,
+                      registerRole === 'VENDOR' && styles.rolePickerChipActive,
                     ]}
-                    onPress={() => setSelectedRole(role)}
+                    onPress={() => setRegisterRole('VENDOR')}
                     activeOpacity={0.8}
                   >
                     <Ionicons
-                      name={
-                        role === 'ADMIN'
-                          ? 'shield-checkmark'
-                          : role === 'STAFF'
-                          ? 'bicycle'
-                          : 'storefront'
-                      }
-                      size={14}
-                      color={isActive ? colors.textInverse : colors.textSecondary}
+                      name="storefront"
+                      size={16}
+                      color={registerRole === 'VENDOR' ? colors.textInverse : colors.textSecondary}
                     />
                     <Text
                       style={[
-                        styles.roleChipText,
-                        isActive ? styles.roleChipTextActive : null,
+                        styles.rolePickerText,
+                        registerRole === 'VENDOR' && styles.rolePickerTextActive,
                       ]}
                     >
-                      {role}
+                      Vendor / Retailer
                     </Text>
                   </TouchableOpacity>
-                );
-              })}
-            </View>
 
-            {step === 'PHONE' ? (
-              <View style={styles.formSection}>
+                  <TouchableOpacity
+                    style={[
+                      styles.rolePickerChip,
+                      registerRole === 'STAFF' && styles.rolePickerChipActive,
+                    ]}
+                    onPress={() => setRegisterRole('STAFF')}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name="bicycle"
+                      size={16}
+                      color={registerRole === 'STAFF' ? colors.textInverse : colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.rolePickerText,
+                        registerRole === 'STAFF' && styles.rolePickerTextActive,
+                      ]}
+                    >
+                      Staff Member
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {registerRole === 'STAFF' && (
+                  <View style={styles.verificationNoticeBox}>
+                    <Ionicons name="information-circle" size={16} color={colors.accent} />
+                    <Text style={styles.verificationNoticeText}>
+                      Staff accounts are verified and approved by the Distributor Administrator before access is granted.
+                    </Text>
+                  </View>
+                )}
+
+                {/* Common fields */}
                 <Input
-                  label="Mobile Number"
-                  placeholder="Enter 10-digit mobile number"
+                  label="Full Name *"
+                  placeholder="e.g. Rajesh Sharma"
+                  value={fullName}
+                  onChangeText={setFullName}
+                  leftIcon={
+                    <Ionicons name="person-outline" size={18} color={colors.textMuted} />
+                  }
+                />
+
+                {registerRole === 'VENDOR' && (
+                  <Input
+                    label="Shop / Business Name *"
+                    placeholder="e.g. Apex Supermarket"
+                    value={shopName}
+                    onChangeText={setShopName}
+                    leftIcon={
+                      <Ionicons name="storefront-outline" size={18} color={colors.textMuted} />
+                    }
+                  />
+                )}
+
+                <Input
+                  label="Email Address *"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  leftIcon={
+                    <Ionicons name="mail-outline" size={18} color={colors.textMuted} />
+                  }
+                />
+
+                <Input
+                  label="Mobile Phone *"
+                  placeholder="9876543210"
                   value={phone}
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
                   maxLength={10}
-                  prefix="+91"
                   leftIcon={
                     <Ionicons name="call-outline" size={18} color={colors.textMuted} />
                   }
                 />
-                <Button
-                  title="Send Verification Code"
-                  onPress={handleSendOtp}
-                  style={styles.mainBtn}
-                />
-              </View>
-            ) : (
-              <View style={styles.formSection}>
-                <Text style={styles.otpNotice}>
-                  Verification code sent to +91 {phone} (Use 1234 for demo)
-                </Text>
+
                 <Input
-                  label="Enter 4-Digit OTP"
-                  placeholder="1 2 3 4"
-                  value={otp}
-                  onChangeText={setOtp}
-                  keyboardType="numeric"
-                  maxLength={4}
-                  style={styles.otpInput}
+                  label={registerRole === 'VENDOR' ? 'Shop Area / Locality' : 'Preferred Delivery Zone'}
+                  placeholder="e.g. North Zone, Market Road"
+                  value={area}
+                  onChangeText={setArea}
+                  leftIcon={
+                    <Ionicons name="location-outline" size={18} color={colors.textMuted} />
+                  }
                 />
+
+                <Input
+                  label="Password (Min 6 Characters) *"
+                  placeholder="Create a strong password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  leftIcon={
+                    <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} />
+                  }
+                  rightIcon={
+                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                      <Ionicons
+                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={18}
+                        color={colors.textMuted}
+                      />
+                    </TouchableOpacity>
+                  }
+                />
+
                 <Button
-                  title={`Login as ${selectedRole}`}
-                  onPress={handleVerifyOtp}
+                  title={
+                    submitting
+                      ? 'Creating Account...'
+                      : registerRole === 'VENDOR'
+                      ? 'Register & Open Store'
+                      : 'Submit Staff Registration'
+                  }
+                  onPress={handleRegister}
+                  disabled={submitting}
                   style={styles.mainBtn}
                 />
-                <TouchableOpacity
-                  onPress={() => setStep('PHONE')}
-                  style={styles.changePhoneBtn}
-                >
-                  <Text style={styles.changePhoneText}>Change phone number</Text>
-                </TouchableOpacity>
               </View>
             )}
-          </View>
-
-          <View style={styles.quickAccessBox}>
-            <Text style={styles.quickAccessTitle}>Quick One-Tap Role Preview:</Text>
-            <View style={styles.quickAccessButtons}>
-              <Button
-                title="Login as Vendor"
-                onPress={() => loginAsRole('VENDOR')}
-                variant="outline"
-                size="sm"
-                style={styles.quickBtn}
-              />
-              <Button
-                title="Login as Staff"
-                onPress={() => loginAsRole('STAFF')}
-                variant="outline"
-                size="sm"
-                style={styles.quickBtn}
-              />
-              <Button
-                title="Login as Admin"
-                onPress={() => loginAsRole('ADMIN')}
-                variant="secondary"
-                size="sm"
-                style={styles.quickBtn}
-              />
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -185,16 +417,16 @@ const styles = StyleSheet.create({
   },
   brandHeader: {
     alignItems: 'center',
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.xl,
   },
   logoCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   brandTitle: {
     ...typography.h1,
@@ -206,81 +438,128 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
   },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: spacing.borderRadiusMd,
+    padding: 4,
+    marginBottom: spacing.md,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    borderRadius: spacing.borderRadiusSm,
+  },
+  tabButtonActive: {
+    backgroundColor: colors.surface,
+  },
+  tabButtonText: {
+    ...typography.captionBold,
+    color: colors.textInverse,
+  },
+  tabButtonTextActive: {
+    color: colors.primary,
+  },
   card: {
     backgroundColor: colors.surface,
     borderRadius: spacing.borderRadiusLg,
     padding: spacing.xl,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  roleHeaderLabel: {
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.debitLight,
+    padding: spacing.md,
+    borderRadius: spacing.borderRadiusSm,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  errorBannerText: {
+    ...typography.captionBold,
+    color: colors.danger,
+    flex: 1,
+  },
+  subHeading: {
     ...typography.captionBold,
     color: colors.textSecondary,
     marginBottom: spacing.sm,
     textTransform: 'uppercase',
   },
-  roleToggleRow: {
+  rolePickerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.lg,
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
-  roleChip: {
+  rolePickerChip: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.sm,
-    marginHorizontal: 2,
     borderRadius: spacing.borderRadiusSm,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceSubtle,
+    gap: 6,
   },
-  roleChipActive: {
+  rolePickerChipActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  roleChipText: {
+  rolePickerText: {
     ...typography.captionBold,
     color: colors.textSecondary,
-    marginLeft: 4,
-    fontSize: 11,
+    fontSize: 12,
   },
-  roleChipTextActive: {
+  rolePickerTextActive: {
     color: colors.textInverse,
   },
-  formSection: {
-    marginTop: spacing.xs,
-  },
-  otpNotice: {
-    ...typography.caption,
-    color: colors.textSecondary,
+  verificationNoticeBox: {
+    flexDirection: 'row',
+    backgroundColor: colors.accentLight,
+    padding: spacing.sm,
+    borderRadius: spacing.borderRadiusSm,
     marginBottom: spacing.md,
+    gap: spacing.xs,
+    alignItems: 'center',
   },
-  otpInput: {
-    letterSpacing: 8,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
+  verificationNoticeText: {
+    ...typography.caption,
+    color: colors.accent,
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 15,
   },
   mainBtn: {
     marginTop: spacing.sm,
   },
-  changePhoneBtn: {
+  adminQuickFill: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.md,
+    justifyContent: 'center',
+    marginTop: spacing.lg,
+    paddingVertical: spacing.xs,
+    gap: 4,
   },
-  changePhoneText: {
+  adminQuickFillText: {
     ...typography.captionBold,
     color: colors.accent,
+    fontSize: 11,
   },
   quickAccessBox: {
-    marginTop: spacing.xxl,
+    marginTop: spacing.xl,
     alignItems: 'center',
   },
   quickAccessTitle: {
     ...typography.caption,
     color: colors.textMuted,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
   quickAccessButtons: {
     width: '100%',

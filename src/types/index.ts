@@ -1,4 +1,5 @@
 export type UserRole = 'ADMIN' | 'STAFF' | 'VENDOR';
+export type AccountStatus = 'ACTIVE' | 'PENDING_VERIFICATION' | 'SUSPENDED' | 'REJECTED';
 
 export interface User {
   id: string;
@@ -7,9 +8,13 @@ export interface User {
   phone: string;
   email: string;
   role: UserRole;
+  status?: AccountStatus;
   active?: boolean;
   vendorId?: string;
   staffId?: string;
+  businessName?: string;
+  area?: string;
+  address?: string;
   avatarUrl?: string;
   createdAt?: string;
   updatedAt?: string;

@@ -12,6 +12,7 @@ import { SupplierScreen } from '../screens/admin/SupplierScreen';
 import { AdminFinanceScreen } from '../screens/admin/AdminFinanceScreen';
 import { StaffSettlementsScreen } from '../screens/admin/StaffSettlementsScreen';
 import { AuditHistoryScreen } from '../screens/admin/AuditHistoryScreen';
+import { StaffApprovalScreen } from '../screens/admin/StaffApprovalScreen';
 import { ProfileScreen } from '../screens/vendor/ProfileScreen';
 import { colors, typography } from '../theme';
 
@@ -30,6 +31,7 @@ const AdminHomeStack = () => (
     <Stack.Screen name="Supplier" component={SupplierScreen} />
     <Stack.Screen name="AdminFinance" component={AdminFinanceScreen} />
     <Stack.Screen name="StaffSettlements" component={StaffSettlementsScreen} />
+    <Stack.Screen name="StaffApproval" component={StaffApprovalScreen} />
     <Stack.Screen name="AuditHistory" component={AuditHistoryScreen} />
   </Stack.Navigator>
 );
@@ -67,6 +69,7 @@ const AdminFinanceStack = () => (
 const AdminSettingsStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Profile" component={ProfileScreen} />
+    <Stack.Screen name="StaffApproval" component={StaffApprovalScreen} />
   </Stack.Navigator>
 );
 

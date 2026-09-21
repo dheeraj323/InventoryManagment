@@ -18,22 +18,19 @@ import { OrderCard } from '../../components/orders/OrderCard';
 import { colors, typography, spacing } from '../../theme';
 
 export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { currentUser, switchRole, activeRole, activeStaffId } = useAuthStore();
+  const { currentUser, activeRole, activeStaffId } = useAuthStore();
   const { getOrdersByStaff, orders } = useOrderStore();
   const { settlements, getStaffCashInHand } = useCashStore();
 
   const staff = {
-    id: activeStaffId || 'staff-1',
-    name: currentUser?.name || 'Suresh Kumar',
-    cashInHand: getStaffCashInHand(activeStaffId || 'staff-1', orders),
+    id: activeStaffId || currentUser?.staffId || '',
+    name: currentUser?.name || 'Delivery Executive',
+    cashInHand: getStaffCashInHand(activeStaffId || currentUser?.staffId || '', orders),
   };
 
   // Get assigned orders (excluding pending approval orders)
   const staffAssigned = getOrdersByStaff(staff.id);
-  const assignedOrders =
-    staffAssigned.length > 0
-      ? staffAssigned
-      : orders.filter((o) => o.status !== 'PENDING' && o.status !== 'CANCELLED');
+  const assignedOrders = staffAssigned;
   const completedDeliveries = assignedOrders.filter((o) => o.status === 'DELIVERED');
   const pendingDeliveries = assignedOrders.filter(
     (o) => o.status !== 'DELIVERED' && o.status !== 'CANCELLED' && o.status !== 'PENDING'
@@ -51,7 +48,6 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
         title="Delivery Operations"
         subtitle={`Staff: ${staff.name}`}
         activeRole={activeRole}
-        onRoleSwitch={() => switchRole('ADMIN')}
       />
 
       <ScrollView

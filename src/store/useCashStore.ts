@@ -1,12 +1,11 @@
 import { create } from 'zustand';
 import { CashSettlement } from '../types';
-import { MOCK_CASH_SETTLEMENTS } from '../constants/mockData';
 import { settlementService } from '../services/settlementService';
 
 interface CashState {
   settlements: CashSettlement[];
   isLoading: boolean;
-  subscribeSettlements: () => () => void;
+  subscribeSettlements: (staffId?: string) => () => void;
   submitSettlement: (
     staffId: string,
     staffName: string,
@@ -20,7 +19,7 @@ interface CashState {
 }
 
 export const useCashStore = create<CashState>((set, get) => ({
-  settlements: MOCK_CASH_SETTLEMENTS,
+  settlements: [],
   isLoading: false,
 
   getStaffCashInHand: (staffId: string, orders?: any[]) => {
@@ -52,12 +51,10 @@ export const useCashStore = create<CashState>((set, get) => ({
     return Math.max(0, collectedCash - alreadySettled);
   },
 
-  subscribeSettlements: () => {
+  subscribeSettlements: (staffId?: string) => {
     return settlementService.subscribeSettlements((firestoreSettlements) => {
-      if (firestoreSettlements && firestoreSettlements.length > 0) {
-        set({ settlements: firestoreSettlements });
-      }
-    });
+      set({ settlements: firestoreSettlements || [] });
+    }, staffId);
   },
 
   submitSettlement: async (staffId, staffName, collectedCash, handedOverCash, notes) => {

@@ -21,7 +21,7 @@ import { OrderCard } from '../../components/orders/OrderCard';
 import { colors, typography, spacing } from '../../theme';
 
 export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { switchRole, activeRole, activeVendorId, currentUser } = useAuthStore();
+  const { activeRole, activeVendorId, currentUser } = useAuthStore();
   const { getOrdersByVendor } = useOrderStore();
   const { getPartyRunningBalance } = useLedgerStore();
   const { getItemCount } = useCartStore();
@@ -29,17 +29,17 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const effectiveVendorId = activeVendorId || currentUser?.vendorId || 'vendor-1';
+  const effectiveVendorId = activeVendorId || currentUser?.vendorId || '';
   const vendor = getVendorById(effectiveVendorId) || {
     id: effectiveVendorId,
-    name: 'Amit Patel',
-    shopName: 'Apex Supermarket',
-    phone: '+91 99887 76655',
-    address: 'Shop #12, Central Market, Sector 14, City',
-    area: 'Sector 14',
-    currentBalance: 3450,
-    payLaterEligible: true,
-    preferredPaymentMode: 'PAY_LATER' as const,
+    name: currentUser?.name || 'Retailer',
+    shopName: currentUser?.businessName || currentUser?.name || 'My Store',
+    phone: currentUser?.phone || '',
+    address: currentUser?.address || '',
+    area: currentUser?.area || 'General',
+    currentBalance: 0,
+    payLaterEligible: false,
+    preferredPaymentMode: 'CASH' as const,
   };
 
   const runningBalance = getPartyRunningBalance(effectiveVendorId);
@@ -69,7 +69,6 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
         title={vendor.shopName}
         subtitle={`Welcome, ${vendor.name}`}
         activeRole={activeRole}
-        onRoleSwitch={() => switchRole('STAFF')}
         rightAction={
           <TouchableOpacity
             style={styles.cartBtn}

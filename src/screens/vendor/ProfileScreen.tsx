@@ -15,20 +15,20 @@ import { Button } from '../../components/common/Button';
 import { colors, typography, spacing } from '../../theme';
 
 export const ProfileScreen: React.FC = () => {
-  const { currentUser, activeVendorId, logout, switchRole } = useAuthStore();
+  const { currentUser, activeVendorId, logout } = useAuthStore();
   const { getVendorById } = useVendorStore();
 
-  const effectiveVendorId = activeVendorId || currentUser?.vendorId || 'vendor-1';
+  const effectiveVendorId = activeVendorId || currentUser?.vendorId || '';
   const vendor = getVendorById(effectiveVendorId) || {
     id: effectiveVendorId,
-    name: currentUser?.name || 'Amit Patel',
-    shopName: 'Apex Supermarket',
-    phone: currentUser?.phone || '+91 99887 76655',
-    address: 'Shop #12, Central Market, Sector 14, City',
-    area: 'Sector 14',
+    name: currentUser?.name || 'Account User',
+    shopName: currentUser?.businessName || currentUser?.name || 'Store',
+    phone: currentUser?.phone || 'Not provided',
+    address: currentUser?.address || 'Not provided',
+    area: currentUser?.area || 'General',
     currentBalance: 0,
-    payLaterEligible: true,
-    preferredPaymentMode: 'PAY_LATER' as const,
+    payLaterEligible: false,
+    preferredPaymentMode: 'CASH' as const,
   };
 
   return (
@@ -45,7 +45,7 @@ export const ProfileScreen: React.FC = () => {
             <View style={styles.nameCol}>
               <Text style={styles.vendorName}>{vendor.shopName}</Text>
               <Text style={styles.ownerName}>Proprietor: {vendor.name}</Text>
-              <Text style={styles.roleBadgeText}>ROLE: VENDOR</Text>
+              <Text style={styles.roleBadgeText}>ROLE: {currentUser?.role || 'VENDOR'}</Text>
             </View>
           </View>
         </Card>
@@ -78,32 +78,13 @@ export const ProfileScreen: React.FC = () => {
                 { color: colors.success },
               ]}
             >
-              Enabled
+              {vendor.payLaterEligible ? 'Enabled' : 'Disabled'}
             </Text>
           </View>
           <View style={styles.statRow}>
             <Text style={styles.statLabel}>Default Payment Mode</Text>
             <Text style={styles.statVal}>{vendor.preferredPaymentMode}</Text>
           </View>
-        </Card>
-
-        {/* Switch Role Quick Tester */}
-        <Card style={styles.card} outlined elevation="sm">
-          <Text style={styles.cardTitle}>SWITCH ROLE (DEMO TESTING)</Text>
-          <Button
-            title="Switch to Staff Role"
-            onPress={() => switchRole('STAFF')}
-            variant="outline"
-            size="sm"
-            style={styles.roleBtn}
-          />
-          <Button
-            title="Switch to Admin Role"
-            onPress={() => switchRole('ADMIN')}
-            variant="secondary"
-            size="sm"
-            style={styles.roleBtn}
-          />
         </Card>
 
         {/* Logout Button */}

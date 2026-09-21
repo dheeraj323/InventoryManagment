@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // ── Helper Functions ──────────────────────────────────────────────
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -32,48 +32,70 @@ service cloud.firestore {
       );
     }
 
-    // USERS Collection
+    // ── USERS Collection ───────────────────────────────────────────────
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      // Users can read only their own profile, Admins and Staff can read for directory/ops
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin() || isStaff());
       allow create: if isAuthenticated() && request.auth.uid == userId;
       allow update: if isAdmin() || (
         request.auth.uid == userId &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status'])
       );
       allow delete: if isAdmin();
     }
 
-    // VENDORS Collection
+    // ── VENDORS Collection ─────────────────────────────────────────────
     match /vendors/{vendorId} {
-      allow read: if isAuthenticated();
+      // Vendors can only read their own vendor profile; Admins & Staff read directory
+      allow read: if isAdmin() || isStaff() || (isVendor() && getUserData().vendorId == vendorId);
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (
         isVendor() &&
+        getUserData().vendorId == vendorId &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['preferredPaymentMode', 'phone', 'address', 'updatedAt'])
       );
     }
 
-    // PRODUCTS Collection
+    // ── STAFF Collection ───────────────────────────────────────────────
+    match /staff/{staffId} {
+      // Staff can read their own record; Admins have full access
+      allow read: if isAdmin() || (isStaff() && getUserData().staffId == staffId);
+      allow create, delete, update: if isAdmin();
+    }
+
+    // ── PRODUCTS Collection ────────────────────────────────────────────
     match /products/{productId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin() || isStaff();
     }
 
-    // SUPPLIERS Collection
-    match /suppliers/{supplierId} {
+    // ── SYSTEM Collection ──────────────────────────────────────────────
+    match /system/{docId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow write: if isAdmin() || isStaff();
     }
 
-    // ORDERS Collection
+    // ── SUPPLIERS Collection (Confidential: Admin Only) ────────────────
+    match /suppliers/{supplierId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── ORDERS Collection ──────────────────────────────────────────────
     match /orders/{orderId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAdmin() || isStaff() || (
+      // Vendors only see their own orders; Staff only see assigned orders; Admin sees all
+      allow read: if isAdmin() ||
+        (isVendor() && resource.data.vendorId == getUserData().vendorId) ||
+        (isStaff() && (resource.data.assignedStaffId == getUserData().staffId || resource.data.assignedStaffId == null));
+      allow create: if isAuthenticated() && (
+        isAdmin() ||
+        (isVendor() && request.resource.data.vendorId == getUserData().vendorId)
+      );
+      allow update: if isAdmin() || (
+        isStaff() && resource.data.assignedStaffId == getUserData().staffId
+      ) || (
         isVendor() &&
         resource.data.vendorId == getUserData().vendorId &&
         resource.data.status == 'PENDING' &&
-        // Vendors cannot modify financial or delivery fields
         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
           'paidAmount', 'balanceDue', 'deliveryFinalized', 'actualPaymentMode',
           'totalAmount', 'subtotal', 'tax', 'invoiceId'
@@ -82,52 +104,55 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // PAYMENTS Collection
+    // ── PAYMENTS Collection ────────────────────────────────────────────
     match /payments/{paymentId} {
-      allow read: if isAuthenticated();
+      allow read: if isAdmin() || (isVendor() && resource.data.vendorId == getUserData().vendorId) || isStaff();
       allow create, update: if isAdmin() || isStaff();
       allow delete: if isAdmin();
     }
 
-    // LEDGER ENTRIES Collection (Immutable audit trail)
+    // ── LEDGER ENTRIES Collection (Immutable audit trail) ──────────────
     match /ledgerEntries/{entryId} {
-      allow read: if isAuthenticated();
-      // Only Admin and Staff (via financialTransactionService) may create entries
+      // Vendors only see their own ledger entries; Admins and Staff see all
+      allow read: if isAdmin() || isStaff() || (isVendor() && resource.data.partyId == getUserData().vendorId);
       allow create: if isAdmin() || isStaff();
       allow update: if isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasAny(['editedAt', 'editedBy', 'editReason', 'amount']);
-      allow delete: if false; // Immutable ledger — entries may never be deleted
+      allow delete: if false; // Immutable ledger
     }
 
-    // INVOICES Collection — written only by financialTransactionService on delivery
+    // ── INVOICES Collection ────────────────────────────────────────────
     match /invoices/{invoiceId} {
-      allow read: if isAuthenticated();
-      // Admin and Staff create invoices via financialTransactionService
+      allow read: if isAdmin() || isStaff() || (isVendor() && resource.data.vendorId == getUserData().vendorId);
       allow create, update: if isAdmin() || isStaff();
-      // Invoices are immutable once finalized — only Admin may update status
       allow delete: if false;
     }
 
-    // CASH SETTLEMENTS Collection
+    // ── CASH SETTLEMENTS Collection ────────────────────────────────────
     match /cashSettlements/{settlementId} {
-      allow read: if isAuthenticated();
+      // Staff only see their own settlements; Admin sees all
+      allow read: if isAdmin() || (isStaff() && resource.data.staffId == getUserData().staffId);
       allow create: if isStaff() || isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
-    // NOTIFICATIONS Collection
+    // ── NOTIFICATIONS Collection ───────────────────────────────────────
     match /notifications/{notificationId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() && (
+        resource.data.targetUserId == request.auth.uid ||
+        resource.data.targetRole == getUserData().role ||
+        isAdmin()
+      );
       allow create: if isAuthenticated();
       allow update: if isAuthenticated();
       allow delete: if isAdmin();
     }
 
-    // AUDIT LOGS Collection (Immutable)
+    // ── AUDIT LOGS Collection (Immutable) ──────────────────────────────
     match /auditLogs/{logId} {
       allow read: if isAdmin();
       allow create: if isAdmin() || isStaff();
-      allow update, delete: if false; // Immutable audit log
+      allow update, delete: if false;
     }
   }
 }

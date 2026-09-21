@@ -77,8 +77,31 @@ export const vendorService = {
     }
   },
 
-  // Subscribe to real-time vendor updates
-  subscribeVendors: (callback: (vendors: Vendor[]) => void) => {
+  // Subscribe to real-time vendor updates (all vendors for Admin/Staff, single vendor for Vendor)
+  subscribeVendors: (callback: (vendors: Vendor[]) => void, vendorId?: string) => {
+    if (vendorId) {
+      const docRef = doc(db, VENDORS_COLLECTION, vendorId);
+      return onSnapshot(
+        docRef,
+        (snapshot) => {
+          if (snapshot.exists()) {
+            callback([
+              {
+                id: snapshot.id,
+                vendorId: snapshot.id,
+                ...snapshot.data(),
+              } as Vendor,
+            ]);
+          } else {
+            callback([]);
+          }
+        },
+        (error) => {
+          console.error(`Real-time vendor (${vendorId}) subscription error:`, error);
+        }
+      );
+    }
+
     const q = query(collection(db, VENDORS_COLLECTION));
     return onSnapshot(
       q,

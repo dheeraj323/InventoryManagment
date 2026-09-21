@@ -1,13 +1,12 @@
 import { create } from 'zustand';
 import { Vendor, VendorStatus, PaymentMethod } from '../types';
-import { MOCK_VENDORS } from '../constants/mockData';
 import { vendorService } from '../services/vendorService';
 import { paymentService } from '../services/paymentService';
 
 interface VendorState {
   vendors: Vendor[];
   isLoading: boolean;
-  subscribeVendors: () => () => void;
+  subscribeVendors: (vendorId?: string) => () => void;
   fetchVendors: () => Promise<void>;
   getVendorById: (id: string) => Vendor | undefined;
   addVendor: (vendorData: Partial<Vendor>, adminName?: string) => Promise<Vendor>;
@@ -26,7 +25,7 @@ interface VendorState {
 }
 
 export const useVendorStore = create<VendorState>((set, get) => ({
-  vendors: MOCK_VENDORS,
+  vendors: [],
   isLoading: false,
 
   fetchVendors: async () => {
@@ -40,10 +39,10 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     }
   },
 
-  subscribeVendors: () => {
+  subscribeVendors: (vendorId?: string) => {
     return vendorService.subscribeVendors((firestoreVendors) => {
       set({ vendors: firestoreVendors || [] });
-    });
+    }, vendorId);
   },
 
   getVendorById: (id: string) => {

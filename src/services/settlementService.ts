@@ -32,9 +32,12 @@ export const settlementService = {
     }
   },
 
-  // Subscribe to settlements real-time updates
-  subscribeSettlements: (callback: (settlements: CashSettlement[]) => void) => {
-    const q = query(collection(db, SETTLEMENTS_COLLECTION));
+  // Subscribe to settlements real-time updates (scoped to staffId if passed)
+  subscribeSettlements: (callback: (settlements: CashSettlement[]) => void, staffId?: string) => {
+    let q = query(collection(db, SETTLEMENTS_COLLECTION));
+    if (staffId) {
+      q = query(collection(db, SETTLEMENTS_COLLECTION), where('staffId', '==', staffId));
+    }
     return onSnapshot(q, (snapshot) => {
       const settlements = snapshot.docs.map((docSnap) => ({
         id: docSnap.id,
