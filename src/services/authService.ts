@@ -17,14 +17,18 @@ import {
   getDocs,
   serverTimestamp,
 } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db } from '../config/firebase';
 import { User, UserRole, AccountStatus, Vendor, Staff } from '../types';
+
+const USER_PROFILE_CACHE_KEY = '@panihaar_user_profile';
 
 export const authService = {
   // ── 1. Listen to Auth State Changes ─────────────────────────────────────────
   onAuthChange: (callback: (user: User | null) => void) => {
     return onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (!firebaseUser) {
+        await AsyncStorage.removeItem(USER_PROFILE_CACHE_KEY).catch(() => {});
         callback(null);
         return;
       }
@@ -35,12 +39,14 @@ export const authService = {
 
         if (userSnap.exists()) {
           const userData = userSnap.data() as User;
-          callback({
+          const fullUser: User = {
             ...userData,
             id: firebaseUser.uid,
             uid: firebaseUser.uid,
             status: userData.status || (userData.active ? 'ACTIVE' : 'PENDING_VERIFICATION'),
-          });
+          };
+          await AsyncStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify(fullUser)).catch(() => {});
+          callback(fullUser);
         } else {
           // Dynamic profile fallback
           const defaultUser: User = {
@@ -67,11 +73,39 @@ export const authService = {
             console.warn('Could not auto-create user profile doc:', e);
           }
 
+          await AsyncStorage.setItem(USER_PROFILE_CACHE_KEY, JSON.stringify(defaultUser)).catch(() => {});
           callback(defaultUser);
         }
       } catch (error) {
         console.error('Error fetching user profile from Firestore:', error);
-        callback(null);
+        
+        // Recover from local cache if offline or network failure
+        try {
+          const cached = await AsyncStorage.getItem(USER_PROFILE_CACHE_KEY);
+          if (cached) {
+            const cachedUser = JSON.parse(cached) as User;
+            if (cachedUser && cachedUser.uid === firebaseUser.uid) {
+              callback(cachedUser);
+              return;
+            }
+          }
+        } catch (cacheErr) {
+          console.warn('Failed to read cached user profile:', cacheErr);
+        }
+
+        // Fallback to authenticated firebase user rather than resetting to null
+        callback({
+          id: firebaseUser.uid,
+          uid: firebaseUser.uid,
+          name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+          email: firebaseUser.email || '',
+          phone: firebaseUser.phoneNumber || '',
+          role: 'VENDOR',
+          status: 'ACTIVE',
+          active: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
       }
     });
   },
@@ -396,6 +430,9 @@ export const authService = {
 
   // ── 10. Logout User ─────────────────────────────────────────────────────────
   logout: async (): Promise<void> => {
+    try {
+      await AsyncStorage.removeItem(USER_PROFILE_CACHE_KEY);
+    } catch {}
     await signOut(auth);
   },
 };
