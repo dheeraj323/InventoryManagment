@@ -79,12 +79,12 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
           : undefined,
     },
     {
-      icon: 'shield-checkmark-outline',
+      icon: 'people-outline',
       iconColor: colors.primary,
       iconBg: colors.accentLight,
-      title: 'Staff Verification',
-      subtitle: 'Approve & assign new staff accounts',
-      route: 'StaffApproval',
+      title: 'Staff Management',
+      subtitle: 'Team roster, route assignments & approvals',
+      route: 'StaffManagement',
       badge: pendingStaff.length > 0 ? pendingStaff.length : undefined,
     },
     {
@@ -167,12 +167,12 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
             {pendingStaff.length > 0 && (
               <TouchableOpacity
                 style={[styles.alertRow, { borderLeftColor: colors.accent }]}
-                onPress={() => navigation.navigate('StaffApproval')}
+                onPress={() => navigation.navigate('StaffManagement')}
                 activeOpacity={0.8}
               >
-                <Ionicons name="shield-checkmark-outline" size={15} color={colors.accent} />
+                <Ionicons name="people-outline" size={15} color={colors.accent} />
                 <Text style={[styles.alertText, { color: colors.accent }]}>
-                  {pendingStaff.length} staff account{pendingStaff.length > 1 ? 's' : ''} awaiting admin verification
+                  {pendingStaff.length} staff account{pendingStaff.length > 1 ? 's' : ''} awaiting approval
                 </Text>
                 <Ionicons name="chevron-forward" size={14} color={colors.accent} />
               </TouchableOpacity>

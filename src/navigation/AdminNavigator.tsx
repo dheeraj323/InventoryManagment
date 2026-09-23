@@ -13,6 +13,7 @@ import { AdminFinanceScreen } from '../screens/admin/AdminFinanceScreen';
 import { StaffSettlementsScreen } from '../screens/admin/StaffSettlementsScreen';
 import { AuditHistoryScreen } from '../screens/admin/AuditHistoryScreen';
 import { StaffApprovalScreen } from '../screens/admin/StaffApprovalScreen';
+import { StaffManagementScreen } from '../screens/admin/StaffManagementScreen';
 import { AdminProfileScreen } from '../screens/admin/AdminProfileScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography } from '../theme';
@@ -32,6 +33,7 @@ const AdminHomeStack = () => (
     <Stack.Screen name="Supplier" component={SupplierScreen} />
     <Stack.Screen name="AdminFinance" component={AdminFinanceScreen} />
     <Stack.Screen name="StaffSettlements" component={StaffSettlementsScreen} />
+    <Stack.Screen name="StaffManagement" component={StaffManagementScreen} />
     <Stack.Screen name="StaffApproval" component={StaffApprovalScreen} />
     <Stack.Screen name="AuditHistory" component={AuditHistoryScreen} />
   </Stack.Navigator>
@@ -70,6 +72,7 @@ const AdminFinanceStack = () => (
 const AdminProfileStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
+    <Stack.Screen name="StaffManagement" component={StaffManagementScreen} />
     <Stack.Screen name="StaffApproval" component={StaffApprovalScreen} />
     <Stack.Screen name="AuditHistory" component={AuditHistoryScreen} />
   </Stack.Navigator>

@@ -56,12 +56,17 @@ export interface Vendor {
 export interface Staff {
   id: string;
   staffId?: string;
+  userId?: string;
   name: string;
   phone: string;
+  email?: string;
   activeArea?: string;
+  role?: UserRole;
+  status?: AccountStatus;
   todayAssignedDeliveries: number;
   cashInHand: number;
   active?: boolean;
+  notes?: string;
   createdAt?: string;
   updatedAt?: string;
 }

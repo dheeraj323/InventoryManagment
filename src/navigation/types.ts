@@ -48,5 +48,7 @@ export type AdminTabParamList = {
   AdminFinance: undefined;
   AuditHistory: undefined;
   StaffSettlements: undefined;
+  StaffManagement: undefined;
+  StaffApproval: undefined;
   AdminSettings: undefined;
 };
