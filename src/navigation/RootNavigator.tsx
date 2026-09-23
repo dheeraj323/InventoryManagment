@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Image, ActivityIndicator, StyleSheet, Animated } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import * as SplashScreen from 'expo-splash-screen';
 import { useAuthStore } from '../store/useAuthStore';
 import { useOrderStore } from '../store/useOrderStore';
 import { useLedgerStore } from '../store/useLedgerStore';
@@ -14,6 +15,9 @@ import { AdminNavigator } from './AdminNavigator';
 import { StaffNavigator } from './StaffNavigator';
 import { VendorNavigator } from './VendorNavigator';
 import { colors } from '../theme';
+
+// Keep the splash screen visible while auth initializes
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const Stack = createNativeStackNavigator();
 
@@ -29,6 +33,12 @@ export const RootNavigator: React.FC = () => {
   useEffect(() => {
     initAuth();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [isLoading]);
 
   useEffect(() => {
     if (!currentUser || currentUser.status === 'PENDING_VERIFICATION') return;

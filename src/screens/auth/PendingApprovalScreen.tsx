@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   Alert,
 } from 'react-native';
@@ -31,6 +32,13 @@ export const PendingApprovalScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
+        {/* Brand Logo */}
+        <Image
+          source={require('../../../assets/logo.png')}
+          style={styles.brandLogo}
+          resizeMode="contain"
+        />
+
         {/* Status Icon */}
         <View
           style={[
@@ -135,6 +143,12 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  brandLogo: {
+    width: 72,
+    height: 72,
+    borderRadius: 16,
+    marginBottom: spacing.lg,
   },
   iconCircle: {
     width: 96,
