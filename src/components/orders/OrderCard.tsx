@@ -62,7 +62,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         </View>
       )}
 
-      {order.assignedStaffName ? (
+      {order.assignedStaffName && order.status !== 'PENDING' && order.status !== 'CANCELLED' ? (
         <View style={styles.staffTagRow}>
           <Ionicons name="bicycle-outline" size={13} color="#0284C7" />
           <Text style={styles.staffTagText} numberOfLines={1}>

@@ -6,6 +6,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   TouchableWithoutFeedback,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from './Button';
@@ -45,39 +47,44 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
     >
       <TouchableWithoutFeedback onPress={onCancel}>
         <View style={styles.overlay}>
-          <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-            <View style={styles.modalCard}>
-              <View style={styles.headerRow}>
-                <Text style={styles.title}>{title}</Text>
-                <TouchableOpacity onPress={onCancel} style={styles.closeBtn}>
-                  <Ionicons name="close" size={20} color={colors.textMuted} />
-                </TouchableOpacity>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.keyboardAvoid}
+          >
+            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+              <View style={styles.modalCard}>
+                <View style={styles.headerRow}>
+                  <Text style={styles.title}>{title}</Text>
+                  <TouchableOpacity onPress={onCancel} style={styles.closeBtn}>
+                    <Ionicons name="close" size={20} color={colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.message}>{message}</Text>
+
+                {children && <View style={styles.customContent}>{children}</View>}
+
+                <View style={styles.buttonRow}>
+                  <Button
+                    title={cancelTitle}
+                    onPress={onCancel}
+                    variant="secondary"
+                    size="md"
+                    style={styles.actionButton}
+                    disabled={loading}
+                  />
+                  <Button
+                    title={confirmTitle}
+                    onPress={onConfirm}
+                    variant={variant === 'danger' ? 'danger' : 'primary'}
+                    size="md"
+                    loading={loading}
+                    style={styles.actionButton}
+                  />
+                </View>
               </View>
-
-              <Text style={styles.message}>{message}</Text>
-
-              {children && <View style={styles.customContent}>{children}</View>}
-
-              <View style={styles.buttonRow}>
-                <Button
-                  title={cancelTitle}
-                  onPress={onCancel}
-                  variant="secondary"
-                  size="md"
-                  style={styles.actionButton}
-                  disabled={loading}
-                />
-                <Button
-                  title={confirmTitle}
-                  onPress={onConfirm}
-                  variant={variant === 'danger' ? 'danger' : 'primary'}
-                  size="md"
-                  loading={loading}
-                  style={styles.actionButton}
-                />
-              </View>
-            </View>
-          </TouchableWithoutFeedback>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
         </View>
       </TouchableWithoutFeedback>
     </Modal>
@@ -91,6 +98,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.lg,
+  },
+  keyboardAvoid: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalCard: {
     width: '100%',

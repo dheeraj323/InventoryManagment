@@ -8,6 +8,7 @@ import { DeliveryDetailScreen } from '../screens/staff/DeliveryDetailScreen';
 import { ActualPaymentScreen } from '../screens/staff/ActualPaymentScreen';
 import { CashSettlementScreen } from '../screens/staff/CashSettlementScreen';
 import { StaffProfileScreen } from '../screens/staff/StaffProfileScreen';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography } from '../theme';
 
 const Stack = createNativeStackNavigator();
@@ -48,6 +49,8 @@ const StaffProfileStack = () => (
 );
 
 export const StaffNavigator: React.FC = () => {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -57,8 +60,8 @@ export const StaffNavigator: React.FC = () => {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          height: 60,
-          paddingBottom: 8,
+          height: 60 + Math.max(insets.bottom, 0),
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
           paddingTop: 8,
         },
         tabBarLabelStyle: {

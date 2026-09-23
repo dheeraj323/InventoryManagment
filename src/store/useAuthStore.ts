@@ -27,7 +27,6 @@ interface AuthState {
     email: string;
     pass: string;
     phone: string;
-    preferredArea?: string;
   }) => Promise<void>;
   refreshCurrentUser: () => Promise<void>;
   updateProfile: (updates: {
@@ -43,7 +42,7 @@ interface AuthState {
   
   // Admin staff management actions
   fetchPendingStaff: () => Promise<void>;
-  approveStaff: (userId: string, staffId: string, area?: string) => Promise<void>;
+  approveStaff: (userId: string, staffId: string) => Promise<void>;
   rejectStaff: (userId: string, staffId: string, reason?: string) => Promise<void>;
   promoteToAdmin: (userId: string) => Promise<void>;
 }
@@ -250,9 +249,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  approveStaff: async (userId: string, staffId: string, area?: string) => {
+  approveStaff: async (userId: string, staffId: string) => {
     try {
-      await authService.approveStaff(userId, staffId, area);
+      await authService.approveStaff(userId, staffId);
       // Remove from pending list
       set((state) => ({
         pendingStaff: state.pendingStaff.filter((s) => s.id !== userId),

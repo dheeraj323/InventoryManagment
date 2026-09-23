@@ -3,14 +3,16 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   TouchableOpacity,
   Modal,
   ScrollView,
   Alert,
   Linking,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useInventoryStore } from '../../store/useInventoryStore';
 import { useDebounce } from '../../hooks';
@@ -345,7 +347,11 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       {/* ── ADD SUPPLIER MODAL ─────────────────────────────────────── */}
       <Modal visible={showAddModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ width: '100%', justifyContent: 'flex-end' }}
+          >
+            <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add New Supplier</Text>
               <TouchableOpacity
@@ -410,13 +416,18 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </View>
             </ScrollView>
           </View>
-        </View>
-      </Modal>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
 
       {/* ── SUPPLIER ACTION SHEET / DETAILS MODAL ───────────────────── */}
       <Modal visible={!!selectedSupplier} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ width: '100%', justifyContent: 'flex-end' }}
+          >
+            <View style={styles.modalSheet}>
             {selectedSupplier && (
               <>
                 {/* Modal Header */}
@@ -663,8 +674,9 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </>
             )}
           </View>
-        </View>
-      </Modal>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
 
       {/* ── DELETE CONFIRMATION MODAL ──────────────────────────────── */}
       <ConfirmationModal

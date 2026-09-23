@@ -4,7 +4,6 @@ import {
   Text,
   Image,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
@@ -12,6 +11,7 @@ import {
   Alert,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
@@ -129,7 +129,6 @@ export const LoginScreen: React.FC = () => {
           email: email.trim(),
           pass: password,
           phone: phone.trim(),
-          preferredArea: area.trim() || 'Central Zone',
         });
       }
     } catch (err: any) {
@@ -428,22 +427,19 @@ export const LoginScreen: React.FC = () => {
                   prefix="+91"
                 />
 
-                <Input
-                  label={
-                    registerRole === 'VENDOR'
-                      ? 'Area / Locality'
-                      : 'Preferred Delivery Zone'
-                  }
-                  value={area}
-                  onChangeText={setArea}
-                />
-
                 {registerRole === 'VENDOR' && (
-                  <Input
-                    label="Shop Address (Optional)"
-                    value={address}
-                    onChangeText={setAddress}
-                  />
+                  <>
+                    <Input
+                      label="Area / Locality"
+                      value={area}
+                      onChangeText={setArea}
+                    />
+                    <Input
+                      label="Shop Address (Optional)"
+                      value={address}
+                      onChangeText={setAddress}
+                    />
+                  </>
                 )}
 
                 <Input

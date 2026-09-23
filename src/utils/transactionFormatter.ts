@@ -92,7 +92,7 @@ export function formatTransaction(
   // Opening balance check
   if (
     entry.sourceType === 'OPENING_BALANCE' ||
-    refNoUpper.startsWith('OPEN-') ||
+    refNoUpper.startsWith('OPEN') ||
     noteLower.includes('opening balance') ||
     noteLower.includes('initial balance')
   ) {

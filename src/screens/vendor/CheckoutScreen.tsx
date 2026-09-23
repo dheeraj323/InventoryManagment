@@ -3,10 +3,10 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCartStore } from '../../store/useCartStore';
 import { useOrderStore } from '../../store/useOrderStore';
@@ -98,8 +98,6 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         balanceDue: selectedPaymentMode === 'PAY_LATER' ? totalAmount : 0,
         orderDate: new Date().toISOString(),
         deliveryDate: new Date().toISOString().split('T')[0],
-        assignedStaffId: 'staff-1',
-        assignedStaffName: 'Suresh Kumar',
         notes: notes.trim() || '',
         pendingAdminOverride: pendingAdminOverrideLocal || undefined,
       });

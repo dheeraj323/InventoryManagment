@@ -3,11 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Linking,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -73,8 +73,11 @@ export const VendorOrderDetailScreen: React.FC<{ route: any; navigation: any }> 
           <StatusTracker status={order.status} />
         </Card>
 
-        {/* Delivery Executive Info (When Assigned) */}
-        {order.assignedStaffName ? (
+        {/* Delivery Executive Info — Only visible to vendor after delivery staff has been assigned */}
+        {order.assignedStaffName &&
+        (order.status === 'OUT_FOR_DELIVERY' ||
+          order.status === 'DELIVERED' ||
+          order.status === 'PARTIALLY_DELIVERED') ? (
           <Card style={styles.card} outlined elevation="sm">
             <Text style={styles.cardTitle}>DELIVERY EXECUTIVE</Text>
             <View style={styles.staffRow}>
@@ -86,7 +89,7 @@ export const VendorOrderDetailScreen: React.FC<{ route: any; navigation: any }> 
                 <Text style={styles.staffSubText}>
                   {order.status === 'OUT_FOR_DELIVERY'
                     ? 'Out for delivery with your order'
-                    : 'Assigned for delivery'}
+                    : 'Delivered your order'}
                 </Text>
               </View>
               {order.assignedStaffPhone ? (

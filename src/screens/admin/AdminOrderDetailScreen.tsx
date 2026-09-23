@@ -3,10 +3,10 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useOrderStore } from '../../store/useOrderStore';
 import { Header } from '../../components/common/Header';
@@ -41,6 +41,11 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
       </SafeAreaView>
     );
   }
+
+  const isFinalized =
+    order.status === 'DELIVERED' ||
+    order.status === 'PARTIALLY_DELIVERED' ||
+    order.status === 'CANCELLED';
 
   const handleUpdateStatus = (status: OrderStatus) => {
     updateOrderStatus(order.id, status);
@@ -87,53 +92,59 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
           <StatusTracker status={order.status} />
 
           {/* Admin Status Override Actions */}
-          <Text style={styles.adminActionTitle}>ADMIN STATUS & DISPATCH ACTIONS</Text>
-          <View style={styles.statusBtnRow}>
-            {order.status === 'PENDING' && (
-              <>
-                <Button
-                  title="Approve Order"
-                  onPress={() => handleUpdateStatus('APPROVED')}
-                  size="sm"
-                  style={styles.statusBtn}
-                />
-                <Button
-                  title="Reject / Cancel"
-                  onPress={() => handleUpdateStatus('CANCELLED')}
-                  variant="danger"
-                  size="sm"
-                  style={styles.statusBtn}
-                />
-              </>
-            )}
+          {!isFinalized && (
+            <>
+              <Text style={styles.adminActionTitle}>ADMIN STATUS & DISPATCH ACTIONS</Text>
+              <View style={styles.statusBtnRow}>
+                {order.status === 'PENDING' && (
+                  <>
+                    <Button
+                      title="Approve Order"
+                      onPress={() => handleUpdateStatus('APPROVED')}
+                      size="sm"
+                      style={styles.statusBtn}
+                    />
+                    <Button
+                      title="Reject / Cancel"
+                      onPress={() => handleUpdateStatus('CANCELLED')}
+                      variant="danger"
+                      size="sm"
+                      style={styles.statusBtn}
+                    />
+                  </>
+                )}
 
-            {(order.status === 'APPROVED' || order.status === 'OUT_FOR_DELIVERY') && (
-              <Button
-                title={
-                  order.status === 'OUT_FOR_DELIVERY'
-                    ? 'Reassign Delivery Staff'
-                    : 'Dispatch / Out for Delivery'
-                }
-                onPress={() => setDispatchModalVisible(true)}
-                size="sm"
-                variant={order.status === 'OUT_FOR_DELIVERY' ? 'outline' : 'primary'}
-                style={styles.statusBtn}
-              />
-            )}
-          </View>
+                {(order.status === 'APPROVED' || order.status === 'OUT_FOR_DELIVERY') && (
+                  <Button
+                    title={
+                      order.status === 'OUT_FOR_DELIVERY'
+                        ? 'Reassign Delivery Staff'
+                        : 'Assign Staff & Dispatch'
+                    }
+                    onPress={() => setDispatchModalVisible(true)}
+                    size="sm"
+                    variant={order.status === 'OUT_FOR_DELIVERY' ? 'outline' : 'primary'}
+                    style={styles.statusBtn}
+                  />
+                )}
+              </View>
+            </>
+          )}
         </Card>
 
         {/* Assigned Delivery Executive Card */}
-        {order.assignedStaffName ? (
+        {order.assignedStaffName && order.status !== 'PENDING' ? (
           <Card style={styles.card} outlined elevation="sm">
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.cardTitle}>ASSIGNED DELIVERY EXECUTIVE</Text>
-              <TouchableOpacity
-                onPress={() => setDispatchModalVisible(true)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.reassignText}>Change Staff</Text>
-              </TouchableOpacity>
+              {!isFinalized && (
+                <TouchableOpacity
+                  onPress={() => setDispatchModalVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.reassignText}>Change Staff</Text>
+                </TouchableOpacity>
+              )}
             </View>
             <View style={styles.staffDisplayRow}>
               <View style={styles.staffAvatar}>
@@ -145,9 +156,56 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
                   {order.assignedStaffPhone ? `+91 ${order.assignedStaffPhone}` : 'Delivery Staff'}
                 </Text>
               </View>
-              <View style={styles.dispatchedBadge}>
-                <Text style={styles.dispatchedBadgeText}>
-                  {order.status === 'OUT_FOR_DELIVERY' ? 'ON ROUTE' : 'ASSIGNED'}
+              <View
+                style={[
+                  styles.dispatchedBadge,
+                  order.status === 'DELIVERED' && { backgroundColor: colors.statusDeliveredBg },
+                  order.status === 'PARTIALLY_DELIVERED' && { backgroundColor: colors.statusPartialBg },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.dispatchedBadgeText,
+                    order.status === 'DELIVERED' && { color: colors.statusDeliveredText },
+                    order.status === 'PARTIALLY_DELIVERED' && { color: colors.statusPartialText },
+                  ]}
+                >
+                  {order.status === 'DELIVERED'
+                    ? 'DELIVERED'
+                    : order.status === 'PARTIALLY_DELIVERED'
+                    ? 'PARTIAL'
+                    : order.status === 'OUT_FOR_DELIVERY'
+                    ? 'ON ROUTE'
+                    : 'ASSIGNED'}
+                </Text>
+              </View>
+            </View>
+          </Card>
+        ) : !isFinalized ? (
+          <Card style={styles.card} outlined elevation="sm">
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.cardTitle}>DELIVERY EXECUTIVE</Text>
+              {order.status === 'APPROVED' && (
+                <TouchableOpacity
+                  onPress={() => setDispatchModalVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.reassignText}>Assign Staff</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={styles.staffDisplayRow}>
+              <View style={[styles.staffAvatar, { backgroundColor: colors.surfaceSubtle }]}>
+                <Ionicons name="bicycle-outline" size={20} color={colors.textMuted} />
+              </View>
+              <View style={styles.staffTextCol}>
+                <Text style={[styles.staffNameText, { color: colors.textSecondary }]}>
+                  Unassigned
+                </Text>
+                <Text style={styles.staffSubText}>
+                  {order.status === 'PENDING'
+                    ? 'Approve the order first before assigning a delivery partner'
+                    : 'Assign a delivery staff member when dispatching this order'}
                 </Text>
               </View>
             </View>

@@ -143,19 +143,6 @@ export const DispatchStaffModal: React.FC<DispatchStaffModalProps> = ({
                           <Text style={styles.metaText}>
                             {item.phone ? `+91 ${item.phone}` : 'No phone'}
                           </Text>
-                          {item.activeArea ? (
-                            <>
-                              <Text style={styles.dot}>•</Text>
-                              <Ionicons
-                                name="location-outline"
-                                size={12}
-                                color="#64748B"
-                              />
-                              <Text style={styles.metaText}>
-                                {item.activeArea}
-                              </Text>
-                            </>
-                          ) : null}
                         </View>
                       </View>
                     </View>
@@ -331,11 +318,6 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 12,
     color: '#64748B',
-  },
-  dot: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginHorizontal: 2,
   },
   radioCircle: {
     width: 22,

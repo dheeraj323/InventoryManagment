@@ -182,18 +182,43 @@ function formatTransaction(entry, perspective = 'ADMIN') {
 }
 
 function calculateVendorSummary(entries, vendor) {
-  const openingBalance = vendor?.openingBalance ?? vendor?.currentBalance ?? 0;
+  const creditLimit = vendor?.creditLimit ?? 0;
+
+  const openingEntry = entries.find(
+    (e) =>
+      e.sourceType === 'OPENING_BALANCE' ||
+      (e.referenceNo || '').toUpperCase().startsWith('OPEN') ||
+      (e.referenceId || '').toUpperCase().startsWith('OPEN') ||
+      (e.note || '').toLowerCase().includes('opening balance') ||
+      (e.note || '').toLowerCase().includes('initial balance')
+  );
+  const hasOpeningEntry = Boolean(openingEntry);
+
   const totalDebits = entries.filter((e) => e.type === 'DEBIT').reduce((s, e) => s + e.amount, 0);
   const totalCredits = entries.filter((e) => e.type === 'CREDIT').reduce((s, e) => s + e.amount, 0);
-  const rawBalance = entries.length > 0 ? totalDebits - totalCredits : openingBalance;
-  const currentOutstanding = Math.max(0, rawBalance);
+
+  const effectiveOpeningBalance = hasOpeningEntry
+    ? 0
+    : Math.max(0, vendor?.openingBalance ?? 0);
+
+  const reportedOpeningBalance = hasOpeningEntry
+    ? (openingEntry?.amount ?? vendor?.openingBalance ?? 0)
+    : (vendor?.openingBalance ?? (entries.length === 0 ? (vendor?.currentBalance ?? 0) : 0));
+
+  const rawBalance =
+    entries.length > 0
+      ? effectiveOpeningBalance + totalDebits - totalCredits
+      : Math.max(0, vendor?.openingBalance ?? vendor?.currentBalance ?? 0);
+
+  const currentOutstanding = Math.max(0, Math.round(rawBalance * 100) / 100);
 
   return {
-    openingBalance,
+    openingBalance: reportedOpeningBalance,
     totalDebits,
     totalCredits,
     currentOutstanding,
     advanceBalance: 0,
+    availableCredit: creditLimit > 0 ? Math.max(0, creditLimit - currentOutstanding) : 0,
     lastLedgerBalance: currentOutstanding,
   };
 }
@@ -259,21 +284,41 @@ const mockEntries = [
 const s1 = calculateVendorSummary(mockEntries, { currentBalance: 0 });
 console.log('Test 6 (Zero Due / Fully Settled Calculation):', s1.currentOutstanding === 0, s1.advanceBalance === 0, s1.lastLedgerBalance === 0);
 
-// Test 7: Standard Outstanding Calculation
+// Test 7: Standard Outstanding Calculation when vendor.currentBalance > 0 (No double count!)
 const mockEntries2 = [
   { type: 'DEBIT', amount: 8000 },
   { type: 'CREDIT', amount: 3000 },
 ];
-const s2 = calculateVendorSummary(mockEntries2, { currentBalance: 0 });
-console.log('Test 7 (Standard Outstanding Calculation):', s2.currentOutstanding === 5000, s2.advanceBalance === 0);
+const s2 = calculateVendorSummary(mockEntries2, { currentBalance: 5000 });
+console.log('Test 7 (Standard Outstanding Calculation with vendor.currentBalance):', s2.currentOutstanding === 5000, s2.advanceBalance === 0);
 
-// Test 8: Settled Status Formatter
+// Test 8: Opening Balance in ledger with 'OPENING-BAL' reference
+const mockEntries3 = [
+  { type: 'DEBIT', amount: 2000, referenceNo: 'OPENING-BAL', sourceType: 'OPENING_BALANCE' },
+  { type: 'DEBIT', amount: 5000, referenceNo: 'INV-101' },
+  { type: 'CREDIT', amount: 3000, referenceNo: 'PAY-101' },
+];
+const s3 = calculateVendorSummary(mockEntries3, { openingBalance: 2000, currentBalance: 4000 });
+console.log('Test 8 (Opening Balance in ledger):', s3.currentOutstanding === 4000, s3.openingBalance === 2000);
+
+// Test 9: Legacy vendor with openingBalance but no ledger entry
+const mockEntries4 = [
+  { type: 'DEBIT', amount: 5000, referenceNo: 'INV-101' },
+];
+const s4 = calculateVendorSummary(mockEntries4, { openingBalance: 1500, currentBalance: 6500 });
+console.log('Test 9 (Legacy opening balance without ledger entry):', s4.currentOutstanding === 6500, s4.openingBalance === 1500);
+
+// Test 10: Brand new vendor with zero entries
+const s5 = calculateVendorSummary([], { currentBalance: 2500 });
+console.log('Test 10 (Zero entries fallback to currentBalance):', s5.currentOutstanding === 2500);
+
+// Test 11: Settled Status Formatter
 const t8 = formatTransaction({
   id: 'tx-8',
   type: 'CREDIT',
   amount: 5000,
   runningBalance: 0,
 }, 'ADMIN');
-console.log('Test 8 (Settled Status Formatter):', t8.balanceStatus === 'SETTLED', t8.balanceLabel === 'Settled (₹0.00)');
+console.log('Test 11 (Settled Status Formatter):', t8.balanceStatus === 'SETTLED', t8.balanceLabel === 'Settled (₹0.00)');
 
 console.log('ALL KHATA VERIFICATION TESTS PASSED SUCCESSFULLY!');

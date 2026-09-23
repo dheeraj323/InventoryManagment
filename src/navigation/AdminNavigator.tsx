@@ -14,6 +14,7 @@ import { StaffSettlementsScreen } from '../screens/admin/StaffSettlementsScreen'
 import { AuditHistoryScreen } from '../screens/admin/AuditHistoryScreen';
 import { StaffApprovalScreen } from '../screens/admin/StaffApprovalScreen';
 import { AdminProfileScreen } from '../screens/admin/AdminProfileScreen';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography } from '../theme';
 
 const Stack = createNativeStackNavigator();
@@ -75,6 +76,8 @@ const AdminProfileStack = () => (
 );
 
 export const AdminNavigator: React.FC = () => {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -84,8 +87,8 @@ export const AdminNavigator: React.FC = () => {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          height: 60,
-          paddingBottom: 8,
+          height: 60 + Math.max(insets.bottom, 0),
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
           paddingTop: 8,
         },
         tabBarLabelStyle: {

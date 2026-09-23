@@ -58,7 +58,7 @@ export interface Staff {
   staffId?: string;
   name: string;
   phone: string;
-  activeArea: string;
+  activeArea?: string;
   todayAssignedDeliveries: number;
   cashInHand: number;
   active?: boolean;

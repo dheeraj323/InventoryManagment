@@ -55,11 +55,11 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
     const vendor = useVendorStore.getState().getVendorById(entryData.partyId);
     const prevBalance =
       partyEntries.length > 0
-        ? partyEntries[0].runningBalance
+        ? (partyEntries[0].runningBalance ?? vendor?.currentBalance ?? 0)
         : (vendor?.currentBalance ?? 0);
 
     const delta = entryData.type === 'DEBIT' ? entryData.amount : -entryData.amount;
-    const newRunningBalance = prevBalance + delta;
+    const newRunningBalance = Math.max(0, Math.round((prevBalance + delta) * 100) / 100);
 
     const newEntry: LedgerEntry = {
       ...entryData,
@@ -119,18 +119,34 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
   },
 
   getLedgerForParty: (partyId: string) => {
-    return get()
-      .entries.filter((e) => e.partyId === partyId || e.accountId === partyId)
-      .sort((a, b) => {
-        const timeA = new Date(a.date || a.createdAt || 0).getTime();
-        const timeB = new Date(b.date || b.createdAt || 0).getTime();
-        if (timeB !== timeA) return timeB - timeA;
-        // Deterministic secondary sort: in descending chronological order,
-        // CREDIT (payment settlement) occurred after DEBIT (invoice billing)
-        if (a.type === 'CREDIT' && b.type === 'DEBIT') return -1;
-        if (a.type === 'DEBIT' && b.type === 'CREDIT') return 1;
-        return 0;
-      });
+    const raw = get().entries.filter(
+      (e) => e.partyId === partyId || e.accountId === partyId
+    );
+
+    // Deduplicate by entry ID or idempotencyKey to protect against retry duplicates
+    const seenIds = new Set<string>();
+    const seenIdempotencyKeys = new Set<string>();
+    const uniqueEntries: LedgerEntry[] = [];
+
+    for (const entry of raw) {
+      if (entry.id && seenIds.has(entry.id)) continue;
+      if (entry.idempotencyKey && seenIdempotencyKeys.has(entry.idempotencyKey)) continue;
+
+      if (entry.id) seenIds.add(entry.id);
+      if (entry.idempotencyKey) seenIdempotencyKeys.add(entry.idempotencyKey);
+      uniqueEntries.push(entry);
+    }
+
+    return uniqueEntries.sort((a, b) => {
+      const timeA = new Date(a.date || a.createdAt || 0).getTime();
+      const timeB = new Date(b.date || b.createdAt || 0).getTime();
+      if (timeB !== timeA) return timeB - timeA;
+      // Deterministic secondary sort: in descending chronological order,
+      // CREDIT (payment settlement) occurred after DEBIT (invoice billing)
+      if (a.type === 'CREDIT' && b.type === 'DEBIT') return -1;
+      if (a.type === 'DEBIT' && b.type === 'CREDIT') return 1;
+      return 0;
+    });
   },
 
   getPartyRunningBalance: (partyId: string) => {
@@ -143,15 +159,17 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
     const vendorObj = vendor || useVendorStore.getState().getVendorById(partyId);
 
     const creditLimit = vendorObj?.creditLimit ?? 0;
-    // openingBalance: use explicitly set opening balance, or fall back to currentBalance
-    // (for migrated vendors who had a balance before ledger entries were created)
-    const openingBalance = vendorObj?.openingBalance ?? vendorObj?.currentBalance ?? 0;
 
-    // Check if there is an explicit opening balance entry in the ledger
-    const hasOpeningEntry = entries.some(
-      (e) => e.sourceType === 'OPENING_BALANCE' || (e.referenceNo || '').startsWith('OPEN-')
+    // Detect if an opening balance entry was posted to the ledger
+    const openingEntry = entries.find(
+      (e) =>
+        e.sourceType === 'OPENING_BALANCE' ||
+        (e.referenceNo || '').toUpperCase().startsWith('OPEN') ||
+        (e.referenceId || '').toUpperCase().startsWith('OPEN') ||
+        (e.note || '').toLowerCase().includes('opening balance') ||
+        (e.note || '').toLowerCase().includes('initial balance')
     );
-    const effectiveOpeningBalance = hasOpeningEntry ? 0 : openingBalance;
+    const hasOpeningEntry = Boolean(openingEntry);
 
     // Total Invoiced = Sum of all DEBIT entries
     const totalDebits = entries
@@ -163,13 +181,26 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
       .filter((e) => e.type === 'CREDIT')
       .reduce((sum, e) => sum + e.amount, 0);
 
-    // Outstanding Due = Effective Opening Balance + Total Debits − Total Credits (clamped to >= 0)
+    // Opening balance logic:
+    // If an explicit opening entry exists in the ledger, it is ALREADY included in totalDebits.
+    // If not in the ledger, use vendorObj.openingBalance (if set).
+    // NEVER fall back to vendorObj.currentBalance when entries exist, because currentBalance
+    // already reflects totalDebits - totalCredits!
+    const effectiveOpeningBalance = hasOpeningEntry
+      ? 0
+      : Math.max(0, vendorObj?.openingBalance ?? 0);
+
+    const reportedOpeningBalance = hasOpeningEntry
+      ? (openingEntry?.amount ?? vendorObj?.openingBalance ?? 0)
+      : (vendorObj?.openingBalance ?? (entries.length === 0 ? (vendorObj?.currentBalance ?? 0) : 0));
+
+    // Outstanding Due = Effective Opening Balance + Total Debits − Total Credits
     const rawBalance =
       entries.length > 0
         ? effectiveOpeningBalance + totalDebits - totalCredits
-        : openingBalance;
+        : Math.max(0, vendorObj?.openingBalance ?? vendorObj?.currentBalance ?? 0);
 
-    const currentOutstanding = Math.max(0, rawBalance);
+    const currentOutstanding = Math.max(0, Math.round(rawBalance * 100) / 100);
     const advanceBalance = 0; // Advance is not supported in the system
     const overdueAmount = 0; // Baseline; derived from individual invoice due dates if applicable
 
@@ -182,7 +213,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
       vendorName: vendorObj?.name ?? '',
       shopName: vendorObj?.shopName ?? '',
       creditLimit,
-      openingBalance,
+      openingBalance: reportedOpeningBalance,
       totalDebits,
       totalCredits,
       currentOutstanding,

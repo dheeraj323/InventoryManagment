@@ -38,17 +38,29 @@ function cleanFirestoreData<T extends Record<string, any>>(obj: T): T {
   return cleaned;
 }
 
+const normalizeOrder = (docSnap: any): Order => {
+  const data = docSnap.data();
+  const order: Order = {
+    id: docSnap.id,
+    orderId: docSnap.id,
+    ...data,
+  };
+  // Pending orders are unapproved by definition and cannot have assigned delivery staff
+  if (order.status === 'PENDING') {
+    order.assignedStaffId = undefined;
+    order.assignedStaffName = undefined;
+    order.assignedStaffPhone = undefined;
+  }
+  return order;
+};
+
 export const orderService = {
   // Fetch all orders
   getOrders: async (): Promise<Order[]> => {
     try {
       const q = query(collection(db, ORDERS_COLLECTION), orderBy('orderDate', 'desc'));
       const snapshot = await getDocs(q);
-      return snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        orderId: docSnap.id,
-        ...docSnap.data(),
-      })) as Order[];
+      return snapshot.docs.map(normalizeOrder);
     } catch (error) {
       console.error('Error fetching orders:', error);
       return [];
@@ -65,11 +77,7 @@ export const orderService = {
     }
 
     return onSnapshot(q, (snapshot) => {
-      const orders = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        orderId: docSnap.id,
-        ...docSnap.data(),
-      })) as Order[];
+      const orders = snapshot.docs.map(normalizeOrder);
       // Client-side sort by date descending
       orders.sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime());
       callback(orders);

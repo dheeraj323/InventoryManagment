@@ -3,13 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Header } from '../../components/common/Header';
@@ -107,7 +107,6 @@ export const StaffProfileScreen: React.FC = () => {
   const displayName = currentUser?.name || 'Staff Member';
   const displayPhone = currentUser?.phone || '';
   const displayEmail = currentUser?.email || 'Not specified';
-  const displayArea = currentUser?.area || 'All Assigned Areas';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -244,11 +243,6 @@ export const StaffProfileScreen: React.FC = () => {
                   <Text style={styles.infoValue}>
                     {displayPhone ? `+91 ${displayPhone}` : 'Not added'}
                   </Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Assigned Delivery Area</Text>
-                  <Text style={styles.infoValue}>{displayArea}</Text>
                 </View>
 
                 <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>

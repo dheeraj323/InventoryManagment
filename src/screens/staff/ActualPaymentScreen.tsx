@@ -3,10 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -103,87 +105,92 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
         onBackPress={() => navigation.goBack()}
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Preferred vs Actual Payment Warning */}
-        <View style={styles.noticeBanner}>
-          <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
-          <Text style={styles.noticeText}>
-            Vendor Preferred: {PAYMENT_METHOD_LABELS[order.preferredPaymentMode]}. Record the actual payment method received at shop counter.
-          </Text>
-        </View>
-
-        {/* Payment Method Selector */}
-        <Card style={styles.card} outlined elevation="sm">
-          <Text style={styles.cardTitle}>ACTUAL PAYMENT METHOD RECEIVED</Text>
-
-          {(['CASH', 'ONLINE', 'PAY_LATER', 'PARTIALLY_PAID', 'PENDING'] as PaymentMethod[]).map(
-            (method) => {
-              const isSelected = actualMethod === method;
-              return (
-                <TouchableOpacity
-                  key={method}
-                  style={[
-                    styles.methodOption,
-                    isSelected ? styles.methodOptionSelected : null,
-                  ]}
-                  onPress={() => {
-                    setActualMethod(method);
-                    if (method === 'PAY_LATER' || method === 'PENDING') {
-                      setAmountCollectedStr('0');
-                    } else if (method === 'CASH' || method === 'ONLINE') {
-                      setAmountCollectedStr((calculatedTotal || order.totalAmount).toString());
-                    }
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.radioCircle}>
-                    {isSelected && <View style={styles.radioDot} />}
-                  </View>
-                  <Text style={styles.methodName}>{PAYMENT_METHOD_LABELS[method]}</Text>
-                </TouchableOpacity>
-              );
-            }
-          )}
-        </Card>
-
-        {/* Amount Collected Input */}
-        <Card style={styles.card} outlined elevation="sm">
-          <Text style={styles.cardTitle}>COLLECTED AMOUNT RECORD</Text>
-          <Input
-            label="Actual Cash/Online Amount Collected (₹)"
-            value={amountCollectedStr}
-            onChangeText={setAmountCollectedStr}
-            keyboardType="numeric"
-            prefix="₹"
-          />
-          <Input
-            label="Proof / Transaction Ref / Delivery Notes"
-            placeholder="e.g. Handed cash to Suresh or UPI Txn ID"
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={2}
-          />
-        </Card>
-
-        {errorMsg ? (
-          <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle" size={18} color={colors.danger} />
-            <Text style={styles.errorBannerText}>{errorMsg}</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          {/* Preferred vs Actual Payment Warning */}
+          <View style={styles.noticeBanner}>
+            <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
+            <Text style={styles.noticeText}>
+              Vendor Preferred: {PAYMENT_METHOD_LABELS[order.preferredPaymentMode]}. Record the actual payment method received at shop counter.
+            </Text>
           </View>
-        ) : null}
-      </ScrollView>
 
-      {/* Confirm Delivery Button */}
-      <View style={styles.footerContainer}>
-        <Button
-          title="Confirm Delivery & Record Payment"
-          onPress={handleConfirmDeliveryAndPayment}
-          loading={loading}
-          size="lg"
-          style={styles.submitBtn}
-        />
-      </View>
+          {/* Payment Method Selector */}
+          <Card style={styles.card} outlined elevation="sm">
+            <Text style={styles.cardTitle}>ACTUAL PAYMENT METHOD RECEIVED</Text>
+
+            {(['CASH', 'ONLINE', 'PAY_LATER', 'PARTIALLY_PAID', 'PENDING'] as PaymentMethod[]).map(
+              (method) => {
+                const isSelected = actualMethod === method;
+                return (
+                  <TouchableOpacity
+                    key={method}
+                    style={[
+                      styles.methodOption,
+                      isSelected ? styles.methodOptionSelected : null,
+                    ]}
+                    onPress={() => {
+                      setActualMethod(method);
+                      if (method === 'PAY_LATER' || method === 'PENDING') {
+                        setAmountCollectedStr('0');
+                      } else if (method === 'CASH' || method === 'ONLINE') {
+                        setAmountCollectedStr((calculatedTotal || order.totalAmount).toString());
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.radioCircle}>
+                      {isSelected && <View style={styles.radioDot} />}
+                    </View>
+                    <Text style={styles.methodName}>{PAYMENT_METHOD_LABELS[method]}</Text>
+                  </TouchableOpacity>
+                );
+              }
+            )}
+          </Card>
+
+          {/* Amount Collected Input */}
+          <Card style={styles.card} outlined elevation="sm">
+            <Text style={styles.cardTitle}>COLLECTED AMOUNT RECORD</Text>
+            <Input
+              label="Actual Cash/Online Amount Collected (₹)"
+              value={amountCollectedStr}
+              onChangeText={setAmountCollectedStr}
+              keyboardType="numeric"
+              prefix="₹"
+            />
+            <Input
+              label="Proof / Transaction Ref / Delivery Notes"
+              placeholder="e.g. Handed cash to Suresh or UPI Txn ID"
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+              numberOfLines={2}
+            />
+          </Card>
+
+          {errorMsg ? (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle" size={18} color={colors.danger} />
+              <Text style={styles.errorBannerText}>{errorMsg}</Text>
+            </View>
+          ) : null}
+        </ScrollView>
+
+        {/* Confirm Delivery Button */}
+        <View style={styles.footerContainer}>
+          <Button
+            title="Confirm Delivery & Record Payment"
+            onPress={handleConfirmDeliveryAndPayment}
+            loading={loading}
+            size="lg"
+            style={styles.submitBtn}
+          />
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

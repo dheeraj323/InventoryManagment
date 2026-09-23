@@ -3,14 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
   Modal,
-  TextInput,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/useAuthStore';
 import { User } from '../../types';
@@ -22,7 +21,6 @@ export const StaffApprovalScreen: React.FC<{ navigation: any }> = ({ navigation 
   const { pendingStaff, fetchPendingStaff, approveStaff, rejectStaff, promoteToAdmin } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<User | null>(null);
-  const [assignedArea, setAssignedArea] = useState('Central Zone');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -38,7 +36,6 @@ export const StaffApprovalScreen: React.FC<{ navigation: any }> = ({ navigation 
 
   const handleOpenApproveModal = (staff: User) => {
     setSelectedStaff(staff);
-    setAssignedArea(staff.area || 'Central Zone');
     setIsModalVisible(true);
   };
 
@@ -46,7 +43,7 @@ export const StaffApprovalScreen: React.FC<{ navigation: any }> = ({ navigation 
     if (!selectedStaff) return;
     setActionLoading(true);
     try {
-      await approveStaff(selectedStaff.id, selectedStaff.staffId || '', assignedArea);
+      await approveStaff(selectedStaff.id, selectedStaff.staffId || '');
       setIsModalVisible(false);
       Alert.alert('Staff Approved', `${selectedStaff.name} is now verified and can log in.`);
       fetchPendingStaff();
@@ -127,10 +124,6 @@ export const StaffApprovalScreen: React.FC<{ navigation: any }> = ({ navigation 
           <Ionicons name="call-outline" size={14} color={colors.textMuted} />
           <Text style={styles.detailText}>{item.phone || 'No phone'}</Text>
         </View>
-        <View style={styles.detailItem}>
-          <Ionicons name="location-outline" size={14} color={colors.textMuted} />
-          <Text style={styles.detailText}>{item.area || 'General Area'}</Text>
-        </View>
       </View>
 
       <View style={styles.cardActions}>
@@ -197,26 +190,15 @@ export const StaffApprovalScreen: React.FC<{ navigation: any }> = ({ navigation 
         />
       )}
 
-      {/* Approval & Area Assignment Modal */}
+      {/* Approval Modal */}
       <Modal visible={isModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Verify & Assign Staff</Text>
+            <Text style={styles.modalTitle}>Verify Staff Account</Text>
             <Text style={styles.modalSub}>
-              Assign delivery operational zone for{' '}
-              <Text style={{ fontWeight: '700' }}>{selectedStaff?.name}</Text>:
+              Approve account for{' '}
+              <Text style={{ fontWeight: '700' }}>{selectedStaff?.name}</Text> as Delivery Staff.
             </Text>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Assigned Route / Delivery Area</Text>
-              <TextInput
-                style={styles.textInput}
-                value={assignedArea}
-                onChangeText={setAssignedArea}
-                placeholder="e.g. North Zone, Market Route, South Sector"
-                placeholderTextColor={colors.textMuted}
-              />
-            </View>
 
             <View style={styles.modalActions}>
               <Button
@@ -227,7 +209,7 @@ export const StaffApprovalScreen: React.FC<{ navigation: any }> = ({ navigation 
                 disabled={actionLoading}
               />
               <Button
-                title={actionLoading ? 'Approving...' : 'Approve as Staff'}
+                title={actionLoading ? 'Approving...' : 'Approve Staff'}
                 variant="primary"
                 onPress={handleConfirmApprove}
                 style={styles.modalConfirmBtn}
@@ -417,23 +399,6 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textSecondary,
     marginBottom: spacing.lg,
-  },
-  inputGroup: {
-    marginBottom: spacing.lg,
-  },
-  inputLabel: {
-    ...typography.captionBold,
-    color: colors.textPrimary,
-    marginBottom: spacing.xs,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: spacing.borderRadiusSm,
-    padding: spacing.md,
-    ...typography.body,
-    color: colors.textPrimary,
-    backgroundColor: colors.surfaceSubtle,
   },
   modalActions: {
     flexDirection: 'row',

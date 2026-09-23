@@ -190,6 +190,7 @@ export const authService = {
       address: params.address?.trim() || '',
       area: params.area?.trim() || 'Central',
       vendorType: 'Retailer',
+      openingBalance: 0,
       currentBalance: 0,
       currentOutstanding: 0,
       creditLimit: 0,
@@ -241,7 +242,6 @@ export const authService = {
     email: string;
     pass: string;
     phone: string;
-    preferredArea?: string;
   }): Promise<User> => {
     const trimmedEmail = params.email.trim().toLowerCase();
     const cred = await createUserWithEmailAndPassword(auth, trimmedEmail, params.pass);
@@ -255,7 +255,6 @@ export const authService = {
       staffId,
       name: params.name.trim(),
       phone: params.phone.trim(),
-      activeArea: params.preferredArea?.trim() || 'Unassigned',
       todayAssignedDeliveries: 0,
       cashInHand: 0,
       active: false,
@@ -281,7 +280,6 @@ export const authService = {
       status: 'PENDING_VERIFICATION',
       active: false,
       staffId,
-      area: params.preferredArea?.trim() || 'Unassigned',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -333,7 +331,6 @@ export const authService = {
           staffId: u.staffId || d.id,
           name: u.name || 'Staff Member',
           phone: u.phone || '',
-          activeArea: u.area || 'All Areas',
           todayAssignedDeliveries: 0,
           cashInHand: 0,
           active: true,
@@ -346,12 +343,11 @@ export const authService = {
   },
 
   // ── 6. Admin Actions: Approve Staff Member ──────────────────────────────────
-  approveStaff: async (userId: string, staffId: string, assignedArea?: string): Promise<void> => {
+  approveStaff: async (userId: string, staffId: string): Promise<void> => {
     const userRef = doc(db, 'users', userId);
     await updateDoc(userRef, {
       status: 'ACTIVE',
       active: true,
-      area: assignedArea || 'Central Zone',
       updatedAt: serverTimestamp(),
     });
 
@@ -359,7 +355,6 @@ export const authService = {
       const staffRef = doc(db, 'staff', staffId);
       await updateDoc(staffRef, {
         active: true,
-        activeArea: assignedArea || 'Central Zone',
         updatedAt: serverTimestamp(),
       });
     }

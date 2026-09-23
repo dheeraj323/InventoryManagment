@@ -3,11 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCashStore } from '../../store/useCashStore';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -32,8 +34,8 @@ export const CashSettlementScreen: React.FC<{ navigation: any }> = ({ navigation
   const { orders } = useOrderStore();
 
   const staff = {
-    id: activeStaffId || 'staff-1',
-    name: currentUser?.name || 'Suresh Kumar',
+    id: activeStaffId || currentUser?.staffId || '',
+    name: currentUser?.name || 'Delivery Staff',
   };
 
   const expectedCash = getStaffCashInHand(staff.id, orders);
@@ -129,10 +131,15 @@ export const CashSettlementScreen: React.FC<{ navigation: any }> = ({ navigation
         }}
       />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* ── 1. Hero Expected Cash & Entry Card ────────────────────── */}
         <Card style={styles.heroCard} outlined elevation="sm">
           {/* Card Top: Expected Balance */}
@@ -329,6 +336,7 @@ export const CashSettlementScreen: React.FC<{ navigation: any }> = ({ navigation
           </Card>
         )}
       </ScrollView>
+    </KeyboardAvoidingView>
 
       {/* Confirmation Modal */}
       <ConfirmationModal

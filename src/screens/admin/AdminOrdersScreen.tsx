@@ -3,11 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useOrderStore } from '../../store/useOrderStore';
 import { OrderCard } from '../../components/orders/OrderCard';
 import { Header } from '../../components/common/Header';

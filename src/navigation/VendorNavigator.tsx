@@ -10,6 +10,7 @@ import { VendorOrdersScreen } from '../screens/vendor/VendorOrdersScreen';
 import { VendorOrderDetailScreen } from '../screens/vendor/VendorOrderDetailScreen';
 import { VendorLedgerScreen } from '../screens/vendor/VendorLedgerScreen';
 import { ProfileScreen } from '../screens/vendor/ProfileScreen';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography } from '../theme';
 
 const Stack = createNativeStackNavigator();
@@ -61,6 +62,8 @@ const VendorProfileStack = () => (
 );
 
 export const VendorNavigator: React.FC = () => {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -70,8 +73,8 @@ export const VendorNavigator: React.FC = () => {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          height: 60,
-          paddingBottom: 8,
+          height: 60 + Math.max(insets.bottom, 0),
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
           paddingTop: 8,
         },
         tabBarLabelStyle: {
