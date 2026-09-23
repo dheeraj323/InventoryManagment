@@ -63,7 +63,7 @@ export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
     statusText = isVendor ? 'Payment Due' : 'Pending Due';
     statusTextColor = '#B45309';
     statusBgColor = '#FEF3C7';
-    amountColor = colors.textPrimary;
+    amountColor = isVendor ? colors.debit : colors.brandGreen;
   }
 
   return (

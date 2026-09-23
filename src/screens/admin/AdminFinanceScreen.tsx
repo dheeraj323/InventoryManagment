@@ -108,7 +108,7 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
         <View style={styles.summaryGrid}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Total Receivables</Text>
-            <Text style={[styles.summaryAmount, { color: colors.debit }]}>
+            <Text style={[styles.summaryAmount, { color: colors.brandGreen }]}>
               ₹{fmt(totalReceivables)}
             </Text>
             <Text style={styles.summarySub}>From {vendorBalances.filter((v) => v.outstanding > 0).length} retailers</Text>
@@ -116,7 +116,7 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
 
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Total Payables</Text>
-            <Text style={[styles.summaryAmount, { color: colors.textPrimary }]}>
+            <Text style={[styles.summaryAmount, { color: colors.debit }]}>
               ₹{fmt(totalPayables)}
             </Text>
             <Text style={styles.summarySub}>To {suppliers.length} suppliers</Text>
@@ -250,9 +250,9 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
                           style={[
                             styles.amountText,
                             hasDue
-                              ? { color: colors.debit }
-                              : hasAdvance
                               ? { color: colors.brandGreen }
+                              : hasAdvance
+                              ? { color: colors.accent }
                               : { color: colors.textMuted },
                           ]}
                         >
@@ -325,10 +325,22 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
                       </View>
 
                       <View style={styles.rowRight}>
-                        <Text style={[styles.amountText, { color: colors.textPrimary }]}>
+                        <Text
+                          style={[
+                            styles.amountText,
+                            { color: payable > 0 ? colors.debit : colors.textMuted },
+                          ]}
+                        >
                           ₹{fmt(payable)}
                         </Text>
-                        <Text style={styles.viewKhataLabel}>Payable</Text>
+                        <Text
+                          style={[
+                            styles.viewKhataLabel,
+                            { color: payable > 0 ? colors.debit : colors.textMuted },
+                          ]}
+                        >
+                          Payable
+                        </Text>
                       </View>
                     </TouchableOpacity>
                   );
