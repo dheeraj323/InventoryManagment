@@ -96,27 +96,42 @@ export const VendorNavigator: React.FC = () => {
       <Tab.Screen
         name="VendorDashboardTab"
         component={VendorHomeStack}
-        options={{ title: 'Home' }}
+        options={{ title: 'Home', unmountOnBlur: true }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('VendorDashboardTab', { screen: 'VendorDashboard' });
+          },
+        })}
       />
       <Tab.Screen
         name="ProductCatalogTab"
         component={VendorCatalogStack}
-        options={{ title: 'Catalog' }}
+        options={{ title: 'Catalog', unmountOnBlur: true }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('ProductCatalogTab', { screen: 'ProductCatalog' });
+          },
+        })}
       />
       <Tab.Screen
         name="VendorOrdersTab"
         component={VendorOrdersStack}
-        options={{ title: 'Orders' }}
+        options={{ title: 'Orders', unmountOnBlur: true }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('VendorOrdersTab', { screen: 'VendorOrdersMain' });
+          },
+        })}
       />
       <Tab.Screen
         name="VendorLedgerTab"
         component={VendorLedgerStack}
-        options={{ title: 'Ledger' }}
+        options={{ title: 'Ledger', unmountOnBlur: true }}
       />
       <Tab.Screen
         name="VendorProfileTab"
         component={VendorProfileStack}
-        options={{ title: 'Profile' }}
+        options={{ title: 'Profile', unmountOnBlur: true }}
       />
     </Tab.Navigator>
   );

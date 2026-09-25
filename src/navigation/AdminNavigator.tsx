@@ -126,27 +126,47 @@ export const AdminNavigator: React.FC = () => {
       <Tab.Screen
         name="AdminDashboardTab"
         component={AdminHomeStack}
-        options={{ title: 'Overview' }}
+        options={{ title: 'Overview', unmountOnBlur: true }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('AdminDashboardTab', { screen: 'AdminDashboard' });
+          },
+        })}
       />
       <Tab.Screen
         name="AdminOrdersTab"
         component={AdminOrdersStack}
-        options={{ title: 'Orders' }}
+        options={{ title: 'Orders', unmountOnBlur: true }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('AdminOrdersTab', { screen: 'AdminOrders' });
+          },
+        })}
       />
       <Tab.Screen
         name="VendorListTab"
         component={AdminVendorsStack}
-        options={{ title: 'Vendors' }}
+        options={{ title: 'Vendors', unmountOnBlur: true }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('VendorListTab', { screen: 'VendorList' });
+          },
+        })}
       />
       <Tab.Screen
         name="AdminFinanceTab"
         component={AdminFinanceStack}
-        options={{ title: 'Finance' }}
+        options={{ title: 'Finance', unmountOnBlur: true }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('AdminFinanceTab', { screen: 'AdminFinance' });
+          },
+        })}
       />
       <Tab.Screen
         name="AdminProfileTab"
         component={AdminProfileStack}
-        options={{ title: 'Profile' }}
+        options={{ title: 'Profile', unmountOnBlur: true }}
       />
     </Tab.Navigator>
   );
