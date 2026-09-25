@@ -111,7 +111,20 @@ export const ProfileScreen: React.FC = () => {
     setIsEditing(false);
   };
 
+  const isPasswordAdminManaged = Boolean(
+    currentUser?.passwordManagedByAdmin || vendor?.passwordManagedByAdmin
+  );
+
   const handlePasswordReset = () => {
+    if (isPasswordAdminManaged) {
+      Alert.alert(
+        'Password Managed by Administrator',
+        'Your login credentials are created and managed by the administrator. Please contact the administrator to update or change your password.',
+        [{ text: 'Got It' }]
+      );
+      return;
+    }
+
     if (!currentUser?.email) return;
     Alert.alert(
       'Reset Password',
@@ -292,10 +305,21 @@ export const ProfileScreen: React.FC = () => {
                   <Text style={styles.infoValue}>{displayProprietorName}</Text>
                 </View>
 
+                {Boolean(currentUser?.username || vendor?.username) && (
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Username</Text>
+                    <Text style={styles.infoValue}>
+                      {currentUser?.username || vendor?.username}
+                    </Text>
+                  </View>
+                )}
+
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Email</Text>
+                  <Text style={styles.infoLabel}>Email / Login ID</Text>
                   <Text style={styles.infoValue}>
-                    {currentUser?.email || 'Not specified'}
+                    {currentUser?.username
+                      ? `${currentUser.username}`
+                      : currentUser?.email || 'Not specified'}
                   </Text>
                 </View>
 
@@ -325,8 +349,19 @@ export const ProfileScreen: React.FC = () => {
                 activeOpacity={0.7}
               >
                 <Ionicons name="key-outline" size={18} color="#64748B" />
-                <Text style={styles.menuText}>Change Password</Text>
-                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                  <Text style={styles.menuText}>Change Password</Text>
+                  {isPasswordAdminManaged && (
+                    <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>
+                      Managed by Administrator
+                    </Text>
+                  )}
+                </View>
+                {isPasswordAdminManaged ? (
+                  <Ionicons name="lock-closed" size={16} color={colors.textMuted} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity

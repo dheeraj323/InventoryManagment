@@ -5,6 +5,7 @@ export interface User {
   id: string;
   uid?: string;
   name: string;
+  username?: string;
   phone: string;
   email: string;
   role: UserRole;
@@ -16,6 +17,8 @@ export interface User {
   area?: string;
   address?: string;
   avatarUrl?: string;
+  passwordManagedByAdmin?: boolean;
+  customPassword?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -29,6 +32,7 @@ export interface Vendor {
   ownerName?: string;
   shopName: string;
   businessName?: string;
+  username?: string;
   phone: string;
   email?: string;
   address?: string;
@@ -46,6 +50,7 @@ export interface Vendor {
   payLaterEligible: boolean;
   payLaterEnabled?: boolean;
   preferredPaymentMode: 'CASH' | 'ONLINE' | 'PAY_LATER';
+  passwordManagedByAdmin?: boolean;
   status?: VendorStatus;
   active?: boolean;
   notes?: string;

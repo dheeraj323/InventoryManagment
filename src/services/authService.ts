@@ -1,11 +1,14 @@
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  updatePassword,
   signOut,
   onAuthStateChanged,
   sendPasswordResetEmail,
   User as FirebaseUser,
 } from 'firebase/auth';
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import {
   doc,
   getDoc,
@@ -18,10 +21,18 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { auth, db } from '../config/firebase';
+import { auth, db, firebaseConfig } from '../config/firebase';
 import { User, UserRole, AccountStatus, Vendor, Staff } from '../types';
 
 const USER_PROFILE_CACHE_KEY = '@panihaar_user_profile';
+
+// Secondary Auth instance to create or manage credentials without logging out current user (Admin)
+const getSecondaryAuth = () => {
+  const appName = 'SecondaryAdminVendorApp';
+  const existingApp = getApps().find((a) => a.name === appName);
+  const app = existingApp || initializeApp(firebaseConfig, appName);
+  return getAuth(app);
+};
 
 export const authService = {
   // ── 1. Listen to Auth State Changes ─────────────────────────────────────────
@@ -110,46 +121,94 @@ export const authService = {
     });
   },
 
-  // ── 2. Sign In with Email & Password ────────────────────────────────────────
-  signInWithEmail: async (email: string, pass: string): Promise<User> => {
-    const trimmedEmail = email.trim().toLowerCase();
-    const cred = await signInWithEmailAndPassword(auth, trimmedEmail, pass);
+  // ── 2. Sign In with Email or Username & Password ────────────────────────────
+  signInWithEmail: async (emailOrUsername: string, pass: string): Promise<User> => {
+    const trimmed = emailOrUsername.trim();
+    let targetEmail = trimmed.toLowerCase();
 
-    const uid = cred.user.uid;
-    const userDocRef = doc(db, 'users', uid);
-    const userSnap = await getDoc(userDocRef);
+    // If identifier doesn't contain '@', resolve username from Firestore
+    if (!trimmed.includes('@')) {
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('username', '==', trimmed.toLowerCase()));
+      const snap = await getDocs(q);
 
-    if (userSnap.exists()) {
-      const userData = userSnap.data() as User;
-      return {
-        ...userData,
-        id: uid,
-        uid: uid,
-        status: userData.status || 'ACTIVE',
-      };
+      if (!snap.empty) {
+        const userData = snap.docs[0].data() as User;
+        targetEmail = userData.email?.toLowerCase() || `${trimmed.toLowerCase()}@vendor.local`;
+      } else {
+        targetEmail = `${trimmed.toLowerCase()}@vendor.local`;
+      }
     }
 
-    // Create user profile if it doesn't exist
-    const newUser: User = {
-      id: uid,
-      uid: uid,
-      name: cred.user.displayName || trimmedEmail.split('@')[0],
-      email: trimmedEmail,
-      phone: '',
-      role: 'VENDOR',
-      status: 'ACTIVE',
-      active: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      const cred = await signInWithEmailAndPassword(auth, targetEmail, pass);
+      const uid = cred.user.uid;
+      const userDocRef = doc(db, 'users', uid);
+      const userSnap = await getDoc(userDocRef);
 
-    await setDoc(userDocRef, {
-      ...newUser,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+      if (userSnap.exists()) {
+        const userData = userSnap.data() as User;
+        return {
+          ...userData,
+          id: uid,
+          uid: uid,
+          status: userData.status || 'ACTIVE',
+        };
+      }
 
-    return newUser;
+      // Create user profile if missing
+      const newUser: User = {
+        id: uid,
+        uid: uid,
+        name: cred.user.displayName || trimmed.split('@')[0],
+        email: targetEmail,
+        phone: '',
+        role: 'VENDOR',
+        status: 'ACTIVE',
+        active: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await setDoc(userDocRef, {
+        ...newUser,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      return newUser;
+    } catch (authErr: any) {
+      // If password was updated by Admin in Firestore, check and sync
+      const usersRef = collection(db, 'users');
+      const q = trimmed.includes('@')
+        ? query(usersRef, where('email', '==', targetEmail))
+        : query(usersRef, where('username', '==', trimmed.toLowerCase()));
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        const userData = snap.docs[0].data() as User;
+        if (userData.customPassword && userData.customPassword === pass) {
+          try {
+            const secAuth = getSecondaryAuth();
+            const secCred = await signInWithEmailAndPassword(secAuth, targetEmail, userData.customPassword);
+            await updatePassword(secCred.user, pass);
+            await secAuth.signOut();
+
+            const cred = await signInWithEmailAndPassword(auth, targetEmail, pass);
+            return {
+              ...userData,
+              id: cred.user.uid,
+              uid: cred.user.uid,
+              status: userData.status || 'ACTIVE',
+            };
+          } catch (syncErr) {
+            console.warn('Could not auto-sync password with secondary auth:', syncErr);
+          }
+        }
+      }
+
+      throw authErr;
+    }
   },
 
   // ── 2b. Send Password Reset Email ───────────────────────────────────────────
@@ -159,6 +218,159 @@ export const authService = {
       throw new Error('Please enter a valid email address.');
     }
     await sendPasswordResetEmail(auth, trimmedEmail);
+  },
+
+  // ── 2c. Register Vendor by Admin with Username & Password ───────────────────
+  registerVendorByAdmin: async (params: {
+    shopName: string;
+    ownerName: string;
+    phone: string;
+    address?: string;
+    username: string;
+    password: string;
+    adminName?: string;
+  }): Promise<{ vendor: Vendor; user: User }> => {
+    const cleanUsername = params.username.toLowerCase().trim().replace(/\s+/g, '_');
+    const vendorEmail = `${cleanUsername}@vendor.local`;
+    const nowStr = new Date().toISOString();
+
+    // 1. Check if username is already taken
+    const usersRef = collection(db, 'users');
+    const existingSnap = await getDocs(query(usersRef, where('username', '==', cleanUsername)));
+    if (!existingSnap.empty) {
+      throw new Error(`Username "${cleanUsername}" is already taken. Please choose another username.`);
+    }
+
+    // 2. Create Firebase Auth user using secondary auth instance so Admin session stays logged in
+    let vendorUid = `vendor-user-${Date.now().toString(36)}`;
+    try {
+      const secAuth = getSecondaryAuth();
+      const cred = await createUserWithEmailAndPassword(secAuth, vendorEmail, params.password);
+      vendorUid = cred.user.uid;
+      await secAuth.signOut();
+    } catch (authErr: any) {
+      if (authErr.code === 'auth/email-already-in-use') {
+        throw new Error(`Username "${cleanUsername}" is already registered.`);
+      }
+      console.warn('Secondary auth user creation warning:', authErr);
+    }
+
+    const vendorId = `vendor-${Date.now().toString(36)}`;
+
+    // 3. Create Vendor document
+    const vendorRef = doc(db, 'vendors', vendorId);
+    const newVendor: Vendor = {
+      id: vendorId,
+      vendorId,
+      name: params.ownerName.trim(),
+      ownerName: params.ownerName.trim(),
+      shopName: params.shopName.trim(),
+      businessName: params.shopName.trim(),
+      username: cleanUsername,
+      phone: params.phone.trim(),
+      email: vendorEmail,
+      address: params.address?.trim() || '',
+      area: 'Central',
+      vendorType: 'Retail Store',
+      paymentTerms: 'Net 15 Days',
+      creditLimit: 0,
+      openingBalance: 0,
+      currentBalance: 0,
+      currentOutstanding: 0,
+      overdueAmount: 0,
+      payLaterEligible: true,
+      payLaterEnabled: true,
+      preferredPaymentMode: 'CASH',
+      passwordManagedByAdmin: true,
+      status: 'ACTIVE',
+      active: true,
+      createdAt: nowStr,
+      updatedAt: nowStr,
+    };
+
+    await setDoc(vendorRef, {
+      ...newVendor,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    // 4. Create User document linked to vendor
+    const userRef = doc(db, 'users', vendorUid);
+    const userDoc: User = {
+      id: vendorUid,
+      uid: vendorUid,
+      name: params.ownerName.trim(),
+      username: cleanUsername,
+      email: vendorEmail,
+      phone: params.phone.trim(),
+      role: 'VENDOR',
+      status: 'ACTIVE',
+      active: true,
+      vendorId,
+      businessName: params.shopName.trim(),
+      address: params.address?.trim() || '',
+      passwordManagedByAdmin: true,
+      customPassword: params.password,
+      createdAt: nowStr,
+      updatedAt: nowStr,
+    };
+
+    await setDoc(userRef, {
+      ...userDoc,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    return { vendor: newVendor, user: userDoc };
+  },
+
+  // ── 2d. Admin Change Vendor Password ─────────────────────────────────────────
+  adminUpdateVendorPassword: async (vendorId: string, newPassword: string): Promise<void> => {
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error('Password must be at least 6 characters long.');
+    }
+
+    const usersRef = collection(db, 'users');
+    const q = query(usersRef, where('vendorId', '==', vendorId));
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      throw new Error('No user account linked to this vendor.');
+    }
+
+    const userDocSnap = snap.docs[0];
+    const userData = userDocSnap.data() as User;
+    const targetEmail = userData.email;
+
+    // Update Firestore User doc with new password
+    await updateDoc(doc(db, 'users', userDocSnap.id), {
+      customPassword: newPassword,
+      passwordManagedByAdmin: true,
+      updatedAt: serverTimestamp(),
+    });
+
+    // Also update vendor doc if present
+    try {
+      const vendorRef = doc(db, 'vendors', vendorId);
+      await updateDoc(vendorRef, {
+        passwordManagedByAdmin: true,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (vErr) {
+      console.warn('Vendor doc update warning:', vErr);
+    }
+
+    // Update Firebase Auth password using secondary auth
+    try {
+      if (userData.customPassword && targetEmail) {
+        const secAuth = getSecondaryAuth();
+        const cred = await signInWithEmailAndPassword(secAuth, targetEmail, userData.customPassword);
+        await updatePassword(cred.user, newPassword);
+        await secAuth.signOut();
+      }
+    } catch (authErr) {
+      console.warn('Secondary auth update note (custom password stored in Firestore):', authErr);
+    }
   },
 
   // ── 3. Register Vendor ──────────────────────────────────────────────────────

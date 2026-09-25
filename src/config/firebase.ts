@@ -9,7 +9,7 @@ declare const process: {
   env: Record<string, string | undefined>;
 };
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || 'AIzaSyA47UDIXT8qVPwmQcQPB5wUZkcF5Wxq4Bk',
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || 'panihaarmilkdairy.firebaseapp.com',
   projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || 'panihaarmilkdairy',

@@ -48,7 +48,6 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [contactPerson, setContactPerson] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [initialPayable, setInitialPayable] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -123,22 +122,20 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     setLoading(true);
 
     try {
-      const initBal = parseFloat(initialPayable) || 0;
       await addSupplier({
         name: name.trim(),
         businessName: name.trim(),
         contactPerson: contactPerson.trim(),
         phone: phone.trim(),
         email: email.trim(),
-        balancePayable: Math.max(0, initBal),
-        outstandingPayable: Math.max(0, initBal),
+        balancePayable: 0,
+        outstandingPayable: 0,
       });
 
       setName('');
       setContactPerson('');
       setPhone('');
       setEmail('');
-      setInitialPayable('');
       setShowAddModal(false);
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to add supplier');
@@ -417,14 +414,6 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                   autoCapitalize="none"
                   value={email}
                   onChangeText={setEmail}
-                />
-
-                <Input
-                  label="Opening Balance Payable (₹)"
-                  keyboardType="numeric"
-                  prefix="₹"
-                  value={initialPayable}
-                  onChangeText={setInitialPayable}
                 />
 
                 <View style={styles.modalActions}>

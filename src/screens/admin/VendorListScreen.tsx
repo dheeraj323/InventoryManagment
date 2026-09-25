@@ -18,17 +18,19 @@ import { useDebounce } from '../../hooks';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { EmptyState } from '../../components/common/EmptyState';
+import { AddVendorModal } from '../../components/vendor/AddVendorModal';
 import { Vendor, VendorStatus } from '../../types';
 import { colors, typography, spacing } from '../../theme';
 
 type FilterKey = 'ALL' | 'WITH_DUES';
 
 export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { vendors } = useVendorStore();
+  const { vendors, addVendor } = useVendorStore();
   const { getVendorAccountSummary } = useLedgerStore();
 
   const [search, setSearch] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<FilterKey>('ALL');
+  const [isAddVendorVisible, setIsAddVendorVisible] = useState(false);
   const debouncedSearch = useDebounce(search, 350);
 
   // Compute live account summaries for each vendor
@@ -111,6 +113,15 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       .catch(() => Linking.openURL(`https://wa.me/${clean}`));
   };
 
+  const handleAddVendor = async (vendorData: Partial<Vendor>) => {
+    try {
+      await addVendor(vendorData);
+      setIsAddVendorVisible(false);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to add vendor');
+    }
+  };
+
   const filterTabs = [
     { key: 'ALL' as FilterKey, label: 'All', count: metrics.totalCount, dotColor: undefined },
     { key: 'WITH_DUES' as FilterKey, label: 'With Dues', count: metrics.withDuesCount, dotColor: colors.warning },
@@ -126,6 +137,18 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         onBackPress={() => {
           if (navigation.canGoBack()) navigation.goBack();
         }}
+        rightAction={
+          <TouchableOpacity
+            style={styles.headerAddBtn}
+            onPress={() => setIsAddVendorVisible(true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Add New Vendor"
+          >
+            <Ionicons name="add" size={16} color={colors.textInverse} />
+            <Text style={styles.headerAddBtnText}>Add Vendor</Text>
+          </TouchableOpacity>
+        }
       />
 
       {/* ── Search & Filter Tabs ─────────────────────────────────── */}
@@ -285,10 +308,18 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             description={
               search.length > 0 || selectedFilter !== 'ALL'
                 ? 'Try changing your search term or filter selection'
-                : 'No retail shop partners found'
+                : 'Add your first retail partner to start managing Khata ledger.'
             }
+            actionTitle={vendors.length === 0 ? '+ Add Vendor' : undefined}
+            onAction={vendors.length === 0 ? () => setIsAddVendorVisible(true) : undefined}
           />
         }
+      />
+
+      <AddVendorModal
+        visible={isAddVendorVisible}
+        onClose={() => setIsAddVendorVisible(false)}
+        onSave={handleAddVendor}
       />
     </SafeAreaView>
   );
@@ -480,5 +511,19 @@ const styles = StyleSheet.create({
   },
   balanceSettled: {
     color: colors.textMuted,
+  },
+  headerAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: spacing.borderRadiusFull,
+    gap: 4,
+  },
+  headerAddBtnText: {
+    ...typography.captionBold,
+    color: colors.textInverse,
+    fontSize: 12,
   },
 });
