@@ -8,6 +8,10 @@ import {
   Alert,
   Linking,
   ActivityIndicator,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +23,8 @@ import { invoiceService } from '../../services/invoiceService';
 import { paymentService } from '../../services/paymentService';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
+import { Input } from '../../components/common/Input';
+import { Button } from '../../components/common/Button';
 import { EmptyState } from '../../components/common/EmptyState';
 import { LedgerSummaryCard } from '../../components/ledger/LedgerSummaryCard';
 import { LedgerRow } from '../../components/ledger/LedgerRow';
@@ -59,22 +65,25 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
   const {
     getVendorById,
     recordDirectPayment,
+    updateVendorPassword,
   } = useVendorStore();
   const { getLedgerForParty, getVendorAccountSummary } =
     useLedgerStore();
   const { orders } = useOrderStore();
   const { currentUser } = useAuthStore();
 
-  const vendor = getVendorById(vendorId) || {
+  const vendor: Vendor = getVendorById(vendorId) || {
     id: vendorId,
     name: 'Retailer',
     ownerName: 'Retailer',
     shopName: 'Vendor Shop',
+    username: '',
     phone: '',
     address: '',
     currentBalance: 0,
     creditLimit: 0,
     payLaterEligible: true,
+    passwordManagedByAdmin: true,
     preferredPaymentMode: 'CASH' as const,
     status: 'ACTIVE' as VendorStatus,
   };
@@ -90,6 +99,12 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
 
   // Modals
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   // Live Async Data (Invoices & Payments)
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -216,6 +231,32 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
         else Linking.openURL(`https://wa.me/${clean}`);
       })
       .catch(() => Linking.openURL(`https://wa.me/${clean}`));
+  };
+
+  const handleAdminSavePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordError('Password must be at least 6 characters long.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+
+    setSavingPassword(true);
+    setPasswordError('');
+    try {
+      await updateVendorPassword(vendor.id, newPassword);
+      setShowPasswordModal(false);
+      Alert.alert(
+        'Password Updated',
+        `The login password for ${vendor.shopName} has been successfully updated.`
+      );
+    } catch (err: any) {
+      setPasswordError(err.message || 'Failed to update vendor password.');
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
   return (
@@ -363,6 +404,40 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
                 <Ionicons name="map-outline" size={16} color={colors.textMuted} />
                 <Text style={styles.infoLabel}>Address</Text>
                 <Text style={styles.infoVal}>{vendor.address || 'Not provided'}</Text>
+              </View>
+            </Card>
+
+            {/* Account & Login Credentials Card */}
+            <Card style={[styles.infoCard, { marginTop: spacing.md }]} outlined elevation="sm">
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.infoCardTitle}>Login & Credentials</Text>
+                <TouchableOpacity
+                  style={styles.changePasswordPillBtn}
+                  onPress={() => {
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setPasswordError('');
+                    setShowPasswordModal(true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="key-outline" size={13} color={colors.primary} />
+                  <Text style={styles.changePasswordPillText}>Change Password</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.infoRow}>
+                <Ionicons name="person-circle-outline" size={16} color={colors.textMuted} />
+                <Text style={styles.infoLabel}>Username</Text>
+                <Text style={styles.infoVal}>{vendor.username || 'Not assigned'}</Text>
+              </View>
+
+              <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+                <Ionicons name="shield-checkmark-outline" size={16} color={colors.brandGreen} />
+                <Text style={styles.infoLabel}>Password Access</Text>
+                <Text style={[styles.infoVal, { color: colors.brandGreen, fontWeight: '600' }]}>
+                  Managed by Admin
+                </Text>
               </View>
             </Card>
           </View>
@@ -781,6 +856,111 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
         onClose={() => setSelectedTransaction(null)}
         perspective="ADMIN"
       />
+
+      {/* ── Admin Change Password Modal ─────────────────────────── */}
+      <Modal
+        visible={showPasswordModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPasswordModal(false)}
+        statusBarTranslucent
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          <TouchableWithoutFeedback onPress={() => setShowPasswordModal(false)}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+                <View style={styles.passwordModalCard}>
+                  <View style={styles.modalHeader}>
+                    <View style={styles.modalHeaderLeft}>
+                      <View style={styles.iconCircle}>
+                        <Ionicons name="key" size={18} color={colors.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.modalTitle}>Change Vendor Password</Text>
+                        <Text style={styles.modalSubtitle} numberOfLines={1}>
+                          For {vendor.shopName} ({vendor.username || vendor.phone})
+                        </Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setShowPasswordModal(false)}
+                      style={styles.closeBtn}
+                    >
+                      <Ionicons name="close" size={20} color={colors.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.passwordModalBody}>
+                    {Boolean(passwordError) && (
+                      <View style={styles.passwordErrorBox}>
+                        <Text style={styles.passwordErrorText}>{passwordError}</Text>
+                      </View>
+                    )}
+
+                    <Input
+                      label="New Password *"
+                      placeholder="Enter minimum 6 characters"
+                      value={newPassword}
+                      onChangeText={(t) => {
+                        setNewPassword(t);
+                        if (passwordError) setPasswordError('');
+                      }}
+                      secureTextEntry={!showNewPass}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      rightIcon={
+                        <TouchableOpacity
+                          onPress={() => setShowNewPass(!showNewPass)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Ionicons
+                            name={showNewPass ? 'eye-off-outline' : 'eye-outline'}
+                            size={18}
+                            color={colors.textMuted}
+                          />
+                        </TouchableOpacity>
+                      }
+                    />
+
+                    <Input
+                      label="Confirm Password *"
+                      placeholder="Re-enter new password"
+                      value={confirmPassword}
+                      onChangeText={(t) => {
+                        setConfirmPassword(t);
+                        if (passwordError) setPasswordError('');
+                      }}
+                      secureTextEntry={!showNewPass}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+
+                  <View style={styles.modalFooter}>
+                    <Button
+                      title="Cancel"
+                      variant="secondary"
+                      onPress={() => setShowPasswordModal(false)}
+                      style={{ flex: 1 }}
+                      disabled={savingPassword}
+                    />
+                    <Button
+                      title="Save Password"
+                      variant="primary"
+                      onPress={handleAdminSavePassword}
+                      loading={savingPassword}
+                      style={{ flex: 1.5 }}
+                    />
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -1233,5 +1413,113 @@ const styles = StyleSheet.create({
     ...typography.captionBold,
     color: colors.textPrimary,
     fontSize: 13,
+  },
+
+  // Login & Credentials / Password Modal Styles
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  changePasswordPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: spacing.borderRadiusFull,
+  },
+  changePasswordPillText: {
+    ...typography.captionBold,
+    color: colors.primary,
+    fontSize: 11,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.md,
+  },
+  passwordModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusXl,
+    overflow: 'hidden',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  modalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.sm,
+  },
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.accentLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTitle: {
+    ...typography.h3,
+    fontSize: 15,
+    color: colors.textPrimary,
+  },
+  modalSubtitle: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  closeBtn: {
+    padding: 6,
+    marginLeft: spacing.xs,
+  },
+  passwordModalBody: {
+    padding: spacing.md,
+  },
+  passwordErrorBox: {
+    backgroundColor: colors.debitLight,
+    borderRadius: spacing.borderRadiusMd,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  passwordErrorText: {
+    ...typography.captionBold,
+    color: colors.danger,
+    fontSize: 12,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
   },
 });

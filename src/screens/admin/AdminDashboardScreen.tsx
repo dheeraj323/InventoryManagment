@@ -220,7 +220,12 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
 
           <TouchableOpacity
             style={[styles.statCard, { borderTopColor: colors.accent }]}
-            onPress={() => navigation.navigate('AdminOrdersTab')}
+            onPress={() =>
+              navigation.navigate('AdminOrdersTab', {
+                screen: 'AdminOrders',
+                params: { initialFilter: 'PENDING' },
+              })
+            }
             activeOpacity={0.8}
           >
             <Text style={styles.statLabel}>Pending Orders</Text>

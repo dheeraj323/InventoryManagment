@@ -48,7 +48,7 @@ export const LoginScreen: React.FC = () => {
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      Alert.alert('Missing Fields', 'Please enter your email address and password.');
+      Alert.alert('Missing Fields', 'Please enter your username or email address and password.');
       return;
     }
 
@@ -165,8 +165,8 @@ export const LoginScreen: React.FC = () => {
               {authMode === 'LOGIN'
                 ? 'Sign in to access your inventory and orders'
                 : authMode === 'FORGOT_PASSWORD'
-                ? 'Enter your registered email to receive a password reset link'
-                : 'Create a new account to get started'}
+                  ? 'Enter your registered email to receive a password reset link'
+                  : 'Create a new account to get started'}
             </Text>
           </View>
 
@@ -263,17 +263,17 @@ export const LoginScreen: React.FC = () => {
               // ── SIGN IN FORM ──────────────────────────────────────────────
               <View>
                 <Input
-                  label="Email Address"
-                  placeholder="Enter your email"
+                  label="Username or Email Address"
+                  placeholder="Enter username or email"
                   value={email}
                   onChangeText={(t) => {
                     setEmail(t);
                     if (authError) clearError();
                   }}
-                  keyboardType="email-address"
                   autoCapitalize="none"
+                  autoCorrect={false}
                   leftIcon={
-                    <Ionicons name="mail-outline" size={18} color="#64748B" />
+                    <Ionicons name="person-outline" size={18} color="#64748B" />
                   }
                 />
 
@@ -466,8 +466,8 @@ export const LoginScreen: React.FC = () => {
                     submitting
                       ? 'Creating Account...'
                       : registerRole === 'VENDOR'
-                      ? 'Create Vendor Account'
-                      : 'Submit Staff Application'
+                        ? 'Create Vendor Account'
+                        : 'Submit Staff Application'
                   }
                   onPress={handleRegister}
                   disabled={submitting}

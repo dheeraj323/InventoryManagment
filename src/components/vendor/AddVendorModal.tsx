@@ -19,10 +19,8 @@ import { colors, typography, spacing } from '../../theme';
 export interface AddVendorModalProps {
   visible: boolean;
   onClose: () => void;
-  onSave: (vendorData: Partial<Vendor>) => Promise<void> | void;
+  onSave: (vendorData: Partial<Vendor> & { password?: string }) => Promise<void> | void;
 }
-
-const VENDOR_TYPES = ['Kirana Store', 'Supermarket', 'Wholesaler', 'Retail Shop', 'Other'];
 
 export const AddVendorModal: React.FC<AddVendorModalProps> = ({
   visible,
@@ -33,8 +31,9 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
   const [ownerName, setOwnerName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
-  const [vendorType, setVendorType] = useState('Kirana Store');
-  const [openingBalanceStr, setOpeningBalanceStr] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
@@ -52,9 +51,19 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
       errs.phone = 'Valid 10-digit phone number is required.';
     }
 
-    const numOpenBal = parseFloat(openingBalanceStr);
-    if (openingBalanceStr.trim() !== '' && (isNaN(numOpenBal) || numOpenBal < 0)) {
-      errs.openingBalance = 'Opening balance cannot be negative.';
+    const cleanUser = username.trim().toLowerCase().replace(/\s+/g, '_');
+    if (!cleanUser) {
+      errs.username = 'Username is required for vendor login.';
+    } else if (cleanUser.length < 3) {
+      errs.username = 'Username must be at least 3 characters.';
+    } else if (!/^[a-z0-9_]+$/.test(cleanUser)) {
+      errs.username = 'Username can only contain letters, numbers, and underscores.';
+    }
+
+    if (!password) {
+      errs.password = 'Password is required for vendor login.';
+    } else if (password.length < 6) {
+      errs.password = 'Password must be at least 6 characters.';
     }
 
     setErrors(errs);
@@ -66,22 +75,22 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
     setLoading(true);
 
     try {
-      const openingBalance = parseFloat(openingBalanceStr) || 0;
-
       await onSave({
         shopName: shopName.trim(),
         name: ownerName.trim(),
         ownerName: ownerName.trim(),
         phone: phone.trim(),
         address: address.trim(),
-        vendorType,
-        openingBalance,
-        currentBalance: openingBalance,
-        currentOutstanding: openingBalance,
+        username: username.trim().toLowerCase().replace(/\s+/g, '_'),
+        password: password,
+        openingBalance: 0,
+        currentBalance: 0,
+        currentOutstanding: 0,
         status: 'ACTIVE',
         active: true,
         payLaterEligible: true,
         preferredPaymentMode: 'CASH',
+        passwordManagedByAdmin: true,
       });
 
       // Reset form
@@ -89,8 +98,9 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
       setOwnerName('');
       setPhone('');
       setAddress('');
-      setVendorType('Kirana Store');
-      setOpeningBalanceStr('');
+      setUsername('');
+      setPassword('');
+      setShowPassword(false);
       setErrors({});
       onClose();
     } catch (err: any) {
@@ -101,7 +111,7 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
@@ -180,45 +190,52 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
                     onChangeText={setAddress}
                   />
 
-                  {/* Business Type Selector */}
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.fieldLabel}>Business Category</Text>
-                    <View style={styles.chipRow}>
-                      {VENDOR_TYPES.map((type) => {
-                        const isSelected = vendorType === type;
-                        return (
-                          <TouchableOpacity
-                            key={type}
-                            style={[styles.chip, isSelected && styles.chipActive]}
-                            onPress={() => setVendorType(type)}
-                            activeOpacity={0.7}
-                          >
-                            <Text style={[styles.chipText, isSelected && styles.chipTextActive]}>
-                              {type}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-
-                  {/* Section 2: Financial Terms */}
+                  {/* Section 2: Login Credentials */}
                   <View style={[styles.sectionHeading, { marginTop: spacing.md }]}>
-                    <Text style={styles.sectionTitle}>2. Opening Balance</Text>
+                    <Text style={styles.sectionTitle}>2. Vendor Login Credentials (Admin Set)</Text>
                   </View>
 
                   <Input
-                    label="Opening Balance (₹)"
-                    keyboardType="numeric"
-                    prefix="₹"
-                    value={openingBalanceStr}
+                    label="Username *"
+                    value={username}
+                    placeholder="e.g. kirana_store or rajesh99"
+                    autoCapitalize="none"
+                    autoCorrect={false}
                     onChangeText={(v) => {
-                      setOpeningBalanceStr(v);
-                      if (errors.openingBalance)
-                        setErrors((prev) => ({ ...prev, openingBalance: '' }));
+                      setUsername(v);
+                      if (errors.username) setErrors((prev) => ({ ...prev, username: '' }));
                     }}
-                    error={errors.openingBalance}
+                    error={errors.username}
                   />
+
+                  <Input
+                    label="Password *"
+                    value={password}
+                    placeholder="Min 6 characters"
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    onChangeText={(v) => {
+                      setPassword(v);
+                      if (errors.password) setErrors((prev) => ({ ...prev, password: '' }));
+                    }}
+                    error={errors.password}
+                    rightIcon={
+                      <TouchableOpacity
+                        onPress={() => setShowPassword(!showPassword)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons
+                          name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                          size={18}
+                          color={colors.textMuted}
+                        />
+                      </TouchableOpacity>
+                    }
+                  />
+                  <Text style={styles.credentialHint}>
+                    Note: The vendor will sign in using this Username and Password. Only Admins will be able to change or reset their password.
+                  </Text>
                 </ScrollView>
 
                 {/* Footer Buttons */}
@@ -384,5 +401,14 @@ const styles = StyleSheet.create({
   },
   saveBtn: {
     flex: 2,
+  },
+  credentialHint: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 4,
+    marginBottom: spacing.sm,
+    fontStyle: 'italic',
   },
 });

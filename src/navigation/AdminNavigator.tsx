@@ -9,6 +9,9 @@ import { AdminOrdersScreen } from '../screens/admin/AdminOrdersScreen';
 import { AdminOrderDetailScreen } from '../screens/admin/AdminOrderDetailScreen';
 import { InventoryScreen } from '../screens/admin/InventoryScreen';
 import { SupplierScreen } from '../screens/admin/SupplierScreen';
+import { SupplierDetailScreen } from '../screens/admin/SupplierDetailScreen';
+import { AddSupplierBillScreen } from '../screens/admin/AddSupplierBillScreen';
+import { SupplierBillDetailScreen } from '../screens/admin/SupplierBillDetailScreen';
 import { AdminFinanceScreen } from '../screens/admin/AdminFinanceScreen';
 import { StaffSettlementsScreen } from '../screens/admin/StaffSettlementsScreen';
 import { AuditHistoryScreen } from '../screens/admin/AuditHistoryScreen';
@@ -31,6 +34,9 @@ const AdminHomeStack = () => (
     <Stack.Screen name="AdminOrderDetail" component={AdminOrderDetailScreen} />
     <Stack.Screen name="Inventory" component={InventoryScreen} />
     <Stack.Screen name="Supplier" component={SupplierScreen} />
+    <Stack.Screen name="SupplierDetail" component={SupplierDetailScreen} />
+    <Stack.Screen name="AddSupplierBill" component={AddSupplierBillScreen} />
+    <Stack.Screen name="SupplierBillDetail" component={SupplierBillDetailScreen} />
     <Stack.Screen name="AdminFinance" component={AdminFinanceScreen} />
     <Stack.Screen name="StaffSettlements" component={StaffSettlementsScreen} />
     <Stack.Screen name="StaffManagement" component={StaffManagementScreen} />
@@ -63,10 +69,14 @@ const AdminFinanceStack = () => (
     <Stack.Screen name="StaffSettlements" component={StaffSettlementsScreen} />
     <Stack.Screen name="AuditHistory" component={AuditHistoryScreen} />
     <Stack.Screen name="Supplier" component={SupplierScreen} />
+    <Stack.Screen name="SupplierDetail" component={SupplierDetailScreen} />
+    <Stack.Screen name="AddSupplierBill" component={AddSupplierBillScreen} />
+    <Stack.Screen name="SupplierBillDetail" component={SupplierBillDetailScreen} />
     <Stack.Screen name="VendorDetail" component={VendorDetailScreen} />
     <Stack.Screen name="AdminOrderDetail" component={AdminOrderDetailScreen} />
   </Stack.Navigator>
 );
+
 
 // 5. Admin Profile Stack
 const AdminProfileStack = () => (

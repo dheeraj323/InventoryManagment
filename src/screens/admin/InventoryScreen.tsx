@@ -39,10 +39,13 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     updateProduct,
     deleteProduct,
     refreshCatalog,
+    fetchProducts,
   } = useInventoryStore();
 
   const [search, setSearch] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const debouncedSearch = useDebounce(search, 450);
+  const isSearchActive = isSearchFocused || search.trim().length > 0;
   const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'IN_STOCK'>('ALL');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -109,6 +112,11 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   // Chunked pagination state (loads 15 products per chunk on scroll)
   const CHUNK_SIZE = 15;
   const [visibleCount, setVisibleCount] = useState(CHUNK_SIZE);
+
+  // Load products on mount
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   // Reset pagination whenever search query or category filter changes
   useEffect(() => {
@@ -224,6 +232,8 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             placeholder="Search products or SKU..."
             value={search}
             onChangeText={setSearch}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => setIsSearchFocused(false)}
             placeholderTextColor={colors.textMuted}
             style={styles.searchInput}
           />
@@ -405,45 +415,38 @@ export const InventoryScreen: React.FC<{ navigation: any }> = ({ navigation }) =
               }
               description={
                 search.length > 0
-                  ? `No items match "${search}". Try resetting the search.`
+                  ? `No items match "${search}".`
                   : selectedFilter !== 'ALL'
                   ? 'There are no products under the selected filter.'
                   : 'Add your first product to start managing catalog and stock.'
               }
-              actionTitle={
-                search.length > 0 || selectedFilter !== 'ALL' ? 'Reset Filters' : '+ Add Item'
-              }
-              onAction={
-                search.length > 0 || selectedFilter !== 'ALL'
-                  ? () => {
-                      setSearch('');
-                      setSelectedFilter('ALL');
-                    }
-                  : handleOpenAdd
-              }
+              actionTitle={products.length === 0 ? '+ Add Item' : undefined}
+              onAction={products.length === 0 ? handleOpenAdd : undefined}
             />
           }
         />
       )}
 
       {/* ── Modern Floating Action Bar (Bulk Refill) ─────────────── */}
-      <View style={styles.floatingActionContainer} pointerEvents="box-none">
-        <TouchableOpacity
-          style={styles.bulkRefillFloatingBtn}
-          onPress={() => setIsBulkRefillVisible(true)}
-          activeOpacity={0.9}
-        >
-          <View style={styles.bulkIconCircle}>
-            <Ionicons name="layers" size={17} color={colors.primary} />
-          </View>
-          <Text style={styles.bulkRefillFloatingText}>Bulk Refill Stock</Text>
-          {counts.low > 0 && (
-            <View style={styles.lowAlertPill}>
-              <Text style={styles.lowAlertText}>{counts.low} Low</Text>
+      {!isSearchActive && (
+        <View style={styles.floatingActionContainer} pointerEvents="box-none">
+          <TouchableOpacity
+            style={styles.bulkRefillFloatingBtn}
+            onPress={() => setIsBulkRefillVisible(true)}
+            activeOpacity={0.9}
+          >
+            <View style={styles.bulkIconCircle}>
+              <Ionicons name="layers" size={17} color={colors.primary} />
             </View>
-          )}
-        </TouchableOpacity>
-      </View>
+            <Text style={styles.bulkRefillFloatingText}>Bulk Refill Stock</Text>
+            {counts.low > 0 && (
+              <View style={styles.lowAlertPill}>
+                <Text style={styles.lowAlertText}>{counts.low} Low</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* ── Product Action Menu Modal (Edit / Delete / Adjust) ────── */}
       {actionMenuProduct && (

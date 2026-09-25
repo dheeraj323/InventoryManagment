@@ -215,17 +215,29 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
     });
   },
 
-  // 6. Real-time inventory subscription (Stock Map + Suppliers)
+  // 6. Real-time inventory subscription (Products + Stock Map + Suppliers)
   subscribeInventory: () => {
-    // 1. Subscribe to consolidated Live Stock Map (1 document)
+    // 1. Immediately read from cache if available so UI has data without delay
+    get().initInventoryCache();
+
+    // 2. Real-time listener for products catalog
+    const unsubProducts = productService.subscribeProducts((prods) => {
+      if (prods) {
+        set({ products: prods, isLoading: false });
+        saveProductsToLocalCache(prods);
+      }
+    });
+
+    // 3. Subscribe to consolidated Live Stock Map (1 document)
     const unsubLiveStock = get().subscribeLiveStock();
 
-    // 2. Subscribe to suppliers in Firestore
+    // 4. Subscribe to suppliers in Firestore
     const unsubSuppliers = supplierService.subscribeSuppliers((firestoreSups) => {
       set({ suppliers: firestoreSups || [] });
     });
 
     return () => {
+      unsubProducts();
       unsubLiveStock();
       unsubSuppliers();
     };

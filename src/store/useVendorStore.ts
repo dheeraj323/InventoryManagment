@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Vendor, VendorStatus, PaymentMethod } from '../types';
 import { vendorService } from '../services/vendorService';
 import { paymentService } from '../services/paymentService';
+import { authService } from '../services/authService';
 
 interface VendorState {
   vendors: Vendor[];
@@ -9,9 +10,10 @@ interface VendorState {
   subscribeVendors: (vendorId?: string) => () => void;
   fetchVendors: () => Promise<void>;
   getVendorById: (id: string) => Vendor | undefined;
-  addVendor: (vendorData: Partial<Vendor>, adminName?: string) => Promise<Vendor>;
+  addVendor: (vendorData: Partial<Vendor> & { password?: string }, adminName?: string) => Promise<Vendor>;
   updateVendorProfile: (vendorId: string, updates: Partial<Vendor>, adminName?: string) => Promise<void>;
   updateVendorStatus: (vendorId: string, status: VendorStatus, reason?: string, adminName?: string) => Promise<void>;
+  updateVendorPassword: (vendorId: string, newPassword: string) => Promise<void>;
   adjustCreditLimit: (vendorId: string, newLimit: number, reason: string, adminName?: string) => Promise<void>;
   recordDirectPayment: (params: {
     vendorId: string;
@@ -49,10 +51,28 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     return get().vendors.find((v) => v.id === id || v.vendorId === id);
   },
 
-  addVendor: async (vendorData: Partial<Vendor>, adminName: string = 'Admin') => {
-    const newVendor = await vendorService.addVendor(vendorData, adminName);
-    set({ vendors: [newVendor, ...get().vendors] });
-    return newVendor;
+  addVendor: async (vendorData: Partial<Vendor> & { password?: string }, adminName: string = 'Admin') => {
+    if (vendorData.username && vendorData.password) {
+      const { vendor } = await authService.registerVendorByAdmin({
+        shopName: vendorData.shopName || '',
+        ownerName: vendorData.ownerName || vendorData.name || '',
+        phone: vendorData.phone || '',
+        address: vendorData.address || '',
+        username: vendorData.username,
+        password: vendorData.password,
+        adminName,
+      });
+      set({ vendors: [vendor, ...get().vendors] });
+      return vendor;
+    } else {
+      const newVendor = await vendorService.addVendor(vendorData, adminName);
+      set({ vendors: [newVendor, ...get().vendors] });
+      return newVendor;
+    }
+  },
+
+  updateVendorPassword: async (vendorId: string, newPassword: string) => {
+    await authService.adminUpdateVendorPassword(vendorId, newPassword);
   },
 
   updateVendorProfile: async (vendorId: string, updates: Partial<Vendor>, adminName: string = 'Admin') => {
