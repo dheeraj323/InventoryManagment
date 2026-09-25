@@ -48,8 +48,9 @@ export type AdminTabParamList = {
   Supplier: undefined;
   SupplierDetail: {
     supplierId: string;
-    initialTab?: 'OVERVIEW' | 'PRODUCTS' | 'BILLS';
+    initialTab?: 'OVERVIEW' | 'BILLS';
   };
+
   AddSupplierBill: {
     supplierId: string;
   };

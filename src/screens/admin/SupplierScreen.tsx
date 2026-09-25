@@ -264,7 +264,7 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       {/* ── Supplier List ─────────────────────────────────────────── */}
       <FlatList
         data={filteredSuppliers}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, index) => item.id || `supplier-${index}`}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={

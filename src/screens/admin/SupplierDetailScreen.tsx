@@ -25,7 +25,7 @@ import { ConfirmationModal } from '../../components/common/ConfirmationModal';
 import { Supplier, SupplierBill } from '../../types';
 import { colors, typography, spacing } from '../../theme';
 
-type TabType = 'OVERVIEW' | 'PRODUCTS' | 'BILLS';
+type TabType = 'OVERVIEW' | 'BILLS';
 type FilterType = 'ALL' | 'THIS_MONTH' | 'THIS_YEAR' | 'PAID' | 'PENDING';
 type SortType = 'NEWEST' | 'OLDEST' | 'HIGHEST_AMOUNT' | 'LOWEST_AMOUNT';
 
@@ -38,8 +38,8 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
     subscribeSupplierBills,
     fetchSupplierBills,
     getSupplierStats,
-    getSupplierProductsSummary,
   } = useSupplierBillStore();
+
 
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [refreshing, setRefreshing] = useState(false);
@@ -86,11 +86,8 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
     return getSupplierStats(supplierId, supplier?.balancePayable || 0);
   }, [bills, supplierId, supplier?.balancePayable]);
 
-  const productsSummary = useMemo(() => {
-    return getSupplierProductsSummary(supplierId);
-  }, [bills, supplierId]);
-
   const onRefresh = async () => {
+
     setRefreshing(true);
     try {
       await fetchSupplierBills(supplierId);
@@ -363,7 +360,6 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
         {(
           [
             { key: 'OVERVIEW', label: 'Overview', icon: 'pie-chart-outline' },
-            { key: 'PRODUCTS', label: `Products (${productsSummary.length})`, icon: 'cube-outline' },
             { key: 'BILLS', label: `Bills & History (${supplierBills.length})`, icon: 'receipt-outline' },
           ] as const
         ).map((t) => (
@@ -569,66 +565,10 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
       )}
 
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* TAB 2: PRODUCTS                                                */}
-      {/* ═══════════════════════════════════════════════════════════════ */}
-      {activeTab === 'PRODUCTS' && (
-        <FlatList
-          data={productsSummary}
-          keyExtractor={(item) => item.productName}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          ListHeaderComponent={
-            <View style={styles.productsSummaryBanner}>
-              <Text style={styles.productsBannerTitle}>
-                Supplied Products Catalog ({productsSummary.length})
-              </Text>
-              <Text style={styles.productsBannerSub}>
-                Aggregated quantities and pricing history from all bills
-              </Text>
-            </View>
-          }
-          renderItem={({ item }) => (
-            <Card style={styles.productCatalogCard} outlined elevation="sm">
-              <View style={styles.productCatalogRow}>
-                <View style={styles.productIconBox}>
-                  <Ionicons name="cube" size={18} color={colors.primary} />
-                </View>
-
-                <View style={styles.productDetailsCol}>
-                  <Text style={styles.productTitleText}>{item.productName}</Text>
-                  <Text style={styles.productSubDetails}>
-                    Total Bought: {item.totalPurchasedQty} {item.unit} · {item.billCount} Bill
-                    {item.billCount !== 1 ? 's' : ''}
-                  </Text>
-                  <Text style={styles.productLastRate}>
-                    Last rate: ₹{fmt(item.lastPrice)}/{item.unit} on {item.lastPurchaseDate || 'N/A'}
-                  </Text>
-                </View>
-
-                <View style={styles.productSpendCol}>
-                  <Text style={styles.productSpendLabel}>TOTAL SPEND</Text>
-                  <Text style={styles.productSpendAmount}>₹{fmt(item.totalSpend)}</Text>
-                </View>
-              </View>
-            </Card>
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="cube-outline" size={48} color={colors.textMuted} />
-              <Text style={styles.emptyTitle}>No products recorded</Text>
-              <Text style={styles.emptySub}>
-                Products will appear here automatically when you add purchase bills.
-              </Text>
-            </View>
-          }
-        />
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* TAB 3: BILLS & PURCHASE HISTORY                                */}
+      {/* TAB 2: BILLS & PURCHASE HISTORY                                */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       {activeTab === 'BILLS' && (
+
         <View style={{ flex: 1 }}>
           {/* Search & Filter Bar */}
           <View style={styles.searchBarContainer}>
@@ -689,7 +629,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
           {/* Bills FlatList */}
           <FlatList
             data={filteredBills}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item, index) => item.id || `bill-${index}`}
             contentContainerStyle={styles.billsListContainer}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
