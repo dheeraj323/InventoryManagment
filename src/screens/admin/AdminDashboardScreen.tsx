@@ -106,8 +106,8 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
     },
     {
       icon: 'business-outline',
-      iconColor: colors.debit,
-      iconBg: colors.debitLight,
+      iconColor: colors.brandGreen,
+      iconBg: colors.brandGreenLight,
       title: 'Suppliers & Payables',
       subtitle: 'Distributor payables & inward bills',
       route: 'Supplier',
@@ -217,12 +217,12 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
         {/* ── Quick stat grid ───────────────────────────────────────────── */}
         <View style={styles.statsGrid}>
           <TouchableOpacity
-            style={[styles.statCard, { borderTopColor: colors.brandGreen }]}
+            style={[styles.statCard, { borderTopColor: colors.debit }]}
             onPress={() => navigation.navigate('AdminFinanceTab')}
             activeOpacity={0.8}
           >
             <Text style={styles.statLabel}>Vendor Receivables</Text>
-            <Text style={[styles.statValue, { color: colors.brandGreen }]}>₹{fmt(totalReceivables)}</Text>
+            <Text style={[styles.statValue, { color: colors.debit }]}>₹{fmt(totalReceivables)}</Text>
             <Text style={styles.statLink}>View ledgers →</Text>
           </TouchableOpacity>
 

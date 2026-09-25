@@ -307,7 +307,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
             <Text
               style={[
                 styles.heroBalanceAmount,
-                balance > 0 ? { color: colors.debit } : { color: colors.brandGreen },
+                balance > 0 ? { color: colors.brandGreen } : { color: colors.textSecondary },
               ]}
             >
               ₹{fmt(balance)}
@@ -1584,7 +1584,7 @@ const styles = StyleSheet.create({
   },
   payableSummaryAmount: {
     ...typography.bodyBold,
-    color: colors.debit,
+    color: colors.brandGreen,
     fontSize: 17,
     marginTop: 2,
   },

@@ -226,7 +226,7 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             </View>
             <View style={styles.bannerRight}>
               <View style={styles.bannerBadge}>
-                <Ionicons name="people-outline" size={14} color={colors.brandGreen} />
+                <Ionicons name="people-outline" size={14} color={colors.debit} />
                 <Text style={styles.bannerBadgeText}>
                   {metrics.withDuesCount} with dues
                 </Text>
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
   },
   bannerAmount: {
     ...typography.h2,
-    color: colors.brandGreen,
+    color: colors.debit,
     marginTop: 2,
   },
   bannerRight: {
@@ -450,7 +450,7 @@ const styles = StyleSheet.create({
   bannerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.brandGreenLight,
+    backgroundColor: colors.debitLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: spacing.borderRadiusFull,
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
   },
   bannerBadgeText: {
     ...typography.captionBold,
-    color: colors.brandGreen,
+    color: colors.debit,
     fontSize: 11,
   },
   vendorCard: {
@@ -549,7 +549,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   balanceDue: {
-    color: colors.brandGreen,
+    color: colors.debit,
   },
   balanceSettled: {
     color: colors.textMuted,

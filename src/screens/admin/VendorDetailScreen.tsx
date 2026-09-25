@@ -373,7 +373,7 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
               <Text
                 style={[
                   styles.heroBalanceAmount,
-                  runningBalance > 0 ? { color: colors.brandGreen } : { color: colors.textSecondary },
+                  runningBalance > 0 ? { color: colors.debit } : { color: colors.textSecondary },
                 ]}
               >
                 ₹{fmt(runningBalance)}

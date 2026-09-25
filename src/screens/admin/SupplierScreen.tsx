@@ -291,13 +291,13 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 <View
                   style={[
                     styles.avatar,
-                    { backgroundColor: payable > 0 ? colors.debitLight : colors.surfaceSubtle },
+                    { backgroundColor: payable > 0 ? colors.brandGreenLight : colors.surfaceSubtle },
                   ]}
                 >
                   <Text
                     style={[
                       styles.avatarText,
-                      { color: payable > 0 ? colors.debit : colors.textSecondary },
+                      { color: payable > 0 ? colors.brandGreen : colors.textSecondary },
                     ]}
                   >
                     {getInitials(item.name)}
@@ -498,7 +498,7 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                           style={[
                             styles.detailBalanceAmount,
                             (selectedSupplier.balancePayable || 0) > 0
-                              ? { color: colors.debit }
+                              ? { color: colors.brandGreen }
                               : { color: colors.textSecondary },
                           ]}
                         >
@@ -806,7 +806,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderLeftWidth: 4,
-    borderLeftColor: colors.debit,
+    borderLeftColor: colors.brandGreen,
   },
   summaryLabel: {
     ...typography.label,
@@ -817,7 +817,7 @@ const styles = StyleSheet.create({
   summaryAmount: {
     ...typography.bodyBold,
     fontSize: 16,
-    color: colors.debit,
+    color: colors.brandGreen,
     marginTop: 2,
   },
   summaryBadge: {
@@ -880,7 +880,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   balanceDue: {
-    color: colors.debit,
+    color: colors.brandGreen,
   },
   balanceClear: {
     color: colors.textSecondary,
