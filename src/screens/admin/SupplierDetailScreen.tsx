@@ -9,9 +9,9 @@ import {
   Alert,
   Linking,
   Modal,
-  TextInput,
   RefreshControl,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,7 +32,6 @@ type SortType = 'NEWEST' | 'OLDEST' | 'HIGHEST_AMOUNT' | 'LOWEST_AMOUNT';
 export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = ({ navigation, route }) => {
   const { supplierId, initialTab = 'OVERVIEW' } = route.params || {};
 
-
   const { suppliers, updateSupplier, adjustSupplierPayable, deleteSupplier } = useInventoryStore();
   const {
     bills,
@@ -45,14 +44,11 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Bill Search & Filter States
+  // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('ALL');
   const [sortBy, setSortBy] = useState<SortType>('NEWEST');
   const [showSortModal, setShowSortModal] = useState(false);
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
-  const [showDateFilter, setShowDateFilter] = useState(false);
 
   // Supplier Actions Modals
   const [showEditModal, setShowEditModal] = useState(false);
@@ -62,7 +58,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
   const [paymentNotes, setPaymentNotes] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
 
-  // Edit fields
+  // Edit Supplier Form
   const [editName, setEditName] = useState('');
   const [editContact, setEditContact] = useState('');
   const [editPhone, setEditPhone] = useState('');
@@ -106,7 +102,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
   const handleCall = (phoneNumber?: string) => {
     if (!phoneNumber) return;
     Linking.openURL(`tel:${phoneNumber}`).catch(() => {
-      Alert.alert('Error', 'Unable to initiate phone call');
+      Alert.alert('Error', 'Unable to initiate call');
     });
   };
 
@@ -167,7 +163,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
       setPaymentAmount('');
       setPaymentNotes('');
       setShowPaymentModal(false);
-      Alert.alert('Success', `Recorded payment of ₹${num.toLocaleString('en-IN')}`);
+      Alert.alert('Payment Recorded', `Payment of ₹${num.toLocaleString('en-IN')} recorded successfully.`);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to record payment');
     } finally {
@@ -190,7 +186,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
     let list = [...supplierBills];
     const q = searchQuery.trim().toLowerCase();
 
-    // 1. Text Search
+    // 1. Search Query
     if (q) {
       list = list.filter((b) => {
         const invMatch = (b.invoiceNumber || '').toLowerCase().includes(q);
@@ -203,7 +199,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
       });
     }
 
-    // 2. Filter Presets
+    // 2. Preset Filter
     const now = new Date();
     const currentYear = now.getFullYear().toString();
     const currentMonth = `${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -218,15 +214,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
       list = list.filter((b) => b.paymentStatus === 'PENDING' || b.paymentStatus === 'PARTIALLY_PAID');
     }
 
-    // 3. Date Range
-    if (fromDate.trim()) {
-      list = list.filter((b) => (b.billDate || '') >= fromDate.trim());
-    }
-    if (toDate.trim()) {
-      list = list.filter((b) => (b.billDate || '') <= toDate.trim());
-    }
-
-    // 4. Sorting
+    // 3. Sorting
     list.sort((a, b) => {
       if (sortBy === 'NEWEST') {
         const dateDiff = (b.billDate || '').localeCompare(a.billDate || '');
@@ -248,7 +236,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
     });
 
     return list;
-  }, [supplierBills, searchQuery, activeFilter, fromDate, toDate, sortBy]);
+  }, [supplierBills, searchQuery, activeFilter, sortBy]);
 
   const fmt = (n: number) =>
     n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -258,7 +246,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
       <SafeAreaView style={styles.container}>
         <Header title="Supplier Details" showBack onBackPress={() => navigation.goBack()} />
         <View style={styles.notFoundWrap}>
-          <Ionicons name="alert-circle-outline" size={48} color={colors.textMuted} />
+          <Ionicons name="business-outline" size={48} color={colors.textMuted} />
           <Text style={styles.notFoundText}>Supplier not found</Text>
           <Button title="Go Back" onPress={() => navigation.goBack()} style={{ marginTop: spacing.md }} />
         </View>
@@ -266,12 +254,14 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
     );
   }
 
+  const balance = supplier.balancePayable || 0;
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* ── Top Header ────────────────────────────────────────────── */}
       <Header
         title={supplier.name}
-        subtitle={supplier.category || 'Supplier Profile & History'}
+        subtitle={supplier.category ? `${supplier.category} Supplier` : 'Supplier Cockpit'}
         showBack
         onBackPress={() => navigation.goBack()}
         rightAction={
@@ -296,114 +286,108 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
         }
       />
 
-      {/* ── Top Summary Header Card ───────────────────────────────── */}
-      <View style={styles.supplierHero}>
-        <View style={styles.heroRow}>
-          <View style={styles.heroAvatar}>
-            <Text style={styles.heroAvatarText}>
-              {supplier.name
-                .split(' ')
-                .slice(0, 2)
-                .map((w) => w[0]?.toUpperCase() ?? '')
-                .join('')}
-            </Text>
-          </View>
-
-          <View style={styles.heroInfo}>
-            <Text style={styles.heroTitle} numberOfLines={1}>
-              {supplier.name}
-            </Text>
-            {supplier.contactPerson ? (
-              <Text style={styles.heroContact} numberOfLines={1}>
-                <Ionicons name="person-outline" size={12} color={colors.textMuted} /> {supplier.contactPerson}
-              </Text>
-            ) : null}
-            {supplier.phone ? (
-              <TouchableOpacity onPress={() => handleCall(supplier.phone)} style={styles.heroPhoneLink}>
-                <Ionicons name="call-outline" size={12} color={colors.primary} />
-                <Text style={styles.heroPhoneText}>{supplier.phone}</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-
-          <View style={styles.heroBalanceBox}>
-            <Text style={styles.heroBalanceLabel}>OUTSTANDING</Text>
+      {/* ── Financial Cockpit Hero Card ────────────────────────────── */}
+      <View style={styles.heroSection}>
+        <View style={styles.heroMainRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.heroBalanceLabel}>OUTSTANDING PAYABLE</Text>
             <Text
               style={[
-                styles.heroBalanceValue,
-                (supplier.balancePayable || 0) > 0 ? styles.balanceDue : styles.balanceClear,
+                styles.heroBalanceAmount,
+                balance > 0 ? { color: colors.debit } : { color: colors.brandGreen },
               ]}
             >
-              ₹{fmt(supplier.balancePayable || 0)}
+              ₹{fmt(balance)}
+            </Text>
+            <Text style={styles.heroStatusSub}>
+              {balance > 0
+                ? 'Pending balance owed to supplier'
+                : 'Account fully settled (Zero pending dues)'}
             </Text>
           </View>
+
+          {supplier.phone ? (
+            <TouchableOpacity
+              style={styles.quickCallPill}
+              onPress={() => handleCall(supplier.phone)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="call" size={14} color={colors.textInverse} />
+              <Text style={styles.quickCallPillText}>Call</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
-        {/* Mini Quick Metrics Strip */}
-        <View style={styles.metricsStrip}>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>₹{fmt(stats.totalPurchases)}</Text>
+        {/* 3 Metrics Strip */}
+        <View style={styles.metricsGrid}>
+          <View style={styles.metricCell}>
             <Text style={styles.metricLabel}>Total Purchases</Text>
+            <Text style={styles.metricValue}>₹{fmt(stats.totalPurchases)}</Text>
           </View>
-          <View style={styles.metricDivider} />
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{stats.totalBills}</Text>
+
+          <View style={styles.metricCell}>
             <Text style={styles.metricLabel}>Total Bills</Text>
+            <Text style={styles.metricValue}>{stats.totalBills}</Text>
           </View>
-          <View style={styles.metricDivider} />
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{stats.totalProductsCount}</Text>
+
+          <View style={styles.metricCell}>
             <Text style={styles.metricLabel}>Products</Text>
+            <Text style={styles.metricValue}>{stats.totalProductsCount}</Text>
           </View>
+        </View>
+
+        {/* Action Buttons Row */}
+        <View style={styles.heroActionRow}>
+          <TouchableOpacity
+            style={[styles.heroActionBtn, { backgroundColor: colors.primary }]}
+            onPress={() => navigation.navigate('AddSupplierBill', { supplierId })}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="add-circle" size={17} color={colors.textInverse} />
+            <Text style={styles.heroActionBtnText}>+ Add Purchase Bill</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.heroActionBtn, { backgroundColor: colors.brandGreen }]}
+            onPress={() => setShowPaymentModal(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="cash" size={17} color={colors.textInverse} />
+            <Text style={styles.heroActionBtnText}>Record Payment</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* ── Tab Selector ──────────────────────────────────────────── */}
+      {/* ── Segmented Navigation Tabs ──────────────────────────────── */}
       <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'OVERVIEW' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('OVERVIEW')}
-        >
-          <Ionicons
-            name={activeTab === 'OVERVIEW' ? 'stats-chart' : 'stats-chart-outline'}
-            size={16}
-            color={activeTab === 'OVERVIEW' ? colors.primary : colors.textMuted}
-          />
-          <Text style={[styles.tabText, activeTab === 'OVERVIEW' && styles.tabTextActive]}>
-            Overview
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'PRODUCTS' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('PRODUCTS')}
-        >
-          <Ionicons
-            name={activeTab === 'PRODUCTS' ? 'cube' : 'cube-outline'}
-            size={16}
-            color={activeTab === 'PRODUCTS' ? colors.primary : colors.textMuted}
-          />
-          <Text style={[styles.tabText, activeTab === 'PRODUCTS' && styles.tabTextActive]}>
-            Products ({productsSummary.length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'BILLS' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('BILLS')}
-        >
-          <Ionicons
-            name={activeTab === 'BILLS' ? 'receipt' : 'receipt-outline'}
-            size={16}
-            color={activeTab === 'BILLS' ? colors.primary : colors.textMuted}
-          />
-          <Text style={[styles.tabText, activeTab === 'BILLS' && styles.tabTextActive]}>
-            Bills & History ({supplierBills.length})
-          </Text>
-        </TouchableOpacity>
+        {(
+          [
+            { key: 'OVERVIEW', label: 'Overview', icon: 'pie-chart-outline' },
+            { key: 'PRODUCTS', label: `Products (${productsSummary.length})`, icon: 'cube-outline' },
+            { key: 'BILLS', label: `Bills & History (${supplierBills.length})`, icon: 'receipt-outline' },
+          ] as const
+        ).map((t) => (
+          <TouchableOpacity
+            key={t.key}
+            style={[styles.tabButton, activeTab === t.key && styles.tabButtonActive]}
+            onPress={() => setActiveTab(t.key)}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={t.icon}
+              size={15}
+              color={activeTab === t.key ? colors.primary : colors.textMuted}
+            />
+            <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>
+              {t.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* ── TAB 1: OVERVIEW ───────────────────────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* TAB 1: OVERVIEW                                                */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
       {activeTab === 'OVERVIEW' && (
         <ScrollView
           style={styles.contentScroll}
@@ -411,184 +395,182 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-          {/* Detailed Financial Stats Grid */}
-          <Text style={styles.sectionHeaderTitle}>PURCHASE & BILL STATISTICS</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statBox}>
-              <Text style={styles.statBoxLabel}>CURRENT MONTH</Text>
-              <Text style={styles.statBoxValue}>₹{fmt(stats.currentMonthPurchases)}</Text>
-              <Text style={styles.statBoxSub}>This month's purchases</Text>
+          {/* Purchase Performance Grid */}
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>PURCHASE BREAKDOWN</Text>
+          </View>
+
+          <View style={styles.overviewStatsRow}>
+            <View style={styles.overviewStatCard}>
+              <Text style={styles.overviewStatLabel}>THIS MONTH</Text>
+              <Text style={styles.overviewStatVal}>₹{fmt(stats.currentMonthPurchases)}</Text>
+              <Text style={styles.overviewStatSub}>Month to date</Text>
             </View>
 
-            <View style={styles.statBox}>
-              <Text style={styles.statBoxLabel}>CURRENT YEAR</Text>
-              <Text style={styles.statBoxValue}>₹{fmt(stats.currentYearPurchases)}</Text>
-              <Text style={styles.statBoxSub}>Year-to-date purchases</Text>
-            </View>
-
-            <View style={styles.statBox}>
-              <Text style={styles.statBoxLabel}>AVERAGE BILL</Text>
-              <Text style={styles.statBoxValue}>₹{fmt(stats.averageBillValue)}</Text>
-              <Text style={styles.statBoxSub}>Per bill average spend</Text>
-            </View>
-
-            <View style={styles.statBox}>
-              <Text style={styles.statBoxLabel}>LAST PURCHASE</Text>
-              <Text style={styles.statBoxValue}>
-                {stats.lastPurchaseDate ? stats.lastPurchaseDate : 'No record'}
-              </Text>
-              <Text style={styles.statBoxSub}>Most recent invoice date</Text>
+            <View style={styles.overviewStatCard}>
+              <Text style={styles.overviewStatLabel}>THIS YEAR</Text>
+              <Text style={styles.overviewStatVal}>₹{fmt(stats.currentYearPurchases)}</Text>
+              <Text style={styles.overviewStatSub}>Year to date</Text>
             </View>
           </View>
 
-          {/* Bill Status Breakdown */}
-          <Card style={styles.statusBreakdownCard} outlined>
-            <Text style={styles.breakdownTitle}>Bill Payment Distribution</Text>
-            <View style={styles.breakdownRow}>
-              <View style={styles.breakdownCol}>
-                <View style={[styles.statusDot, { backgroundColor: colors.brandGreen }]} />
-                <Text style={styles.breakdownLabel}>Paid Bills</Text>
-                <Text style={styles.breakdownValue}>{stats.paidBillsCount}</Text>
-              </View>
-
-              <View style={styles.breakdownCol}>
-                <View style={[styles.statusDot, { backgroundColor: colors.debit }]} />
-                <Text style={styles.breakdownLabel}>Pending / Credit</Text>
-                <Text style={styles.breakdownValue}>{stats.pendingBillsCount}</Text>
-              </View>
-
-              <View style={styles.breakdownCol}>
-                <View style={[styles.statusDot, { backgroundColor: colors.primary }]} />
-                <Text style={styles.breakdownLabel}>Total Records</Text>
-                <Text style={styles.breakdownValue}>{stats.totalBills}</Text>
-              </View>
+          <View style={styles.overviewStatsRow}>
+            <View style={styles.overviewStatCard}>
+              <Text style={styles.overviewStatLabel}>AVG BILL VALUE</Text>
+              <Text style={styles.overviewStatVal}>₹{fmt(stats.averageBillValue)}</Text>
+              <Text style={styles.overviewStatSub}>Per invoice average</Text>
             </View>
+
+            <View style={styles.overviewStatCard}>
+              <Text style={styles.overviewStatLabel}>LAST PURCHASE</Text>
+              <Text style={styles.overviewStatVal}>
+                {stats.lastPurchaseDate || 'No purchase yet'}
+              </Text>
+              <Text style={styles.overviewStatSub}>Latest invoice date</Text>
+            </View>
+          </View>
+
+          {/* Supplier Contact Card */}
+          <Card style={styles.infoCard} outlined elevation="sm">
+            <Text style={styles.infoCardTitle}>Supplier Profile</Text>
+
+            <View style={styles.infoRow}>
+              <Ionicons name="business-outline" size={16} color={colors.textMuted} />
+              <Text style={styles.infoLabel}>Company</Text>
+              <Text style={styles.infoVal}>{supplier.name}</Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Ionicons name="person-outline" size={16} color={colors.textMuted} />
+              <Text style={styles.infoLabel}>Contact</Text>
+              <Text style={styles.infoVal}>{supplier.contactPerson || 'Not specified'}</Text>
+            </View>
+
+            {supplier.phone ? (
+              <View style={styles.infoRow}>
+                <Ionicons name="call-outline" size={16} color={colors.textMuted} />
+                <Text style={styles.infoLabel}>Phone</Text>
+                <TouchableOpacity
+                  onPress={() => handleCall(supplier.phone)}
+                  style={styles.phoneClickRow}
+                >
+                  <Text style={styles.phoneClickVal}>{supplier.phone}</Text>
+                  <Ionicons name="call" size={13} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {supplier.email ? (
+              <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+                <Ionicons name="mail-outline" size={16} color={colors.textMuted} />
+                <Text style={styles.infoLabel}>Email</Text>
+                <TouchableOpacity onPress={() => handleEmail(supplier.email)}>
+                  <Text style={styles.emailVal}>{supplier.email}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
           </Card>
 
-          {/* Quick Actions */}
-          <Text style={styles.sectionHeaderTitle}>QUICK ACTIONS</Text>
-          <View style={styles.quickActionRow}>
-            <TouchableOpacity
-              style={[styles.quickActionButton, { backgroundColor: colors.primary }]}
-              onPress={() => navigation.navigate('AddSupplierBill', { supplierId })}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="add-circle" size={20} color={colors.textInverse} />
-              <Text style={styles.quickActionText}>Add New Bill</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.quickActionButton, { backgroundColor: colors.brandGreen }]}
-              onPress={() => setShowPaymentModal(true)}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="checkmark-circle" size={20} color={colors.textInverse} />
-              <Text style={styles.quickActionText}>Record Payment</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Recent Bills Snippet */}
+          {/* Recent Invoices Preview */}
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionHeaderTitle}>RECENT INVOICES</Text>
-            <TouchableOpacity onPress={() => setActiveTab('BILLS')}>
-              <Text style={styles.viewAllLink}>View All ({supplierBills.length}) →</Text>
-            </TouchableOpacity>
+            <Text style={styles.sectionTitle}>RECENT INVOICES</Text>
+            {supplierBills.length > 0 && (
+              <TouchableOpacity onPress={() => setActiveTab('BILLS')}>
+                <Text style={styles.sectionLink}>View All ({supplierBills.length}) →</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          {supplierBills.slice(0, 3).map((bill) => (
+          {supplierBills.slice(0, 3).map((b) => (
             <Card
-              key={bill.id}
-              style={styles.recentBillCard}
+              key={b.id}
+              style={styles.recentBillRow}
               onPress={() =>
-                navigation.navigate('SupplierBillDetail', { supplierId, billId: bill.id })
+                navigation.navigate('SupplierBillDetail', { supplierId, billId: b.id })
               }
               outlined
+              elevation="sm"
             >
-              <View style={styles.billCardTop}>
-                <View>
-                  <Text style={styles.billInvoiceNumber}>#{bill.invoiceNumber}</Text>
-                  <Text style={styles.billDateText}>{bill.billDate}</Text>
+              <View style={styles.billRowLeft}>
+                <View style={styles.billDateBadge}>
+                  <Text style={styles.billDayText}>
+                    {b.billDate ? b.billDate.split('-')[2] : '--'}
+                  </Text>
+                  <Text style={styles.billMonthText}>
+                    {b.billDate
+                      ? new Date(b.billDate).toLocaleString('default', { month: 'short' })
+                      : ''}
+                  </Text>
                 </View>
-                <View style={styles.billAmountCol}>
-                  <Text style={styles.billAmountText}>₹{fmt(bill.totalAmount)}</Text>
-                  <View
-                    style={[
-                      styles.statusPill,
-                      bill.paymentStatus === 'PAID' ? styles.statusPillPaid : styles.statusPillPending,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusPillText,
-                        bill.paymentStatus === 'PAID'
-                          ? styles.statusPillTextPaid
-                          : styles.statusPillTextPending,
-                      ]}
-                    >
-                      {bill.paymentStatus}
-                    </Text>
+
+                <View style={styles.billMetaCol}>
+                  <View style={styles.invoiceTitleRow}>
+                    <Text style={styles.invoiceNumText}>Invoice #{b.invoiceNumber}</Text>
+                    {b.cloudinaryUrl ? (
+                      <View style={styles.docBadge}>
+                        <Ionicons
+                          name={b.fileType?.includes('pdf') ? 'document-text' : 'image'}
+                          size={11}
+                          color={colors.primary}
+                        />
+                      </View>
+                    ) : null}
                   </View>
+
+                  <Text style={styles.invoiceItemsSub} numberOfLines={1}>
+                    {b.items && b.items.length > 0
+                      ? b.items.map((i) => `${i.productName} (${i.quantity} ${i.unit})`).join(', ')
+                      : 'No items recorded'}
+                  </Text>
                 </View>
               </View>
 
-              <Text style={styles.billItemsSummaryText} numberOfLines={1}>
-                {bill.items.length} Product{bill.items.length !== 1 ? 's' : ''}:{' '}
-                {bill.items.map((i) => `${i.productName} (${i.quantity} ${i.unit})`).join(', ')}
-              </Text>
+              <View style={styles.billRowRight}>
+                <Text style={styles.billAmountVal}>₹{fmt(b.totalAmount)}</Text>
+                <View
+                  style={[
+                    styles.statusPill,
+                    b.paymentStatus === 'PAID' ? styles.statusPillPaid : styles.statusPillPending,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.statusPillText,
+                      b.paymentStatus === 'PAID'
+                        ? styles.statusPillTextPaid
+                        : styles.statusPillTextPending,
+                    ]}
+                  >
+                    {b.paymentStatus}
+                  </Text>
+                </View>
+              </View>
             </Card>
           ))}
 
           {supplierBills.length === 0 && (
-            <View style={styles.emptyOverviewWrap}>
-              <Ionicons name="document-text-outline" size={32} color={colors.textMuted} />
-              <Text style={styles.emptyOverviewText}>No bills uploaded yet</Text>
-              <Button
-                title="+ Add First Bill"
-                variant="outline"
-                size="sm"
-                onPress={() => navigation.navigate('AddSupplierBill', { supplierId })}
-                style={{ marginTop: spacing.sm }}
-              />
+            <View style={styles.emptyCardWrap}>
+              <Ionicons name="receipt-outline" size={36} color={colors.textMuted} />
+              <Text style={styles.emptyCardTitle}>No bills recorded</Text>
+              <Text style={styles.emptyCardSub}>Add purchases to build supplier bill history.</Text>
             </View>
           )}
 
-          {/* Supplier Contact Info */}
-          <Text style={[styles.sectionHeaderTitle, { marginTop: spacing.lg }]}>SUPPLIER DETAILS</Text>
-          <Card style={styles.contactInfoCard} outlined>
-            <View style={styles.infoRow}>
-              <Ionicons name="business-outline" size={16} color={colors.textMuted} />
-              <Text style={styles.infoLabel}>Business Name</Text>
-              <Text style={styles.infoValue}>{supplier.name}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Ionicons name="person-outline" size={16} color={colors.textMuted} />
-              <Text style={styles.infoLabel}>Contact Person</Text>
-              <Text style={styles.infoValue}>{supplier.contactPerson || '—'}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Ionicons name="call-outline" size={16} color={colors.textMuted} />
-              <Text style={styles.infoLabel}>Phone</Text>
-              <Text style={styles.infoValue}>{supplier.phone || '—'}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Ionicons name="mail-outline" size={16} color={colors.textMuted} />
-              <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>{supplier.email || '—'}</Text>
-            </View>
-          </Card>
-
-          {/* Danger Zone */}
+          {/* Delete Supplier Danger Button */}
           <TouchableOpacity
-            style={styles.deleteSupplierBtn}
+            style={styles.deleteLinkBtn}
             onPress={() => setShowDeleteModal(true)}
+            activeOpacity={0.8}
           >
-            <Ionicons name="trash-outline" size={16} color={colors.danger} />
-            <Text style={styles.deleteSupplierText}>Delete Supplier</Text>
+            <Ionicons name="trash-outline" size={15} color={colors.danger} />
+            <Text style={styles.deleteLinkText}>Delete Supplier Record</Text>
           </TouchableOpacity>
         </ScrollView>
       )}
 
-      {/* ── TAB 2: PRODUCTS ───────────────────────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* TAB 2: PRODUCTS                                                */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
       {activeTab === 'PRODUCTS' && (
         <FlatList
           data={productsSummary}
@@ -597,192 +579,123 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListHeaderComponent={
-            <View style={styles.productsHeaderBar}>
-              <Text style={styles.productsHeaderTitle}>
-                Products Purchased ({productsSummary.length})
+            <View style={styles.productsSummaryBanner}>
+              <Text style={styles.productsBannerTitle}>
+                Supplied Products Catalog ({productsSummary.length})
               </Text>
-              <Text style={styles.productsHeaderSub}>
-                Aggregated purchase history & pricing from all invoices
+              <Text style={styles.productsBannerSub}>
+                Aggregated quantities and pricing history from all bills
               </Text>
             </View>
           }
           renderItem={({ item }) => (
-            <Card style={styles.productCard} outlined>
-              <View style={styles.productRow}>
+            <Card style={styles.productCatalogCard} outlined elevation="sm">
+              <View style={styles.productCatalogRow}>
                 <View style={styles.productIconBox}>
-                  <Ionicons name="cube" size={20} color={colors.primary} />
+                  <Ionicons name="cube" size={18} color={colors.primary} />
                 </View>
 
-                <View style={styles.productInfoCol}>
-                  <Text style={styles.productCardName}>{item.productName}</Text>
-                  <Text style={styles.productCardSub}>
-                    Total: {item.totalPurchasedQty} {item.unit} · {item.billCount} Bill{item.billCount !== 1 ? 's' : ''}
+                <View style={styles.productDetailsCol}>
+                  <Text style={styles.productTitleText}>{item.productName}</Text>
+                  <Text style={styles.productSubDetails}>
+                    Total Bought: {item.totalPurchasedQty} {item.unit} · {item.billCount} Bill
+                    {item.billCount !== 1 ? 's' : ''}
                   </Text>
-                  <Text style={styles.productCardLastDate}>
-                    Last bought: {item.lastPurchaseDate || 'N/A'} @ ₹{fmt(item.lastPrice)}/{item.unit}
+                  <Text style={styles.productLastRate}>
+                    Last rate: ₹{fmt(item.lastPrice)}/{item.unit} on {item.lastPurchaseDate || 'N/A'}
                   </Text>
                 </View>
 
                 <View style={styles.productSpendCol}>
-                  <Text style={styles.productSpendLabel}>Total Spend</Text>
-                  <Text style={styles.productSpendValue}>₹{fmt(item.totalSpend)}</Text>
+                  <Text style={styles.productSpendLabel}>TOTAL SPEND</Text>
+                  <Text style={styles.productSpendAmount}>₹{fmt(item.totalSpend)}</Text>
                 </View>
               </View>
             </Card>
           )}
           ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Ionicons name="cube-outline" size={44} color={colors.textMuted} />
-              <Text style={styles.emptyTitle}>No products recorded yet</Text>
+            <View style={styles.emptyContainer}>
+              <Ionicons name="cube-outline" size={48} color={colors.textMuted} />
+              <Text style={styles.emptyTitle}>No products recorded</Text>
               <Text style={styles.emptySub}>
-                Products will appear here automatically when you add bills from this supplier.
+                Products will appear here automatically when you add purchase bills.
               </Text>
-              <Button
-                title="+ Add Purchase Bill"
-                onPress={() => navigation.navigate('AddSupplierBill', { supplierId })}
-                style={{ marginTop: spacing.md }}
-              />
             </View>
           }
         />
       )}
 
-      {/* ── TAB 3: BILLS & PURCHASE HISTORY ──────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* TAB 3: BILLS & PURCHASE HISTORY                                */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
       {activeTab === 'BILLS' && (
         <View style={{ flex: 1 }}>
-          {/* Search Bar & Date Filter Trigger */}
-          <View style={styles.filterSection}>
+          {/* Search & Filter Bar */}
+          <View style={styles.searchBarContainer}>
             <View style={styles.searchRow}>
               <View style={{ flex: 1 }}>
                 <Input
-                  placeholder="Search invoice #, product, note..."
+                  placeholder="Search invoice #, product, notes..."
                   value={searchQuery}
                   onChangeText={setSearchQuery}
-                  leftIcon={<Ionicons name="search-outline" size={18} color={colors.textMuted} />}
+                  leftIcon={<Ionicons name="search-outline" size={17} color={colors.textMuted} />}
                   containerStyle={{ marginBottom: 0 }}
                 />
               </View>
+
               <TouchableOpacity
-                style={[
-                  styles.iconFilterBtn,
-                  (fromDate || toDate) ? styles.iconFilterBtnActive : null,
-                ]}
-                onPress={() => setShowDateFilter(!showDateFilter)}
-              >
-                <Ionicons
-                  name="calendar-outline"
-                  size={20}
-                  color={fromDate || toDate ? colors.primary : colors.textSecondary}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.iconFilterBtn}
+                style={styles.sortTriggerBtn}
                 onPress={() => setShowSortModal(true)}
+                activeOpacity={0.8}
               >
-                <Ionicons name="swap-vertical" size={20} color={colors.textSecondary} />
+                <Ionicons name="swap-vertical" size={19} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
-
-            {/* Expandable Date Range Filter */}
-            {showDateFilter && (
-              <View style={styles.dateFilterContainer}>
-                <View style={styles.dateInputRow}>
-                  <View style={{ flex: 1, marginRight: spacing.xs }}>
-                    <Text style={styles.dateFieldLabel}>From (YYYY-MM-DD)</Text>
-                    <TextInput
-                      style={styles.dateTextInput}
-                      placeholder="e.g. 2026-09-01"
-                      value={fromDate}
-                      onChangeText={setFromDate}
-                    />
-                  </View>
-                  <View style={{ flex: 1, marginLeft: spacing.xs }}>
-                    <Text style={styles.dateFieldLabel}>To (YYYY-MM-DD)</Text>
-                    <TextInput
-                      style={styles.dateTextInput}
-                      placeholder="e.g. 2026-09-30"
-                      value={toDate}
-                      onChangeText={setToDate}
-                    />
-                  </View>
-                </View>
-                {(fromDate || toDate) ? (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setFromDate('');
-                      setToDate('');
-                    }}
-                    style={styles.clearDateBtn}
-                  >
-                    <Text style={styles.clearDateText}>Clear Date Filter</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            )}
 
             {/* Filter Chips Scroll */}
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterChipsRow}
+              contentContainerStyle={styles.filterPillsRow}
             >
-              <TouchableOpacity
-                style={[styles.chip, activeFilter === 'ALL' && styles.chipActive]}
-                onPress={() => setActiveFilter('ALL')}
-              >
-                <Text style={[styles.chipText, activeFilter === 'ALL' && styles.chipTextActive]}>
-                  All ({supplierBills.length})
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.chip, activeFilter === 'THIS_MONTH' && styles.chipActive]}
-                onPress={() => setActiveFilter('THIS_MONTH')}
-              >
-                <Text style={[styles.chipText, activeFilter === 'THIS_MONTH' && styles.chipTextActive]}>
-                  This Month
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.chip, activeFilter === 'THIS_YEAR' && styles.chipActive]}
-                onPress={() => setActiveFilter('THIS_YEAR')}
-              >
-                <Text style={[styles.chipText, activeFilter === 'THIS_YEAR' && styles.chipTextActive]}>
-                  This Year
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.chip, activeFilter === 'PAID' && styles.chipActive]}
-                onPress={() => setActiveFilter('PAID')}
-              >
-                <Text style={[styles.chipText, activeFilter === 'PAID' && styles.chipTextActive]}>
-                  Paid ({stats.paidBillsCount})
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.chip, activeFilter === 'PENDING' && styles.chipActive]}
-                onPress={() => setActiveFilter('PENDING')}
-              >
-                <Text style={[styles.chipText, activeFilter === 'PENDING' && styles.chipTextActive]}>
-                  Pending / Credit ({stats.pendingBillsCount})
-                </Text>
-              </TouchableOpacity>
+              {(
+                [
+                  { key: 'ALL', label: `All (${supplierBills.length})` },
+                  { key: 'THIS_MONTH', label: 'This Month' },
+                  { key: 'THIS_YEAR', label: 'This Year' },
+                  { key: 'PAID', label: `Paid (${stats.paidBillsCount})` },
+                  { key: 'PENDING', label: `Unpaid / Credit (${stats.pendingBillsCount})` },
+                ] as const
+              ).map((chip) => (
+                <TouchableOpacity
+                  key={chip.key}
+                  style={[styles.filterPill, activeFilter === chip.key && styles.filterPillActive]}
+                  onPress={() => setActiveFilter(chip.key)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.filterPillText,
+                      activeFilter === chip.key && styles.filterPillTextActive,
+                    ]}
+                  >
+                    {chip.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </ScrollView>
           </View>
 
-          {/* Bills List */}
+          {/* Bills FlatList */}
           <FlatList
             data={filteredBills}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContainer}
+            contentContainerStyle={styles.billsListContainer}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             renderItem={({ item }) => (
               <Card
-                style={styles.historyBillCard}
+                style={styles.billCard}
                 onPress={() =>
                   navigation.navigate('SupplierBillDetail', {
                     supplierId,
@@ -792,9 +705,9 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
                 outlined
                 elevation="sm"
               >
-                <View style={styles.billCardRow}>
-                  {/* Left Date / Icon Box */}
-                  <View style={styles.billDateBox}>
+                <View style={styles.billCardContent}>
+                  {/* Left Date Column */}
+                  <View style={styles.billDateColumn}>
                     <Text style={styles.billDayText}>
                       {item.billDate ? item.billDate.split('-')[2] : '--'}
                     </Text>
@@ -808,23 +721,23 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
                     </Text>
                   </View>
 
-                  {/* Center Info */}
-                  <View style={styles.billCardCenter}>
-                    <View style={styles.billInvoiceRow}>
-                      <Text style={styles.historyInvoiceText}>Invoice #{item.invoiceNumber}</Text>
+                  {/* Center Details */}
+                  <View style={styles.billCenterColumn}>
+                    <View style={styles.billNumberRow}>
+                      <Text style={styles.billNumberText}>Invoice #{item.invoiceNumber}</Text>
                       {item.cloudinaryUrl ? (
-                        <View style={styles.attachmentBadge}>
+                        <View style={styles.attachmentPill}>
                           <Ionicons
                             name={item.fileType?.includes('pdf') ? 'document-text' : 'image'}
-                            size={12}
+                            size={11}
                             color={colors.primary}
                           />
-                          <Text style={styles.attachmentBadgeText}>Bill File</Text>
+                          <Text style={styles.attachmentPillText}>Attachment</Text>
                         </View>
                       ) : null}
                     </View>
 
-                    <Text style={styles.historyProductsText} numberOfLines={2}>
+                    <Text style={styles.billProductsListText} numberOfLines={2}>
                       {item.items && item.items.length > 0
                         ? item.items
                             .map((p) => `${p.productName} (${p.quantity} ${p.unit})`)
@@ -833,15 +746,15 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
                     </Text>
 
                     {item.notes ? (
-                      <Text style={styles.historyNotesText} numberOfLines={1}>
+                      <Text style={styles.billNotesText} numberOfLines={1}>
                         Note: {item.notes}
                       </Text>
                     ) : null}
                   </View>
 
-                  {/* Right Financials & Action */}
-                  <View style={styles.billCardRight}>
-                    <Text style={styles.historyAmountText}>₹{fmt(item.totalAmount)}</Text>
+                  {/* Right Amount & Status */}
+                  <View style={styles.billRightColumn}>
+                    <Text style={styles.billTotalAmountText}>₹{fmt(item.totalAmount)}</Text>
                     <View
                       style={[
                         styles.statusPill,
@@ -862,8 +775,8 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
                       </Text>
                     </View>
 
-                    <View style={styles.viewBillRow}>
-                      <Text style={styles.viewBillText}>View Bill</Text>
+                    <View style={styles.viewLinkRow}>
+                      <Text style={styles.viewLinkText}>View</Text>
                       <Ionicons name="chevron-forward" size={12} color={colors.primary} />
                     </View>
                   </View>
@@ -871,32 +784,17 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
               </Card>
             )}
             ListEmptyComponent={
-              <View style={styles.emptyWrap}>
-                <Ionicons name="receipt-outline" size={44} color={colors.textMuted} />
-                <Text style={styles.emptyTitle}>No matching bills found</Text>
+              <View style={styles.emptyContainer}>
+                <Ionicons name="receipt-outline" size={48} color={colors.textMuted} />
+                <Text style={styles.emptyTitle}>No invoices found</Text>
                 <Text style={styles.emptySub}>
-                  {searchQuery || activeFilter !== 'ALL' || fromDate || toDate
-                    ? 'Try clearing search or filters to see all records'
-                    : 'Tap below to add the first bill for this supplier'}
+                  {searchQuery || activeFilter !== 'ALL'
+                    ? 'Try clearing search or filter chips.'
+                    : 'Tap below to add the first invoice for this supplier.'}
                 </Text>
-                <Button
-                  title="+ Add Bill"
-                  onPress={() => navigation.navigate('AddSupplierBill', { supplierId })}
-                  style={{ marginTop: spacing.md }}
-                />
               </View>
             }
           />
-
-          {/* Floating "+ Add Bill" Button */}
-          <TouchableOpacity
-            style={styles.fabButton}
-            onPress={() => navigation.navigate('AddSupplierBill', { supplierId })}
-            activeOpacity={0.88}
-          >
-            <Ionicons name="add" size={24} color={colors.textInverse} />
-            <Text style={styles.fabText}>Add Bill</Text>
-          </TouchableOpacity>
         </View>
       )}
 
@@ -907,7 +805,10 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
         animationType="slide"
         onRequestClose={() => setShowPaymentModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Record Supplier Payment</Text>
@@ -916,35 +817,35 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              <Text style={styles.modalSubText}>
-                Payable Balance: ₹{fmt(supplier.balancePayable || 0)}
-              </Text>
-
-              <Input
-                label="Payment Amount (₹) *"
-                keyboardType="numeric"
-                prefix="₹"
-                value={paymentAmount}
-                onChangeText={setPaymentAmount}
-              />
-
-              <Input
-                label="Payment Notes / Reference"
-                placeholder="e.g. Bank Transfer Ref / Cash"
-                value={paymentNotes}
-                onChangeText={setPaymentNotes}
-              />
-
-              <Button
-                title={`RECORD PAYMENT (−₹${paymentAmount || '0.00'})`}
-                onPress={handleRecordPayment}
-                loading={paymentLoading}
-                style={{ backgroundColor: colors.brandGreen, marginTop: spacing.sm }}
-              />
+            <View style={styles.payableSummaryBox}>
+              <Text style={styles.payableSummaryLabel}>CURRENT OUTSTANDING</Text>
+              <Text style={styles.payableSummaryAmount}>₹{fmt(balance)}</Text>
             </View>
+
+            <Input
+              label="Payment Amount (₹) *"
+              keyboardType="numeric"
+              prefix="₹"
+              placeholder="0.00"
+              value={paymentAmount}
+              onChangeText={setPaymentAmount}
+            />
+
+            <Input
+              label="Payment Reference / Notes"
+              placeholder="e.g. Bank Transfer, UPI Ref, Cash"
+              value={paymentNotes}
+              onChangeText={setPaymentNotes}
+            />
+
+            <Button
+              title={`SAVE PAYMENT (−₹${paymentAmount || '0.00'})`}
+              onPress={handleRecordPayment}
+              loading={paymentLoading}
+              style={{ backgroundColor: colors.brandGreen, marginTop: spacing.sm }}
+            />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── EDIT SUPPLIER MODAL ─────────────────────────────────────── */}
@@ -954,18 +855,21 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
         animationType="slide"
         onRequestClose={() => setShowEditModal(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Supplier</Text>
+              <Text style={styles.modalTitle}>Edit Supplier Details</Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
                 <Ionicons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.modalBody}>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
               <Input
-                label="Supplier Name *"
+                label="Supplier Business Name *"
                 value={editName}
                 onChangeText={setEditName}
               />
@@ -984,7 +888,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
               />
 
               <Input
-                label="Email"
+                label="Email Address"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={editEmail}
@@ -1006,7 +910,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
               />
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── SORT MODAL ─────────────────────────────────────────────── */}
@@ -1022,7 +926,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
           onPress={() => setShowSortModal(false)}
         >
           <View style={styles.sortSheet}>
-            <Text style={styles.sortTitle}>Sort Bills By</Text>
+            <Text style={styles.sortTitle}>Sort Invoices By</Text>
 
             {(
               [
@@ -1049,7 +953,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
                   {opt.label}
                 </Text>
                 {sortBy === opt.value && (
-                  <Ionicons name="checkmark" size={18} color={colors.primary} />
+                  <Ionicons name="checkmark" size={17} color={colors.primary} />
                 )}
               </TouchableOpacity>
             ))}
@@ -1061,7 +965,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
       <ConfirmationModal
         visible={showDeleteModal}
         title="Delete Supplier"
-        message={`Are you sure you want to delete ${supplier.name}? Historical bills will be preserved.`}
+        message={`Are you sure you want to delete ${supplier.name}? All historical bills and audit trails will be preserved.`}
         confirmTitle="Delete Supplier"
         cancelTitle="Cancel"
         variant="danger"
@@ -1097,112 +1001,99 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
 
-  // Hero Card
-  supplierHero: {
+  // Hero Financial Cockpit
+  heroSection: {
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  heroRow: {
+  heroMainRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-  },
-  heroAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  heroAvatarText: {
-    ...typography.bodyBold,
-    color: colors.primary,
-    fontSize: 16,
-  },
-  heroInfo: {
-    flex: 1,
-  },
-  heroTitle: {
-    ...typography.h3,
-    color: colors.textPrimary,
-    fontSize: 16,
-  },
-  heroContact: {
-    ...typography.caption,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  heroPhoneLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 2,
-  },
-  heroPhoneText: {
-    ...typography.captionBold,
-    color: colors.primary,
-    fontSize: 12,
-  },
-  heroBalanceBox: {
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
   heroBalanceLabel: {
     ...typography.label,
     color: colors.textMuted,
-    fontSize: 9,
+    fontSize: 9.5,
+    letterSpacing: 0.8,
   },
-  heroBalanceValue: {
-    ...typography.bodyBold,
-    fontSize: 15,
+  heroBalanceAmount: {
+    ...typography.currencyLarge,
+    fontSize: 26,
+    lineHeight: 32,
     marginTop: 2,
   },
-  balanceDue: {
-    color: colors.debit,
-  },
-  balanceClear: {
+  heroStatusSub: {
+    ...typography.caption,
     color: colors.textSecondary,
+    fontSize: 11.5,
+    marginTop: 2,
   },
-
-  // Metrics Strip
-  metricsStrip: {
+  quickCallPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4,
+  },
+  quickCallPillText: {
+    ...typography.captionBold,
+    color: colors.textInverse,
+    fontSize: 11.5,
+  },
+
+  metricsGrid: {
+    flexDirection: 'row',
     backgroundColor: colors.surfaceSubtle,
     borderRadius: spacing.borderRadiusMd,
-    paddingVertical: spacing.xs + 2,
-    paddingHorizontal: spacing.sm,
-    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  metricItem: {
+  metricCell: {
     flex: 1,
     alignItems: 'center',
   },
+  metricLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 10,
+  },
   metricValue: {
     ...typography.bodyBold,
-    fontSize: 12,
     color: colors.textPrimary,
-  },
-  metricLabel: {
-    ...typography.label,
-    fontSize: 8,
-    color: colors.textMuted,
-    marginTop: 1,
-  },
-  metricDivider: {
-    width: 1,
-    height: 18,
-    backgroundColor: colors.border,
+    fontSize: 13,
+    marginTop: 2,
   },
 
-  // Tabs
+  heroActionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  heroActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: spacing.borderRadiusMd,
+    gap: 5,
+  },
+  heroActionBtnText: {
+    ...typography.captionBold,
+    color: colors.textInverse,
+    fontSize: 12,
+  },
+
+  // Segmented Tabs
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: colors.surface,
@@ -1214,8 +1105,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    gap: 6,
+    paddingVertical: 12,
+    gap: 5,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
@@ -1231,7 +1122,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
 
-  // Overview Tab
+  // Scroll Content
   contentScroll: {
     flex: 1,
   },
@@ -1239,172 +1130,73 @@ const styles = StyleSheet.create({
     padding: spacing.screenPadding,
     paddingBottom: spacing.xxl,
   },
-  sectionHeaderTitle: {
-    ...typography.label,
-    color: colors.textMuted,
-    fontSize: 10,
-    letterSpacing: 0.8,
-    marginBottom: spacing.xs,
-  },
+
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     marginBottom: spacing.xs,
   },
-  viewAllLink: {
+  sectionTitle: {
+    ...typography.label,
+    color: colors.textMuted,
+    fontSize: 10,
+    letterSpacing: 0.8,
+  },
+  sectionLink: {
     ...typography.captionBold,
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 11.5,
   },
-  statsGrid: {
+
+  overviewStatsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
-  statBox: {
-    width: '48%',
+  overviewStatCard: {
+    flex: 1,
     backgroundColor: colors.surface,
     borderRadius: spacing.borderRadiusMd,
     padding: spacing.sm + 2,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  statBoxLabel: {
+  overviewStatLabel: {
     ...typography.label,
     color: colors.textMuted,
     fontSize: 8.5,
   },
-  statBoxValue: {
+  overviewStatVal: {
     ...typography.bodyBold,
     color: colors.textPrimary,
-    fontSize: 14,
+    fontSize: 13.5,
     marginTop: 2,
   },
-  statBoxSub: {
+  overviewStatSub: {
     ...typography.caption,
     color: colors.textMuted,
     fontSize: 9.5,
     marginTop: 2,
   },
 
-  statusBreakdownCard: {
+  // Supplier Profile Info Card
+  infoCard: {
     padding: spacing.md,
-    marginBottom: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
   },
-  breakdownTitle: {
+  infoCardTitle: {
     ...typography.bodyBold,
     fontSize: 13,
     color: colors.textPrimary,
     marginBottom: spacing.sm,
   },
-  breakdownRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  breakdownCol: {
-    alignItems: 'center',
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginBottom: 4,
-  },
-  breakdownLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 10,
-  },
-  breakdownValue: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 15,
-    marginTop: 2,
-  },
-
-  quickActionRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  quickActionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: spacing.borderRadiusMd,
-    gap: 6,
-  },
-  quickActionText: {
-    ...typography.captionBold,
-    color: colors.textInverse,
-    fontSize: 12.5,
-  },
-
-  recentBillCard: {
-    marginBottom: spacing.sm,
-    padding: spacing.sm + 4,
-  },
-  billCardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 6,
-  },
-  billInvoiceNumber: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13.5,
-  },
-  billDateText: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 11,
-    marginTop: 1,
-  },
-  billAmountCol: {
-    alignItems: 'flex-end',
-  },
-  billAmountText: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 14,
-  },
-  billItemsSummaryText: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontSize: 11.5,
-  },
-  emptyOverviewWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.lg,
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: spacing.borderRadiusMd,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-    marginBottom: spacing.md,
-  },
-  emptyOverviewText: {
-    ...typography.caption,
-    color: colors.textMuted,
-    marginTop: 4,
-  },
-
-  contactInfoCard: {
-    padding: spacing.sm + 4,
-    marginBottom: spacing.lg,
-  },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
     gap: spacing.sm,
@@ -1412,273 +1204,104 @@ const styles = StyleSheet.create({
   infoLabel: {
     ...typography.caption,
     color: colors.textMuted,
-    width: 90,
+    width: 75,
     fontSize: 11.5,
   },
-  infoValue: {
+  infoVal: {
     ...typography.bodyBold,
     color: colors.textPrimary,
     flex: 1,
     fontSize: 12.5,
   },
-  deleteSupplierBtn: {
+  phoneClickRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: spacing.sm,
+    gap: 4,
   },
-  deleteSupplierText: {
-    ...typography.captionBold,
-    color: colors.danger,
-    fontSize: 12,
+  phoneClickVal: {
+    ...typography.bodyBold,
+    color: colors.primary,
+    fontSize: 12.5,
+  },
+  emailVal: {
+    ...typography.bodyBold,
+    color: colors.primary,
+    fontSize: 12.5,
   },
 
-  // Products Tab
-  productsHeaderBar: {
-    marginBottom: spacing.sm,
-  },
-  productsHeaderTitle: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 14,
-  },
-  productsHeaderSub: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 11,
-    marginTop: 2,
-  },
-  productCard: {
-    marginBottom: spacing.sm,
-    padding: spacing.sm + 4,
-  },
-  productRow: {
+  // Recent Bills Preview Row
+  recentBillRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.sm + 2,
+    marginBottom: spacing.xs + 2,
   },
-  productIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: colors.surfaceSubtle,
+  billRowLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-  },
-  productInfoCol: {
     flex: 1,
     marginRight: spacing.sm,
   },
-  productCardName: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13.5,
-  },
-  productCardSub: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontSize: 11,
-    marginTop: 2,
-  },
-  productCardLastDate: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 10,
-    marginTop: 1,
-  },
-  productSpendCol: {
-    alignItems: 'flex-end',
-  },
-  productSpendLabel: {
-    ...typography.label,
-    color: colors.textMuted,
-    fontSize: 8.5,
-  },
-  productSpendValue: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13.5,
-    marginTop: 2,
-  },
-
-  // Bills & History Tab
-  filterSection: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  iconFilterBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: spacing.borderRadiusMd,
-    borderWidth: 1,
-    borderColor: colors.border,
+  billDateBadge: {
+    width: 38,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceSubtle,
-  },
-  iconFilterBtnActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryLight,
-  },
-  dateFilterContainer: {
-    backgroundColor: colors.surfaceSubtle,
-    padding: spacing.sm,
-    borderRadius: spacing.borderRadiusMd,
-    marginTop: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dateInputRow: {
-    flexDirection: 'row',
-  },
-  dateFieldLabel: {
-    ...typography.label,
-    color: colors.textMuted,
-    fontSize: 9,
-    marginBottom: 2,
-  },
-  dateTextInput: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: spacing.borderRadiusSm,
-    paddingHorizontal: spacing.xs,
     paddingVertical: 4,
-    fontSize: 12,
-    color: colors.textPrimary,
-  },
-  clearDateBtn: {
-    alignSelf: 'flex-end',
-    marginTop: 4,
-  },
-  clearDateText: {
-    ...typography.captionBold,
-    color: colors.primary,
-    fontSize: 10,
-  },
-  filterChipsRow: {
-    gap: spacing.xs,
-    paddingVertical: spacing.xs + 2,
-  },
-  chip: {
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 5,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceSubtle,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  chipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  chipText: {
-    ...typography.captionBold,
-    fontSize: 10.5,
-    color: colors.textSecondary,
-  },
-  chipTextActive: {
-    color: colors.textInverse,
-  },
-
-  listContainer: {
-    padding: spacing.screenPadding,
-    paddingBottom: spacing.xxl + 40,
-  },
-  historyBillCard: {
-    marginBottom: spacing.sm,
-    padding: spacing.sm + 4,
-  },
-  billCardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  billDateBox: {
-    width: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: spacing.borderRadiusSm,
-    paddingVertical: 6,
     marginRight: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
   },
   billDayText: {
-    ...typography.h3,
-    fontSize: 15,
+    ...typography.bodyBold,
+    fontSize: 13,
     color: colors.textPrimary,
-    lineHeight: 17,
+    lineHeight: 15,
   },
   billMonthText: {
     ...typography.captionBold,
-    fontSize: 9,
+    fontSize: 8.5,
     color: colors.primary,
     textTransform: 'uppercase',
   },
   billYearText: {
     ...typography.caption,
-    fontSize: 8,
+    fontSize: 7.5,
     color: colors.textMuted,
   },
-  billCardCenter: {
+  billMetaCol: {
     flex: 1,
-    marginRight: spacing.xs,
   },
-  billInvoiceRow: {
+  invoiceTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
-  historyInvoiceText: {
+  invoiceNumText: {
     ...typography.bodyBold,
     color: colors.textPrimary,
-    fontSize: 13,
+    fontSize: 12.5,
   },
-  attachmentBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 5,
-    paddingVertical: 1.5,
-    borderRadius: 4,
+  docBadge: {
+    backgroundColor: colors.surfaceSubtle,
+    padding: 2,
+    borderRadius: 3,
   },
-  attachmentBadgeText: {
-    ...typography.captionBold,
-    fontSize: 8.5,
-    color: colors.primary,
-  },
-  historyProductsText: {
+  invoiceItemsSub: {
     ...typography.caption,
     color: colors.textSecondary,
     fontSize: 11,
     marginTop: 2,
   },
-  historyNotesText: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 9.5,
-    fontStyle: 'italic',
-    marginTop: 1,
-  },
-  billCardRight: {
+  billRowRight: {
     alignItems: 'flex-end',
   },
-  historyAmountText: {
+  billAmountVal: {
     ...typography.bodyBold,
     color: colors.textPrimary,
-    fontSize: 13.5,
+    fontSize: 13,
   },
   statusPill: {
     paddingHorizontal: 6,
@@ -1694,7 +1317,7 @@ const styles = StyleSheet.create({
   },
   statusPillText: {
     ...typography.captionBold,
-    fontSize: 9,
+    fontSize: 8.5,
   },
   statusPillTextPaid: {
     color: colors.brandGreen,
@@ -1702,44 +1325,228 @@ const styles = StyleSheet.create({
   statusPillTextPending: {
     color: colors.debit,
   },
-  viewBillRow: {
+
+  deleteLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.xl,
+    paddingVertical: spacing.sm,
+    gap: 5,
+  },
+  deleteLinkText: {
+    ...typography.captionBold,
+    color: colors.danger,
+    fontSize: 11.5,
+  },
+
+  // Products Tab
+  listContainer: {
+    padding: spacing.screenPadding,
+    paddingBottom: spacing.xxl,
+  },
+  productsSummaryBanner: {
+    marginBottom: spacing.sm,
+  },
+  productsBannerTitle: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 13,
+  },
+  productsBannerSub: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  productCatalogCard: {
+    padding: spacing.sm + 2,
+    marginBottom: spacing.xs + 2,
+  },
+  productCatalogRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  productIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceSubtle,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.sm,
+  },
+  productDetailsCol: {
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  productTitleText: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 13,
+  },
+  productSubDetails: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  productLastRate: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 10,
+    marginTop: 1,
+  },
+  productSpendCol: {
+    alignItems: 'flex-end',
+  },
+  productSpendLabel: {
+    ...typography.label,
+    color: colors.textMuted,
+    fontSize: 8,
+  },
+  productSpendAmount: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 13,
+    marginTop: 1,
+  },
+
+  // Bills Tab
+  searchBarContainer: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  sortTriggerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: spacing.borderRadiusMd,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceSubtle,
+  },
+  filterPillsRow: {
+    gap: spacing.xs,
+    paddingVertical: spacing.xs + 2,
+  },
+  filterPill: {
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  filterPillActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  filterPillText: {
+    ...typography.captionBold,
+    fontSize: 10.5,
+    color: colors.textSecondary,
+  },
+  filterPillTextActive: {
+    color: colors.textInverse,
+  },
+
+  billsListContainer: {
+    padding: spacing.screenPadding,
+    paddingBottom: spacing.xxl,
+  },
+  billCard: {
+    marginBottom: spacing.xs + 2,
+    padding: spacing.sm + 2,
+  },
+  billCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  billDateColumn: {
+    width: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: spacing.borderRadiusSm,
+    paddingVertical: 5,
+    marginRight: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  billCenterColumn: {
+    flex: 1,
+    marginRight: spacing.xs,
+  },
+  billNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  billNumberText: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 13,
+  },
+  attachmentPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 3,
+  },
+  attachmentPillText: {
+    ...typography.caption,
+    fontSize: 8.5,
+    color: colors.textSecondary,
+  },
+  billProductsListText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  billNotesText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 9.5,
+    fontStyle: 'italic',
+    marginTop: 1,
+  },
+  billRightColumn: {
+    alignItems: 'flex-end',
+  },
+  billTotalAmountText: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 13,
+  },
+  viewLinkRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 1,
     marginTop: 4,
   },
-  viewBillText: {
+  viewLinkText: {
     ...typography.captionBold,
-    fontSize: 10,
+    fontSize: 9.5,
     color: colors.primary,
   },
 
-  // FAB
-  fabButton: {
-    position: 'absolute',
-    bottom: spacing.lg,
-    right: spacing.screenPadding,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: spacing.md + 4,
-    borderRadius: 24,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    gap: 4,
-  },
-  fabText: {
-    ...typography.captionBold,
-    color: colors.textInverse,
-    fontSize: 13,
-  },
-
-  // Empty state
-  emptyWrap: {
+  // Empty states
+  emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: spacing.xxl,
@@ -1756,6 +1563,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 3,
   },
+  emptyCardWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.lg,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: spacing.borderRadiusMd,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: spacing.md,
+  },
+  emptyCardTitle: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    marginTop: 4,
+    fontSize: 12,
+  },
+  emptyCardSub: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 10.5,
+    marginTop: 2,
+  },
 
   // Modals
   modalOverlay: {
@@ -1767,7 +1596,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopLeftRadius: spacing.borderRadiusXl,
     borderTopRightRadius: spacing.borderRadiusXl,
-    maxHeight: '85%',
     padding: spacing.lg,
     paddingBottom: Platform.OS === 'ios' ? spacing.xxl : spacing.lg,
   },
@@ -1776,7 +1604,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: spacing.md,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
@@ -1784,13 +1612,25 @@ const styles = StyleSheet.create({
     ...typography.h3,
     color: colors.textPrimary,
   },
-  modalBody: {
-    marginBottom: spacing.sm,
+  payableSummaryBox: {
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: spacing.borderRadiusMd,
+    padding: spacing.sm + 2,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
   },
-  modalSubText: {
+  payableSummaryLabel: {
+    ...typography.label,
+    color: colors.textMuted,
+    fontSize: 9,
+  },
+  payableSummaryAmount: {
     ...typography.bodyBold,
     color: colors.debit,
-    marginBottom: spacing.md,
+    fontSize: 17,
+    marginTop: 2,
   },
 
   // Sort Sheet
@@ -1804,7 +1644,7 @@ const styles = StyleSheet.create({
   },
   sortTitle: {
     ...typography.bodyBold,
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textPrimary,
     marginBottom: spacing.sm,
     paddingBottom: spacing.xs,
@@ -1815,7 +1655,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    paddingVertical: 11,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
@@ -1826,7 +1666,7 @@ const styles = StyleSheet.create({
   },
   sortOptionText: {
     ...typography.caption,
-    fontSize: 13,
+    fontSize: 12.5,
     color: colors.textPrimary,
   },
   sortOptionTextActive: {
