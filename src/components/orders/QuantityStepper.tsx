@@ -5,7 +5,7 @@ import { colors, typography, spacing } from '../../theme';
 
 interface QuantityStepperProps {
   quantity: number;
-  max: number;
+  max?: number;
   min?: number;
   onIncrease: () => void;
   onDecrease: () => void;
@@ -19,7 +19,7 @@ export const QuantityStepper: React.FC<QuantityStepperProps> = ({
   onDecrease,
 }) => {
   const isMinDisabled = quantity <= min;
-  const isMaxDisabled = quantity >= max;
+  const isMaxDisabled = max !== undefined && quantity >= max;
 
   return (
     <View style={styles.container}>

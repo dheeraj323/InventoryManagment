@@ -10,7 +10,7 @@ interface AuthState {
   isLoading: boolean;
   authError: string | null;
   pendingStaff: User[];
-  
+
   initAuth: () => void;
   loginWithEmail: (email: string, pass: string) => Promise<void>;
   registerVendor: (params: {
@@ -42,7 +42,7 @@ interface AuthState {
   sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
-  
+
   // Admin staff management actions
   fetchPendingStaff: () => Promise<void>;
   approveStaff: (userId: string, staffId: string) => Promise<void>;

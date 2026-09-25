@@ -122,19 +122,51 @@ export const financialTransactionService = {
       const vendorRef = doc(db, VENDORS_COLLECTION, existingOrder.vendorId);
       const vendorSnap = await transaction.get(vendorRef);
 
-      // Read product documents for stock restoration (ALL READS before writes)
-      type ProductRead = { ref: ReturnType<typeof doc>; currentStock: number; item: OrderItem };
+      // Read product documents for stock restoration / deduction (ALL READS before writes)
+      type ProductRead = {
+        ref: ReturnType<typeof doc>;
+        productId: string;
+        currentStock: number;
+        orderedQty: number;
+        deliveredQty: number;
+        damagedQty: number;
+      };
       const productReads: ProductRead[] = [];
 
+      const itemMapByProductId = new Map<string, OrderItem>();
       for (const item of updatedItems) {
-        const productRef = doc(db, PRODUCTS_COLLECTION, item.productId);
+        itemMapByProductId.set(item.productId, item);
+      }
+
+      const allProductIds = Array.from(
+        new Set([
+          ...updatedItems.map((i) => i.productId),
+          ...(existingOrder.items || []).map((i) => i.productId),
+        ])
+      );
+
+      for (const prodId of allProductIds) {
+        const productRef = doc(db, PRODUCTS_COLLECTION, prodId);
         const productSnap = await transaction.get(productRef);
         if (productSnap.exists()) {
           const product = productSnap.data() as Product;
+          const originalItem = (existingOrder.items || []).find((i) => i.productId === prodId);
+          const updatedItem = itemMapByProductId.get(prodId);
+
+          const orderedQty =
+            updatedItem?.orderedQty !== undefined
+              ? updatedItem.orderedQty
+              : (originalItem?.orderedQty || 0);
+          const deliveredQty = updatedItem ? updatedItem.deliveredQty || 0 : 0;
+          const damagedQty = updatedItem ? updatedItem.damagedQty || 0 : 0;
+
           productReads.push({
             ref: productRef,
+            productId: prodId,
             currentStock: product.stockQty || 0,
-            item,
+            orderedQty,
+            deliveredQty,
+            damagedQty,
           });
         }
       }
@@ -223,26 +255,22 @@ export const financialTransactionService = {
         })
       );
 
-      // 2. Restore MISSING (non-damaged) stock to inventory
-      // Rule: Missing items (lost in transit) return to sellable stock.
+      // 2. Adjust warehouse stock (restore missing units, deduct extra delivered units)
+      // Rule: Missing items (ordered > delivered) return to sellable stock (minus damaged).
+      //       Extra delivered items (delivered > ordered) are deducted from stock.
       //       Damaged items are flagged but do NOT return to stock.
       const restoredStockMap: Record<string, number> = {};
-      for (const { ref, currentStock, item } of productReads) {
-        const damagedQty = item.damagedQty || 0;
-        // missingQty = items that were ordered, not delivered, and not damaged
-        const missingQty = Math.max(
-          0,
-          item.orderedQty - item.deliveredQty - damagedQty
-        );
+      for (const { ref, productId, currentStock, orderedQty, deliveredQty, damagedQty } of productReads) {
+        const stockDelta = orderedQty - deliveredQty - damagedQty;
 
-        if (missingQty > 0) {
-          const restoredStock = currentStock + missingQty;
+        if (stockDelta !== 0) {
+          const newStock = Math.max(0, currentStock + stockDelta);
           transaction.update(ref, {
-            stockQty: restoredStock,
-            availableStock: restoredStock,
+            stockQty: newStock,
+            availableStock: newStock,
             updatedAt: serverTimestamp(),
           });
-          restoredStockMap[item.productId] = restoredStock;
+          restoredStockMap[productId] = newStock;
         }
       }
 

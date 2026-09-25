@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useVendorStore } from '../../store/useVendorStore';
+import { useAuthStore } from '../../store/useAuthStore';
+import { useStaffStockStore } from '../../store/useStaffStockStore';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { StatusBadge } from '../../components/common/StatusBadge';
@@ -22,6 +24,7 @@ import {
 import { OrderItem } from '../../types';
 import { PAYMENT_METHOD_LABELS, BUSINESS_RULES } from '../../constants/rules';
 import { formatDate, formatDateTime } from '../../utils/dateFormatter';
+import { StaffAddProductsModal } from '../../components/staff/StaffAddProductsModal';
 import { colors, typography, spacing } from '../../theme';
 
 export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = ({
@@ -31,8 +34,32 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
   const { orderId } = route.params || {};
   const { getOrderById } = useOrderStore();
   const { getVendorById } = useVendorStore();
+  const { activeStaffId, currentUser } = useAuthStore();
+  const { todaySession, subscribeTodaySession } = useStaffStockStore();
+
   const order = getOrderById(orderId);
   const vendor = order ? getVendorById(order.vendorId) : undefined;
+
+  const effectiveStaffId =
+    order?.assignedStaffId || activeStaffId || currentUser?.staffId || currentUser?.id || '';
+
+  useEffect(() => {
+    if (effectiveStaffId) {
+      const unsub = subscribeTodaySession(effectiveStaffId);
+      return () => {
+        if (unsub) unsub();
+      };
+    }
+  }, [effectiveStaffId]);
+
+  const vanStockMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    (todaySession?.items || []).forEach((it) => {
+      const stock = Math.max(0, it.currentStock ?? (it.loadedQty - it.deliveredQty));
+      map[it.productId] = stock;
+    });
+    return map;
+  }, [todaySession]);
 
   const effectiveAddress = order?.address || vendor?.address || '';
   const effectiveLocationUrl = order?.locationUrl || vendor?.locationUrl;
@@ -40,6 +67,7 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
   const effectiveLongitude = order?.longitude !== undefined ? order.longitude : vendor?.longitude;
 
   const [items, setItems] = useState<OrderItem[]>(order ? order.items : []);
+  const [isAddProductsModalVisible, setIsAddProductsModalVisible] = useState(false);
 
   if (!order || order.status === 'PENDING' || order.status === 'CANCELLED') {
     return (
@@ -64,20 +92,39 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
 
   const handleUpdateDeliveredQty = (itemId: string, delta: number) => {
     setItems((prev) =>
-      prev.map((item) => {
-        if (item.id === itemId) {
-          const newDelivered = Math.max(0, Math.min(item.orderedQty, item.deliveredQty + delta));
-          const newMissing = Math.max(0, item.orderedQty - newDelivered);
-          return {
-            ...item,
-            deliveredQty: newDelivered,
-            missingDamagedQty: newMissing,
-            totalAmount: newDelivered * item.unitPrice,
-          };
-        }
-        return item;
-      })
+      prev
+        .map((item) => {
+          if (item.id === itemId) {
+            const maxAllowed =
+              todaySession && vanStockMap[item.productId] !== undefined
+                ? vanStockMap[item.productId]
+                : undefined;
+            const targetDelivered = item.deliveredQty + delta;
+            const newDelivered =
+              maxAllowed !== undefined
+                ? Math.min(maxAllowed, Math.max(0, targetDelivered))
+                : Math.max(0, targetDelivered);
+            const ordered = item.orderedQty || 0;
+            const newMissing = Math.max(0, ordered - newDelivered);
+            return {
+              ...item,
+              deliveredQty: newDelivered,
+              missingDamagedQty: newMissing,
+              totalAmount: newDelivered * item.unitPrice,
+            };
+          }
+          return item;
+        })
+        .filter((item) => !(item.orderedQty === 0 && item.deliveredQty === 0))
     );
+  };
+
+  const handleRemoveItem = (itemId: string) => {
+    setItems((prev) => prev.filter((i) => i.id !== itemId));
+  };
+
+  const handleSaveAddedProducts = (newItems: OrderItem[]) => {
+    setItems(newItems);
   };
 
   const calculatedSubtotal = items.reduce(
@@ -87,7 +134,9 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
   const calculatedTax = calculatedSubtotal * (BUSINESS_RULES.TAX_RATE || 0);
   const calculatedTotal = calculatedSubtotal + calculatedTax;
 
-  const hasMissingOrDamaged = items.some((i) => i.missingDamagedQty > 0);
+  const hasMissingOrDamaged = items.some(
+    (i) => (i.missingDamagedQty || 0) > 0 || (i.damagedQty || 0) > 0
+  );
 
   const handleProceedToPayment = () => {
     navigation.navigate('ActualPayment', {
@@ -233,6 +282,9 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
         <ProductQuantityCard
           items={items}
           onUpdateQty={handleUpdateDeliveredQty}
+          onAddProducts={() => setIsAddProductsModalVisible(true)}
+          onRemoveItem={handleRemoveItem}
+          vanStockMap={vanStockMap}
         />
 
         {/* 3. Recalculated Bill Summary */}
@@ -249,6 +301,15 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
       <PaymentCollectionButton
         amount={calculatedTotal}
         onPress={handleProceedToPayment}
+      />
+
+      {/* 5. Add Products Modal */}
+      <StaffAddProductsModal
+        visible={isAddProductsModalVisible}
+        onClose={() => setIsAddProductsModalVisible(false)}
+        currentItems={items}
+        onSaveItems={handleSaveAddedProducts}
+        vanStockMap={vanStockMap}
       />
     </SafeAreaView>
   );
