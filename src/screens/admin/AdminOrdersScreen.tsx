@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,9 +14,17 @@ import { Header } from '../../components/common/Header';
 import { EmptyState } from '../../components/common/EmptyState';
 import { colors, typography, spacing } from '../../theme';
 
-export const AdminOrdersScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+export const AdminOrdersScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
   const { orders } = useOrderStore();
-  const [selectedFilter, setSelectedFilter] = useState<string>('ALL');
+  const initial = route?.params?.initialFilter || route?.params?.filter || route?.params?.status || 'ALL';
+  const [selectedFilter, setSelectedFilter] = useState<string>(initial);
+
+  useEffect(() => {
+    const nextFilter = route?.params?.initialFilter || route?.params?.filter || route?.params?.status;
+    if (nextFilter) {
+      setSelectedFilter(nextFilter);
+    }
+  }, [route?.params?.initialFilter, route?.params?.filter, route?.params?.status]);
 
   const filters = ['ALL', 'PENDING', 'APPROVED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
 

@@ -24,8 +24,12 @@ import { Product } from '../../types';
 import { colors, typography, spacing } from '../../theme';
 
 export const ProductCatalogScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { products, refreshCatalog } = useInventoryStore();
+  const { products, refreshCatalog, fetchProducts } = useInventoryStore();
   const { items, addItem, updateQty, setQty, getTotal, getSubtotal, getItemCount } = useCartStore();
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 450);

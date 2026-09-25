@@ -100,7 +100,7 @@ export const productService = {
     }
   },
 
-  // Real-time listener for products (used only when full catalog subscription is specifically requested)
+  // Real-time listener for products
   subscribeProducts: (callback: (products: Product[]) => void) => {
     const q = query(collection(db, PRODUCTS_COLLECTION));
     return onSnapshot(q, (snapshot) => {
@@ -109,6 +109,7 @@ export const productService = {
         productId: docSnap.id,
         ...docSnap.data(),
       })) as Product[];
+      products.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       callback(products);
     }, (error) => {
       console.error('Real-time products subscription error:', error);

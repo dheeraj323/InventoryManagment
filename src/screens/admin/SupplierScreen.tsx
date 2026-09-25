@@ -56,6 +56,7 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
+  const [isBillPaid, setIsBillPaid] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
 
@@ -159,12 +160,26 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
     try {
       if (modalMode === 'RECORD_BILL') {
-        await adjustSupplierPayable(
-          selectedSupplier.id,
-          numAmount,
-          'ADD_BILL',
-          notes.trim() || (reference.trim() ? `Bill #${reference.trim()}` : undefined)
-        );
+        if (!isBillPaid) {
+          await adjustSupplierPayable(
+            selectedSupplier.id,
+            numAmount,
+            'ADD_BILL',
+            notes.trim() || (reference.trim() ? `Bill #${reference.trim()}` : undefined)
+          );
+        } else {
+          // Bill is already paid at purchase time, no balance payable is added
+          const paidBillReason = `Paid Purchase: ${
+            reference.trim() ? `Bill #${reference.trim()}` : ''
+          }${notes.trim() ? ` - ${notes.trim()}` : ''}`.trim();
+
+          await adjustSupplierPayable(
+            selectedSupplier.id,
+            selectedSupplier.balancePayable || 0,
+            'SET_BALANCE',
+            paidBillReason
+          );
+        }
       } else if (modalMode === 'RECORD_PAYMENT') {
         await adjustSupplierPayable(
           selectedSupplier.id,
@@ -345,88 +360,106 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       />
 
       {/* ── ADD SUPPLIER MODAL ─────────────────────────────────────── */}
-      <Modal visible={showAddModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={{ width: '100%', justifyContent: 'flex-end' }}
-          >
+      <Modal
+        visible={showAddModal}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+        onRequestClose={() => setShowAddModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
             <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add New Supplier</Text>
-              <TouchableOpacity
-                onPress={() => setShowAddModal(false)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="close" size={22} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScroll}>
-              {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
-
-              <Input
-                label="Supplier / Business Name *"
-                value={name}
-                onChangeText={setName}
-              />
-
-              <Input
-                label="Contact Person"
-                value={contactPerson}
-                onChangeText={setContactPerson}
-              />
-
-              <Input
-                label="Phone Number"
-                keyboardType="phone-pad"
-                value={phone}
-                onChangeText={setPhone}
-              />
-
-              <Input
-                label="Email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-              />
-
-              <Input
-                label="Opening Balance Payable (₹)"
-                keyboardType="numeric"
-                prefix="₹"
-                value={initialPayable}
-                onChangeText={setInitialPayable}
-              />
-
-              <View style={styles.modalActions}>
-                <Button
-                  title="CANCEL"
-                  variant="secondary"
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add New Supplier</Text>
+                <TouchableOpacity
                   onPress={() => setShowAddModal(false)}
-                  style={{ flex: 1, marginRight: spacing.sm }}
-                />
-                <Button
-                  title="SAVE SUPPLIER"
-                  onPress={handleAddSupplier}
-                  loading={loading}
-                  style={{ flex: 1 }}
-                />
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close" size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
               </View>
-            </ScrollView>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                style={styles.modalScroll}
+                contentContainerStyle={{ paddingBottom: spacing.xl }}
+                keyboardShouldPersistTaps="handled"
+                automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+              >
+                {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+
+                <Input
+                  label="Supplier / Business Name *"
+                  value={name}
+                  onChangeText={setName}
+                />
+
+                <Input
+                  label="Contact Person"
+                  value={contactPerson}
+                  onChangeText={setContactPerson}
+                />
+
+                <Input
+                  label="Phone Number"
+                  keyboardType="phone-pad"
+                  value={phone}
+                  onChangeText={setPhone}
+                />
+
+                <Input
+                  label="Email"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={email}
+                  onChangeText={setEmail}
+                />
+
+                <Input
+                  label="Opening Balance Payable (₹)"
+                  keyboardType="numeric"
+                  prefix="₹"
+                  value={initialPayable}
+                  onChangeText={setInitialPayable}
+                />
+
+                <View style={styles.modalActions}>
+                  <Button
+                    title="CANCEL"
+                    variant="secondary"
+                    onPress={() => setShowAddModal(false)}
+                    style={{ flex: 1, marginRight: spacing.sm }}
+                  />
+                  <Button
+                    title="SAVE SUPPLIER"
+                    onPress={handleAddSupplier}
+                    loading={loading}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </ScrollView>
+            </View>
           </View>
         </KeyboardAvoidingView>
-      </View>
-    </Modal>
+      </Modal>
 
       {/* ── SUPPLIER ACTION SHEET / DETAILS MODAL ───────────────────── */}
-      <Modal visible={!!selectedSupplier} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={{ width: '100%', justifyContent: 'flex-end' }}
-          >
+      <Modal
+        visible={!!selectedSupplier}
+        animationType="slide"
+        transparent
+        statusBarTranslucent
+        onRequestClose={() => setSelectedSupplier(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
             <View style={styles.modalSheet}>
             {selectedSupplier && (
               <>
@@ -465,7 +498,13 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                   </TouchableOpacity>
                 </View>
 
-                <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScroll}>
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  style={styles.modalScroll}
+                  contentContainerStyle={{ paddingBottom: spacing.xl }}
+                  keyboardShouldPersistTaps="handled"
+                  automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+                >
                   {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
 
                   {/* ── 1. DEFAULT DETAILS VIEW ─────────────────────────── */}
@@ -527,6 +566,7 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                           style={[styles.primaryActionBtn, { backgroundColor: colors.debit }]}
                           onPress={() => {
                             setModalMode('RECORD_BILL');
+                            setIsBillPaid(false);
                             setAmount('');
                             setReference('');
                             setNotes('');
@@ -596,11 +636,57 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                         onChangeText={setNotes}
                       />
 
+                      {/* Bill Payment Status Check Option */}
+                      <TouchableOpacity
+                        style={[
+                          styles.paidStatusToggle,
+                          isBillPaid ? styles.paidStatusTogglePaid : styles.paidStatusToggleUnpaid,
+                        ]}
+                        onPress={() => setIsBillPaid(!isBillPaid)}
+                        activeOpacity={0.8}
+                      >
+                        <View
+                          style={[
+                            styles.checkboxBox,
+                            isBillPaid ? styles.checkboxBoxPaid : styles.checkboxBoxUnpaid,
+                          ]}
+                        >
+                          {isBillPaid && (
+                            <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                          )}
+                        </View>
+                        <View style={styles.paidStatusTextCol}>
+                          <Text
+                            style={[
+                              styles.paidStatusTitle,
+                              isBillPaid
+                                ? { color: colors.brandGreen }
+                                : { color: colors.textPrimary },
+                            ]}
+                          >
+                            {isBillPaid ? 'Bill is Fully Paid' : 'Bill is Unpaid (On Credit)'}
+                          </Text>
+                          <Text style={styles.paidStatusSubtitle}>
+                            {isBillPaid
+                              ? 'Paid instantly (No amount added to outstanding payable)'
+                              : 'Increases supplier balance payable by bill amount'}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+
                       <Button
-                        title={`ADD BILL (+₹${amount || '0.00'})`}
+                        title={
+                          isBillPaid
+                            ? `RECORD PAID BILL (₹${amount || '0.00'})`
+                            : `ADD UNPAID BILL (+₹${amount || '0.00'})`
+                        }
                         onPress={handleSaveTransaction}
                         loading={actionLoading}
-                        style={{ backgroundColor: colors.debit, marginTop: spacing.sm }}
+                        style={{
+                          backgroundColor: isBillPaid ? colors.brandGreen : colors.debit,
+                          marginTop: spacing.sm,
+                          marginBottom: spacing.md,
+                        }}
                       />
                     </View>
                   )}
@@ -630,7 +716,7 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                         title={`SAVE PAYMENT (−₹${amount || '0.00'})`}
                         onPress={handleSaveTransaction}
                         loading={actionLoading}
-                        style={{ backgroundColor: colors.brandGreen, marginTop: spacing.sm }}
+                        style={{ backgroundColor: colors.brandGreen, marginTop: spacing.sm, marginBottom: spacing.md }}
                       />
                     </View>
                   )}
@@ -666,7 +752,7 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                         title="SAVE CHANGES"
                         onPress={handleSaveEdit}
                         loading={actionLoading}
-                        style={{ marginTop: spacing.sm }}
+                        style={{ marginTop: spacing.sm, marginBottom: spacing.md }}
                       />
                     </View>
                   )}
@@ -674,8 +760,8 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </>
             )}
           </View>
-        </KeyboardAvoidingView>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
 
       {/* ── DELETE CONFIRMATION MODAL ──────────────────────────────── */}
@@ -848,6 +934,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: spacing.borderRadiusXl,
     maxHeight: '90%',
     padding: spacing.lg,
+    paddingBottom: Platform.OS === 'ios' ? spacing.xxl : spacing.lg,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -981,5 +1068,51 @@ const styles = StyleSheet.create({
   // Form Container
   formContainer: {
     paddingVertical: spacing.xs,
+  },
+  paidStatusToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: spacing.borderRadiusMd,
+    borderWidth: 1.5,
+    marginVertical: spacing.sm,
+    gap: spacing.sm,
+  },
+  paidStatusToggleUnpaid: {
+    backgroundColor: colors.surfaceSubtle,
+    borderColor: colors.border,
+  },
+  paidStatusTogglePaid: {
+    backgroundColor: colors.brandGreenLight,
+    borderColor: '#86EFAC',
+  },
+  checkboxBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxBoxUnpaid: {
+    borderColor: colors.textMuted,
+    backgroundColor: colors.surface,
+  },
+  checkboxBoxPaid: {
+    borderColor: colors.brandGreen,
+    backgroundColor: colors.brandGreen,
+  },
+  paidStatusTextCol: {
+    flex: 1,
+  },
+  paidStatusTitle: {
+    ...typography.bodyBold,
+    fontSize: 13,
+  },
+  paidStatusSubtitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 11,
+    marginTop: 2,
   },
 });
