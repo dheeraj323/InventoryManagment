@@ -1,3 +1,5 @@
+import { File } from 'expo-file-system';
+
 declare const process: {
   env: Record<string, string | undefined>;
 };
@@ -104,6 +106,7 @@ export interface CloudinaryUploadResult {
 
 export interface UploadBillAttachmentParams {
   uri: string;
+  base64?: string;
   fileName: string;
   fileType: string;
   fileSize?: number;
@@ -124,7 +127,7 @@ export const cloudinaryService = {
   uploadBillAttachment: async (
     params: UploadBillAttachmentParams
   ): Promise<CloudinaryUploadResult> => {
-    const { uri, fileName, fileType, userId, supplierId, billId, fileSize } = params;
+    const { uri, base64, fileName, fileType, userId, supplierId, billId, fileSize } = params;
 
     const folder = `bills/${userId || 'admin'}/${supplierId}/${billId}`;
     const timestamp = Math.floor(Date.now() / 1000).toString();
@@ -133,36 +136,47 @@ export const cloudinaryService = {
     const stringToSign = `folder=${folder}&timestamp=${timestamp}${CLOUDINARY_API_SECRET}`;
     const signature = sha1(stringToSign);
 
-    const formData = new FormData();
-    
     // Determine file type and name
     const cleanFileName = fileName || `bill_${Date.now()}.${fileType.includes('pdf') ? 'pdf' : 'jpg'}`;
     const cleanMimeType = fileType || (cleanFileName.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
 
-    // Append file to formData
-    formData.append('file', {
-      uri,
-      type: cleanMimeType,
-      name: cleanFileName,
-    } as any);
-
-    formData.append('api_key', CLOUDINARY_API_KEY);
-    formData.append('timestamp', timestamp);
-    formData.append('folder', folder);
-    formData.append('signature', signature);
-
     const isPdf = cleanMimeType.includes('pdf') || cleanFileName.toLowerCase().endsWith('.pdf');
     const resourceType = isPdf ? 'raw' : 'auto';
-
     const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
 
     try {
+      let filePayload: string = '';
+
+      if (base64) {
+        filePayload = base64.startsWith('data:')
+          ? base64
+          : `data:${cleanMimeType};base64,${base64}`;
+      } else if (uri.startsWith('data:')) {
+        filePayload = uri;
+      } else {
+        try {
+          const file = new File(uri);
+          const b64 = await file.base64();
+          filePayload = `data:${cleanMimeType};base64,${b64}`;
+        } catch (e) {
+          console.warn('Could not read file via File.base64():', e);
+          filePayload = uri;
+        }
+      }
+
       const response = await fetch(uploadUrl, {
         method: 'POST',
-        body: formData,
         headers: {
+          'Content-Type': 'application/json',
           Accept: 'application/json',
         },
+        body: JSON.stringify({
+          file: filePayload,
+          api_key: CLOUDINARY_API_KEY,
+          timestamp,
+          folder,
+          signature,
+        }),
       });
 
       const responseText = await response.text();

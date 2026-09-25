@@ -11,11 +11,12 @@ import {
   Platform,
   KeyboardAvoidingView,
   ActivityIndicator,
+  FlatList,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
 import { useInventoryStore } from '../../store/useInventoryStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useSupplierBillStore } from '../../store/useSupplierBillStore';
@@ -23,19 +24,27 @@ import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
-import { SupplierBillItem, BillPaymentStatus } from '../../types';
 import { colors, typography, spacing } from '../../theme';
-
 import { compressBillImage, formatFileSize } from '../../utils/compressImage';
+import { SupplierBillItem } from '../../types';
 
 interface AttachmentState {
   uri: string;
   name: string;
   mimeType: string;
+  base64?: string;
   size?: number;
   originalSize?: number;
   savedPercentage?: number;
   wasCompressed?: boolean;
+}
+
+interface SelectedProduct {
+  productId: string;
+  productName: string;
+  unit: string;
+  quantity: string;
+  unitPrice: string;
 }
 
 export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = ({ navigation, route }) => {
@@ -50,25 +59,15 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
   }, [suppliers, supplierId]);
 
   // Form State
-  const [invoiceNumber, setInvoiceNumber] = useState(
-    `INV-${Math.floor(1000 + Math.random() * 9000)}`
-  );
+  const [invoiceNumber, setInvoiceNumber] = useState('');
   const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
-  const [paymentStatus, setPaymentStatus] = useState<BillPaymentStatus>('PAID');
-  const [tax, setTax] = useState('0');
-  const [discount, setDiscount] = useState('0');
-  const [notes, setNotes] = useState('');
+  const [totalBillAmount, setTotalBillAmount] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState<'PAID' | 'PENDING'>('PAID');
 
-  // Items State
-  const [items, setItems] = useState<SupplierBillItem[]>([
-    {
-      productName: '',
-      quantity: 1,
-      unit: 'pcs',
-      unitPrice: 0,
-      amount: 0,
-    },
-  ]);
+  // Selected products
+  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
 
   // Attachment & Compression State
   const [attachment, setAttachment] = useState<AttachmentState | null>(null);
@@ -76,76 +75,67 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
   const [compressMessage, setCompressMessage] = useState('');
 
   // Modals & Progress
-  const [showProductSelectModal, setShowProductSelectModal] = useState<number | null>(null);
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStepText, setSaveStepText] = useState('');
 
-  // Calculations
-  const subtotal = useMemo(() => {
-    return items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-  }, [items]);
-
-  const taxAmount = useMemo(() => {
-    const val = parseFloat(tax);
+  const parsedTotalAmount = useMemo(() => {
+    const val = parseFloat(totalBillAmount);
     return isNaN(val) ? 0 : val;
-  }, [tax]);
-
-  const discountAmount = useMemo(() => {
-    const val = parseFloat(discount);
-    return isNaN(val) ? 0 : val;
-  }, [discount]);
-
-  const totalAmount = useMemo(() => {
-    return Math.max(0, subtotal + taxAmount - discountAmount);
-  }, [subtotal, taxAmount, discountAmount]);
+  }, [totalBillAmount]);
 
   const fmt = (n: number) =>
     n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Line item manipulation
-  const updateItem = (index: number, updates: Partial<SupplierBillItem>) => {
-    setItems((prev) => {
-      const next = [...prev];
-      const curr = { ...next[index], ...updates };
-      const q = Number(curr.quantity) || 0;
-      const r = Number(curr.unitPrice) || 0;
-      curr.amount = Math.round(q * r * 100) / 100;
-      next[index] = curr;
-      return next;
-    });
-  };
+  // Filtered products for the selection modal
+  const filteredProducts = useMemo(() => {
+    const q = productSearch.trim().toLowerCase();
+    const alreadySelectedIds = new Set(selectedProducts.map((sp) => sp.productId));
+    let list = products.filter((p) => !alreadySelectedIds.has(p.id));
+    if (q) {
+      list = list.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.sku || '').toLowerCase().includes(q) ||
+          (p.category || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [products, productSearch, selectedProducts]);
 
-  const addItemRow = () => {
-    setItems((prev) => [
+  // Add product to selected list
+  const handleSelectProduct = (product: { id: string; name: string; unit: string; purchasePrice?: number; price?: number }) => {
+    setSelectedProducts((prev) => [
       ...prev,
       {
-        productName: '',
-        quantity: 1,
-        unit: 'pcs',
-        unitPrice: 0,
-        amount: 0,
+        productId: product.id,
+        productName: product.name,
+        unit: product.unit || 'unit',
+        quantity: '1',
+        unitPrice: String(product.purchasePrice || product.price || 0),
       },
     ]);
+    setShowProductModal(false);
+    setProductSearch('');
   };
 
-  const removeItemRow = (index: number) => {
-    if (items.length <= 1) {
-      Alert.alert('Notice', 'A bill must have at least one product item');
-      return;
-    }
-    setItems((prev) => prev.filter((_, i) => i !== index));
+  // Remove product from selected list
+  const handleRemoveProduct = (index: number) => {
+    setSelectedProducts((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const selectCatalogProduct = (index: number, prod: any) => {
-    updateItem(index, {
-      productId: prod.id,
-      productName: prod.name,
-      unit: prod.unit || 'pcs',
-      unitPrice: prod.price || 0,
-      amount: (Number(items[index].quantity) || 1) * (prod.price || 0),
-    });
-    setShowProductSelectModal(null);
+  // Update product quantity
+  const handleUpdateProductQty = (index: number, qty: string) => {
+    setSelectedProducts((prev) =>
+      prev.map((p, i) => (i === index ? { ...p, quantity: qty } : p))
+    );
+  };
+
+  // Update product unit price
+  const handleUpdateProductPrice = (index: number, price: string) => {
+    setSelectedProducts((prev) =>
+      prev.map((p, i) => (i === index ? { ...p, unitPrice: price } : p))
+    );
   };
 
   /**
@@ -166,6 +156,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
         uri: compressed.uri,
         name: compressed.name,
         mimeType: compressed.mimeType,
+        base64: compressed.base64,
         size: compressed.compressedSize,
         originalSize: compressed.originalSize,
         savedPercentage: compressed.savedPercentage,
@@ -186,7 +177,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
     }
   };
 
-  // Attachment Pickers
+  // Attachment Pickers (Images Only - Camera and Gallery)
   const pickFromCamera = async () => {
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -197,7 +188,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
 
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
-        quality: 1.0, // Capture at full quality then optimize adaptively
+        quality: 1.0,
         allowsEditing: false,
       });
 
@@ -243,55 +234,14 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
     }
   };
 
-  const pickDocument = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'image/*'],
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets && result.assets[0]) {
-        const doc = result.assets[0];
-        await processAndSetAttachment(
-          doc.uri,
-          doc.name || `bill_doc_${Date.now()}.pdf`,
-          doc.mimeType || 'application/pdf',
-          doc.size
-        );
-      }
-    } catch (err: any) {
-      Alert.alert('Document Error', err.message || 'Unable to pick document');
-    }
-  };
-
-
   const validateForm = () => {
-    if (!invoiceNumber.trim()) {
-      Alert.alert('Validation', 'Invoice number is required');
-      return false;
-    }
     if (!billDate.trim()) {
       Alert.alert('Validation', 'Bill date is required');
       return false;
     }
-    if (items.length === 0) {
-      Alert.alert('Validation', 'Please add at least one product item');
+    if (!totalBillAmount.trim() || isNaN(parseFloat(totalBillAmount)) || parseFloat(totalBillAmount) <= 0) {
+      Alert.alert('Validation', 'Please enter a valid total bill amount greater than 0');
       return false;
-    }
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      if (!it.productName.trim()) {
-        Alert.alert('Validation', `Please enter a name for product #${i + 1}`);
-        return false;
-      }
-      if (Number(it.quantity) <= 0) {
-        Alert.alert('Validation', `Quantity for "${it.productName}" must be greater than 0`);
-        return false;
-      }
-      if (Number(it.unitPrice) < 0) {
-        Alert.alert('Validation', `Price for "${it.productName}" cannot be negative`);
-        return false;
-      }
     }
     return true;
   };
@@ -320,6 +270,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
         const tempBillId = `bill_${Date.now()}`;
         const uploadResult = await uploadToCloudinary({
           uri: attachment.uri,
+          base64: attachment.base64,
           fileName: attachment.name,
           fileType: attachment.mimeType,
           fileSize: attachment.size,
@@ -335,8 +286,23 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
         fileSize = uploadResult.fileSize;
       }
 
-      // 2. Save bill record to Firestore
+      // 2. Build items array from selected products
+      const billItems: SupplierBillItem[] = selectedProducts.map((sp) => {
+        const qty = parseFloat(sp.quantity) || 0;
+        const price = parseFloat(sp.unitPrice) || 0;
+        return {
+          productId: sp.productId,
+          productName: sp.productName,
+          quantity: qty,
+          unit: sp.unit,
+          unitPrice: price,
+          amount: qty * price,
+        };
+      });
+
+      // 3. Save bill record to Firestore
       setSaveStepText('Saving bill and recording audit trail in Firestore...');
+      const finalInvoiceNumber = invoiceNumber.trim() || `BILL-${Date.now().toString().slice(-6)}`;
       const createdBill = await createBill(
         supplierId,
         {
@@ -344,21 +310,21 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
           supplierName: supplier.name,
           userId: currentUser?.id || currentUser?.uid || 'admin',
           createdByName: currentUser?.name || 'Admin',
-          invoiceNumber: invoiceNumber.trim(),
+          invoiceNumber: finalInvoiceNumber,
           billDate: billDate.trim(),
-          subtotal,
-          tax: taxAmount,
-          discount: discountAmount,
-          totalAmount,
+          subtotal: parsedTotalAmount,
+          tax: 0,
+          discount: 0,
+          totalAmount: parsedTotalAmount,
           paymentStatus,
-          paidAmount: paymentStatus === 'PAID' ? totalAmount : 0,
+          paidAmount: paymentStatus === 'PAID' ? parsedTotalAmount : 0,
           cloudinaryUrl,
           cloudinaryPublicId,
           fileName,
           fileType,
           fileSize,
-          notes: notes.trim(),
-          items,
+          notes: '',
+          items: billItems,
         },
         {
           uid: currentUser?.id || currentUser?.uid || 'admin',
@@ -367,9 +333,14 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
       );
 
       setShowSummaryModal(false);
+
+      const statusMsg = paymentStatus === 'PAID'
+        ? 'Payment status: PAID'
+        : `Payment status: UNPAID — ₹${fmt(parsedTotalAmount)} added to outstanding payable.`;
+
       Alert.alert(
         'Bill Recorded Successfully',
-        `Invoice #${createdBill.invoiceNumber} (₹${fmt(createdBill.totalAmount)}) has been saved to ${supplier.name}'s purchase history.`,
+        `Invoice #${createdBill.invoiceNumber} (₹${fmt(createdBill.totalAmount)}) has been saved to ${supplier.name}'s purchase history.\n\n${statusMsg}`,
         [
           {
             text: 'View Bill',
@@ -432,209 +403,171 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
             </View>
           </Card>
 
-          {/* ── 1. Basic Bill Metadata ──────────────────────────────── */}
-          <Text style={styles.sectionTitle}>INVOICE DETAILS</Text>
-          <View style={styles.metaRow}>
-            <View style={{ flex: 1, marginRight: spacing.xs }}>
-              <Input
-                label="Invoice Number *"
-                placeholder="e.g. INV-1025"
-                value={invoiceNumber}
-                onChangeText={setInvoiceNumber}
-              />
-            </View>
-            <View style={{ flex: 1, marginLeft: spacing.xs }}>
-              <Input
-                label="Bill Date (YYYY-MM-DD) *"
-                placeholder="YYYY-MM-DD"
-                value={billDate}
-                onChangeText={setBillDate}
-              />
-            </View>
-          </View>
+          {/* ── Bill Details ────────────────────────────────────────── */}
+          <Text style={styles.sectionTitle}>BILL DETAILS</Text>
+          <Card style={styles.formCard} outlined>
+            <Input
+              label="Invoice Number (Optional)"
+              placeholder="e.g. INV-1025"
+              value={invoiceNumber}
+              onChangeText={setInvoiceNumber}
+              containerStyle={{ marginBottom: spacing.sm }}
+            />
 
-          {/* ── 2. Products Line Items ──────────────────────────────── */}
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>PURCHASED PRODUCTS ({items.length})</Text>
-            <TouchableOpacity onPress={addItemRow} style={styles.addItemBtn}>
-              <Ionicons name="add-circle" size={16} color={colors.primary} />
-              <Text style={styles.addItemBtnText}>+ Add Item</Text>
-            </TouchableOpacity>
-          </View>
+            <Input
+              label="Bill Date (YYYY-MM-DD) *"
+              placeholder="YYYY-MM-DD"
+              value={billDate}
+              onChangeText={setBillDate}
+              containerStyle={{ marginBottom: spacing.sm }}
+            />
 
-          {items.map((item, idx) => (
-            <Card key={idx} style={styles.itemCard} outlined>
-              <View style={styles.itemCardHeader}>
-                <Text style={styles.itemIndexLabel}>Item #{idx + 1}</Text>
-                <View style={styles.itemHeaderActions}>
+            <Input
+              label="Total Bill Amount (₹) *"
+              placeholder="0.00"
+              keyboardType="numeric"
+              prefix="₹"
+              value={totalBillAmount}
+              onChangeText={setTotalBillAmount}
+              containerStyle={{ marginBottom: 0 }}
+            />
+          </Card>
+
+          {/* ── Payment Status Toggle ──────────────────────────────── */}
+          <Text style={[styles.sectionTitle, { marginTop: spacing.md }]}>PAYMENT STATUS</Text>
+          <Card style={styles.formCard} outlined>
+            <View style={styles.paymentToggleRow}>
+              <TouchableOpacity
+                style={[
+                  styles.paymentToggleBtn,
+                  paymentStatus === 'PAID' && styles.paymentToggleBtnActive,
+                ]}
+                onPress={() => setPaymentStatus('PAID')}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={paymentStatus === 'PAID' ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={18}
+                  color={paymentStatus === 'PAID' ? colors.brandGreen : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.paymentToggleText,
+                    paymentStatus === 'PAID' && styles.paymentToggleTextActive,
+                  ]}
+                >
+                  Paid
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.paymentToggleBtn,
+                  paymentStatus === 'PENDING' && styles.paymentToggleBtnUnpaid,
+                ]}
+                onPress={() => setPaymentStatus('PENDING')}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={paymentStatus === 'PENDING' ? 'alert-circle' : 'ellipse-outline'}
+                  size={18}
+                  color={paymentStatus === 'PENDING' ? colors.debit : colors.textMuted}
+                />
+                <Text
+                  style={[
+                    styles.paymentToggleText,
+                    paymentStatus === 'PENDING' && styles.paymentToggleTextUnpaid,
+                  ]}
+                >
+                  Unpaid
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {paymentStatus === 'PENDING' && parsedTotalAmount > 0 && (
+              <View style={styles.unpaidWarningBox}>
+                <Ionicons name="information-circle" size={15} color={colors.debit} />
+                <Text style={styles.unpaidWarningText}>
+                  ₹{fmt(parsedTotalAmount)} will be added to {supplier?.name}'s outstanding payable balance.
+                </Text>
+              </View>
+            )}
+          </Card>
+
+          {/* ── Products Purchased ──────────────────────────────────── */}
+          <Text style={[styles.sectionTitle, { marginTop: spacing.md }]}>
+            PRODUCTS PURCHASED (Optional)
+          </Text>
+
+          {selectedProducts.map((sp, idx) => (
+            <Card key={`selected-product-${sp.productId}-${idx}`} style={styles.selectedProductCard} outlined>
+              <View style={styles.selectedProductHeader}>
+                <View style={styles.selectedProductNameRow}>
+                  <View style={styles.prodIconCircle}>
+                    <Ionicons name="cube" size={14} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.selectedProductName} numberOfLines={1}>
+                      {sp.productName}
+                    </Text>
+                    <Text style={styles.selectedProductUnit}>{sp.unit}</Text>
+                  </View>
                   <TouchableOpacity
-                    style={styles.catalogSelectBtn}
-                    onPress={() => setShowProductSelectModal(idx)}
+                    onPress={() => handleRemoveProduct(idx)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Ionicons name="list-outline" size={14} color={colors.primary} />
-                    <Text style={styles.catalogSelectText}>Select From Catalog</Text>
+                    <Ionicons name="close-circle" size={20} color={colors.danger} />
                   </TouchableOpacity>
-
-                  {items.length > 1 && (
-                    <TouchableOpacity
-                      onPress={() => removeItemRow(idx)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      style={{ marginLeft: spacing.sm }}
-                    >
-                      <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                    </TouchableOpacity>
-                  )}
                 </View>
               </View>
 
-              <Input
-                label="Product Name *"
-                placeholder="e.g. Cement, Steel, Bricks..."
-                value={item.productName}
-                onChangeText={(text) => updateItem(idx, { productName: text })}
-                containerStyle={{ marginBottom: spacing.xs }}
-              />
-
-              <View style={styles.itemInputsRow}>
-                <View style={{ flex: 1, marginRight: spacing.xs }}>
-                  <Input
-                    label="Qty *"
+              <View style={styles.selectedProductFields}>
+                <View style={styles.productFieldCol}>
+                  <Text style={styles.productFieldLabel}>Quantity</Text>
+                  <TextInput
+                    style={styles.productFieldInput}
                     keyboardType="numeric"
-                    placeholder="1"
-                    value={item.quantity.toString()}
-                    onChangeText={(val) => updateItem(idx, { quantity: parseFloat(val) || 0 })}
-                    containerStyle={{ marginBottom: 0 }}
-                  />
-                </View>
-
-                <View style={{ flex: 1, marginHorizontal: spacing.xs }}>
-                  <Input
-                    label="Unit"
-                    placeholder="bags/kg/box"
-                    value={item.unit}
-                    onChangeText={(val) => updateItem(idx, { unit: val })}
-                    containerStyle={{ marginBottom: 0 }}
-                  />
-                </View>
-
-                <View style={{ flex: 1.2, marginLeft: spacing.xs }}>
-                  <Input
-                    label="Rate (₹) *"
-                    keyboardType="numeric"
-                    prefix="₹"
+                    value={sp.quantity}
+                    onChangeText={(val) => handleUpdateProductQty(idx, val)}
                     placeholder="0"
-                    value={item.unitPrice.toString()}
-                    onChangeText={(val) => updateItem(idx, { unitPrice: parseFloat(val) || 0 })}
-                    containerStyle={{ marginBottom: 0 }}
+                    placeholderTextColor={colors.textMuted}
                   />
                 </View>
-              </View>
 
-              <View style={styles.itemTotalRow}>
-                <Text style={styles.itemTotalLabel}>Line Total:</Text>
-                <Text style={styles.itemTotalValue}>₹{fmt(item.amount)}</Text>
+                <View style={styles.productFieldCol}>
+                  <Text style={styles.productFieldLabel}>Unit Price (₹)</Text>
+                  <TextInput
+                    style={styles.productFieldInput}
+                    keyboardType="numeric"
+                    value={sp.unitPrice}
+                    onChangeText={(val) => handleUpdateProductPrice(idx, val)}
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+
+                <View style={styles.productFieldCol}>
+                  <Text style={styles.productFieldLabel}>Amount</Text>
+                  <Text style={styles.productAmountText}>
+                    ₹{fmt((parseFloat(sp.quantity) || 0) * (parseFloat(sp.unitPrice) || 0))}
+                  </Text>
+                </View>
               </View>
             </Card>
           ))}
 
-          {/* ── 3. Financial Totals ──────────────────────────────────── */}
-          <Text style={[styles.sectionTitle, { marginTop: spacing.md }]}>BILL TOTALS & TAX</Text>
-          <Card style={styles.calcCard} outlined>
-            <View style={styles.calcRow}>
-              <Text style={styles.calcLabel}>Subtotal ({items.length} items)</Text>
-              <Text style={styles.calcValue}>₹{fmt(subtotal)}</Text>
-            </View>
+          <TouchableOpacity
+            style={styles.addProductBtn}
+            onPress={() => setShowProductModal(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
+            <Text style={styles.addProductBtnText}>Add Product</Text>
+          </TouchableOpacity>
 
-            <View style={styles.calcInputRow}>
-              <View style={{ flex: 1, marginRight: spacing.xs }}>
-                <Input
-                  label="Tax Amount (₹)"
-                  keyboardType="numeric"
-                  prefix="₹"
-                  value={tax}
-                  onChangeText={setTax}
-                  containerStyle={{ marginBottom: 0 }}
-                />
-              </View>
-              <View style={{ flex: 1, marginLeft: spacing.xs }}>
-                <Input
-                  label="Discount (₹)"
-                  keyboardType="numeric"
-                  prefix="₹"
-                  value={discount}
-                  onChangeText={setDiscount}
-                  containerStyle={{ marginBottom: 0 }}
-                />
-              </View>
-            </View>
-
-            <View style={[styles.calcRow, styles.grandTotalRow]}>
-              <Text style={styles.grandTotalLabel}>TOTAL AMOUNT</Text>
-              <Text style={styles.grandTotalValue}>₹{fmt(totalAmount)}</Text>
-            </View>
-          </Card>
-
-          {/* ── 4. Payment Status Selection ─────────────────────────── */}
-          <Text style={[styles.sectionTitle, { marginTop: spacing.md }]}>PAYMENT STATUS</Text>
-          <View style={styles.paymentStatusToggleRow}>
-            <TouchableOpacity
-              style={[
-                styles.statusOptionBtn,
-                paymentStatus === 'PAID' && styles.statusOptionPaidActive,
-              ]}
-              onPress={() => setPaymentStatus('PAID')}
-            >
-              <Ionicons
-                name={paymentStatus === 'PAID' ? 'checkmark-circle' : 'ellipse-outline'}
-                size={18}
-                color={paymentStatus === 'PAID' ? colors.brandGreen : colors.textMuted}
-              />
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[
-                    styles.statusOptionTitle,
-                    paymentStatus === 'PAID' && { color: colors.brandGreen },
-                  ]}
-                >
-                  Fully Paid
-                </Text>
-                <Text style={styles.statusOptionSub}>
-                  Paid at purchase (No payable added)
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.statusOptionBtn,
-                paymentStatus === 'PENDING' && styles.statusOptionPendingActive,
-              ]}
-              onPress={() => setPaymentStatus('PENDING')}
-            >
-              <Ionicons
-                name={paymentStatus === 'PENDING' ? 'alert-circle' : 'ellipse-outline'}
-                size={18}
-                color={paymentStatus === 'PENDING' ? colors.debit : colors.textMuted}
-              />
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[
-                    styles.statusOptionTitle,
-                    paymentStatus === 'PENDING' && { color: colors.debit },
-                  ]}
-                >
-                  Unpaid (On Credit)
-                </Text>
-                <Text style={styles.statusOptionSub}>
-                  Increases supplier payable balance by ₹{fmt(totalAmount)}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* ── 5. Bill Attachment ──────────────────────────────────── */}
+          {/* ── Bill Attachment (Photos Only) ──────────────────────── */}
           <Text style={[styles.sectionTitle, { marginTop: spacing.md }]}>
-            BILL ATTACHMENT (CLOUDINARY)
+            ATTACH BILL PHOTO
           </Text>
 
           {isCompressing ? (
@@ -650,13 +583,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
           ) : attachment ? (
             <Card style={styles.attachmentPreviewCard} outlined>
               <View style={styles.attachmentPreviewRow}>
-                {attachment.mimeType.startsWith('image') ? (
-                  <Image source={{ uri: attachment.uri }} style={styles.attachmentThumb} />
-                ) : (
-                  <View style={styles.attachmentPdfIcon}>
-                    <Ionicons name="document-text" size={24} color={colors.primary} />
-                  </View>
-                )}
+                <Image source={{ uri: attachment.uri }} style={styles.attachmentThumb} />
 
                 <View style={styles.attachmentMetaCol}>
                   <Text style={styles.attachmentFileName} numberOfLines={1}>
@@ -712,81 +639,87 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
                 <Ionicons name="images-outline" size={24} color={colors.primary} />
                 <Text style={styles.pickerTileText}>Photo Gallery</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.pickerTile}
-                onPress={pickDocument}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="document-attach-outline" size={24} color={colors.primary} />
-                <Text style={styles.pickerTileText}>PDF / Document</Text>
-              </TouchableOpacity>
             </View>
           )}
 
-          {/* ── 6. Notes ────────────────────────────────────────────── */}
-          <Input
-            label="Notes / Purchase Remarks (Optional)"
-            placeholder="e.g. September monthly material purchase"
-            value={notes}
-            onChangeText={setNotes}
-            containerStyle={{ marginTop: spacing.md }}
-          />
-
           {/* Save Button */}
           <Button
-            title={`REVIEW & SAVE BILL (₹${fmt(totalAmount)})`}
+            title={
+              parsedTotalAmount > 0
+                ? `REVIEW & SAVE BILL (₹${fmt(parsedTotalAmount)})`
+                : 'REVIEW & SAVE BILL'
+            }
             onPress={handleReviewBill}
-            style={{ marginTop: spacing.md, marginBottom: spacing.xl }}
+            style={{ marginTop: spacing.lg, marginBottom: spacing.xl }}
           />
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* ── PRODUCT SELECT MODAL (FROM CATALOG) ────────────────────── */}
+      {/* ── PRODUCT SELECTION MODAL ─────────────────────────────────── */}
       <Modal
-        visible={showProductSelectModal !== null}
+        visible={showProductModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowProductSelectModal(null)}
+        onRequestClose={() => setShowProductModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Catalog Product</Text>
-              <TouchableOpacity onPress={() => setShowProductSelectModal(null)}>
+        <View style={styles.productModalOverlay}>
+          <View style={styles.productModalSheet}>
+            <View style={styles.productModalHeader}>
+              <Text style={styles.productModalTitle}>Select Product</Text>
+              <TouchableOpacity onPress={() => { setShowProductModal(false); setProductSearch(''); }}>
                 <Ionicons name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 350 }}>
-              {products.map((p) => (
+            <View style={styles.productSearchBox}>
+              <Ionicons name="search-outline" size={17} color={colors.textMuted} />
+              <TextInput
+                style={styles.productSearchInput}
+                placeholder="Search products by name, SKU, category..."
+                placeholderTextColor={colors.textMuted}
+                value={productSearch}
+                onChangeText={setProductSearch}
+                autoFocus
+              />
+              {productSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setProductSearch('')}>
+                  <Ionicons name="close-circle" size={17} color={colors.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <FlatList
+              data={filteredProducts}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{ paddingBottom: spacing.lg }}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => (
                 <TouchableOpacity
-                  key={p.id}
-                  style={styles.productOptionRow}
-                  onPress={() => {
-                    if (showProductSelectModal !== null) {
-                      selectCatalogProduct(showProductSelectModal, p);
-                    }
-                  }}
+                  style={styles.productListItem}
+                  onPress={() => handleSelectProduct(item)}
+                  activeOpacity={0.7}
                 >
+                  <View style={styles.prodIconCircle}>
+                    <Ionicons name="cube" size={16} color={colors.primary} />
+                  </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.productOptionName}>{p.name}</Text>
-                    <Text style={styles.productOptionSub}>
-                      Unit: {p.unit} · Stock: {p.stockQty}
+                    <Text style={styles.productListName}>{item.name}</Text>
+                    <Text style={styles.productListSub}>
+                      {item.category} · {item.unit} · ₹{item.purchasePrice || item.price || 0}
                     </Text>
                   </View>
-                  <Text style={styles.productOptionPrice}>₹{fmt(p.price)}</Text>
+                  <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
                 </TouchableOpacity>
-              ))}
-
-              {products.length === 0 && (
-                <View style={{ padding: spacing.lg, alignItems: 'center' }}>
-                  <Text style={{ ...typography.caption, color: colors.textMuted }}>
-                    No products in catalog
+              )}
+              ListEmptyComponent={
+                <View style={styles.productListEmpty}>
+                  <Ionicons name="cube-outline" size={36} color={colors.textMuted} />
+                  <Text style={styles.productListEmptyText}>
+                    {productSearch ? 'No matching products found' : 'No products available'}
                   </Text>
                 </View>
-              )}
-            </ScrollView>
+              }
+            />
           </View>
         </View>
       </Modal>
@@ -805,49 +738,84 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
               <Text style={styles.summaryTitle}>Bill Summary</Text>
             </View>
 
-            <View style={styles.summaryInfoBox}>
-              <View style={styles.summaryDetailRow}>
-                <Text style={styles.summaryDetailLabel}>Supplier:</Text>
-                <Text style={styles.summaryDetailValue}>{supplier?.name}</Text>
-              </View>
-              <View style={styles.summaryDetailRow}>
-                <Text style={styles.summaryDetailLabel}>Invoice Number:</Text>
-                <Text style={styles.summaryDetailValue}>#{invoiceNumber}</Text>
-              </View>
-              <View style={styles.summaryDetailRow}>
-                <Text style={styles.summaryDetailLabel}>Date:</Text>
-                <Text style={styles.summaryDetailValue}>{billDate}</Text>
-              </View>
-              <View style={styles.summaryDetailRow}>
-                <Text style={styles.summaryDetailLabel}>Payment Status:</Text>
-                <Text
-                  style={[
-                    styles.summaryDetailValue,
-                    {
-                      color:
-                        paymentStatus === 'PAID' ? colors.brandGreen : colors.debit,
-                    },
-                  ]}
-                >
-                  {paymentStatus === 'PAID' ? 'Fully Paid' : 'Unpaid (On Credit)'}
-                </Text>
-              </View>
-              <View style={styles.summaryDetailRow}>
-                <Text style={styles.summaryDetailLabel}>Products Count:</Text>
-                <Text style={styles.summaryDetailValue}>{items.length} line items</Text>
-              </View>
-              <View style={styles.summaryDetailRow}>
-                <Text style={styles.summaryDetailLabel}>Attachment:</Text>
-                <Text style={styles.summaryDetailValue}>
-                  {attachment ? attachment.name : 'No file attached'}
-                </Text>
-              </View>
+            <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
+              <View style={styles.summaryInfoBox}>
+                <View style={styles.summaryDetailRow}>
+                  <Text style={styles.summaryDetailLabel}>Supplier:</Text>
+                  <Text style={styles.summaryDetailValue}>{supplier?.name}</Text>
+                </View>
+                <View style={styles.summaryDetailRow}>
+                  <Text style={styles.summaryDetailLabel}>Invoice Number:</Text>
+                  <Text style={styles.summaryDetailValue}>
+                    {invoiceNumber.trim() ? `#${invoiceNumber.trim()}` : 'Auto-generated'}
+                  </Text>
+                </View>
+                <View style={styles.summaryDetailRow}>
+                  <Text style={styles.summaryDetailLabel}>Date:</Text>
+                  <Text style={styles.summaryDetailValue}>{billDate}</Text>
+                </View>
+                <View style={styles.summaryDetailRow}>
+                  <Text style={styles.summaryDetailLabel}>Payment Status:</Text>
+                  <View
+                    style={[
+                      styles.summaryStatusPill,
+                      paymentStatus === 'PAID'
+                        ? { backgroundColor: '#E8F5E9' }
+                        : { backgroundColor: '#FFF3E0' },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.summaryStatusText,
+                        paymentStatus === 'PAID'
+                          ? { color: colors.brandGreen }
+                          : { color: colors.debit },
+                      ]}
+                    >
+                      {paymentStatus === 'PAID' ? 'PAID' : 'UNPAID'}
+                    </Text>
+                  </View>
+                </View>
 
-              <View style={styles.summaryTotalRow}>
-                <Text style={styles.summaryTotalLabel}>Total Amount:</Text>
-                <Text style={styles.summaryTotalValue}>₹{fmt(totalAmount)}</Text>
+                {selectedProducts.length > 0 && (
+                  <View style={{ marginTop: spacing.sm }}>
+                    <Text style={[styles.summaryDetailLabel, { marginBottom: 4 }]}>
+                      Products ({selectedProducts.length}):
+                    </Text>
+                    {selectedProducts.map((sp, idx) => {
+                      const qty = parseFloat(sp.quantity) || 0;
+                      const price = parseFloat(sp.unitPrice) || 0;
+                      return (
+                        <Text key={`summary-prod-${idx}`} style={styles.summaryProductLine}>
+                          • {sp.productName} — {qty} {sp.unit} × ₹{price} = ₹{fmt(qty * price)}
+                        </Text>
+                      );
+                    })}
+                  </View>
+                )}
+
+                <View style={styles.summaryDetailRow}>
+                  <Text style={styles.summaryDetailLabel}>Attachment:</Text>
+                  <Text style={styles.summaryDetailValue}>
+                    {attachment ? attachment.name : 'No file attached'}
+                  </Text>
+                </View>
+
+                <View style={styles.summaryTotalRow}>
+                  <Text style={styles.summaryTotalLabel}>Total Bill Amount:</Text>
+                  <Text style={styles.summaryTotalValue}>₹{fmt(parsedTotalAmount)}</Text>
+                </View>
+
+                {paymentStatus === 'PENDING' && (
+                  <View style={[styles.unpaidWarningBox, { marginTop: spacing.sm }]}>
+                    <Ionicons name="information-circle" size={14} color={colors.debit} />
+                    <Text style={[styles.unpaidWarningText, { fontSize: 10.5 }]}>
+                      This amount will be added to supplier's outstanding payable.
+                    </Text>
+                  </View>
+                )}
               </View>
-            </View>
+            </ScrollView>
 
             {isSaving ? (
               <View style={styles.savingProgressBox}>
@@ -934,186 +902,244 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: spacing.xs,
   },
-  metaRow: {
-    flexDirection: 'row',
-  },
 
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  addItemBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  addItemBtnText: {
-    ...typography.captionBold,
-    color: colors.primary,
-    fontSize: 12,
-  },
-
-  // Line item card
-  itemCard: {
-    padding: spacing.sm + 2,
-    marginBottom: spacing.sm,
-  },
-  itemCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.xs,
-  },
-  itemIndexLabel: {
-    ...typography.captionBold,
-    color: colors.textPrimary,
-    fontSize: 12,
-  },
-  itemHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  catalogSelectBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: spacing.borderRadiusSm,
-  },
-  catalogSelectText: {
-    ...typography.captionBold,
-    color: colors.primary,
-    fontSize: 10.5,
-  },
-  itemInputsRow: {
-    flexDirection: 'row',
-    marginTop: spacing.xs,
-  },
-  itemTotalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginTop: spacing.xs,
-    paddingTop: spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: colors.divider,
-    gap: 6,
-  },
-  itemTotalLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 11,
-  },
-  itemTotalValue: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13,
-  },
-
-  // Calculations
-  calcCard: {
+  formCard: {
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
-  calcRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  calcLabel: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontSize: 12.5,
-  },
-  calcValue: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13.5,
-  },
-  calcInputRow: {
-    flexDirection: 'row',
-    marginVertical: spacing.xs,
-  },
-  grandTotalRow: {
-    marginTop: spacing.xs,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  grandTotalLabel: {
-    ...typography.bodyBold,
-    fontSize: 13,
-    color: colors.textPrimary,
-  },
-  grandTotalValue: {
-    ...typography.hero,
-    fontSize: 18,
-    color: colors.primary,
-  },
 
   // Payment Status Toggle
-  paymentStatusToggleRow: {
-    gap: spacing.xs,
-    marginBottom: spacing.sm,
+  paymentToggleRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
-  statusOptionBtn: {
+  paymentToggleBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.sm + 2,
+    justifyContent: 'center',
+    paddingVertical: 12,
     borderRadius: spacing.borderRadiusMd,
     borderWidth: 1.5,
     borderColor: colors.border,
-    backgroundColor: colors.surfaceSubtle,
-    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    gap: 6,
   },
-  statusOptionPaidActive: {
-    backgroundColor: colors.brandGreenLight,
+  paymentToggleBtnActive: {
     borderColor: colors.brandGreen,
+    backgroundColor: '#E8F5E9',
   },
-  statusOptionPendingActive: {
-    backgroundColor: colors.debitLight,
+  paymentToggleBtnUnpaid: {
     borderColor: colors.debit,
+    backgroundColor: '#FFF3E0',
   },
-  statusOptionTitle: {
+  paymentToggleText: {
     ...typography.bodyBold,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  paymentToggleTextActive: {
+    color: colors.brandGreen,
+  },
+  paymentToggleTextUnpaid: {
+    color: colors.debit,
+  },
+  unpaidWarningBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF8E1',
+    borderRadius: spacing.borderRadiusSm,
+    padding: spacing.sm,
+    marginTop: spacing.sm,
+    gap: 6,
+  },
+  unpaidWarningText: {
+    ...typography.caption,
+    color: colors.debit,
+    fontSize: 11,
+    flex: 1,
+  },
+
+  // Products
+  selectedProductCard: {
+    padding: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  selectedProductHeader: {
+    marginBottom: spacing.xs,
+  },
+  selectedProductNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  prodIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedProductName: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 13,
+  },
+  selectedProductUnit: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 10,
+  },
+  selectedProductFields: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  productFieldCol: {
+    flex: 1,
+  },
+  productFieldLabel: {
+    ...typography.label,
+    color: colors.textMuted,
+    fontSize: 9,
+    letterSpacing: 0.3,
+    marginBottom: 3,
+  },
+  productFieldInput: {
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: spacing.borderRadiusSm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 5,
+    fontSize: 13,
+    color: colors.textPrimary,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  productAmountText: {
+    ...typography.bodyBold,
+    color: colors.primary,
+    fontSize: 13,
+    textAlign: 'center',
+    paddingVertical: Platform.OS === 'ios' ? 8 : 5,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: spacing.borderRadiusSm,
+    overflow: 'hidden',
+  },
+  addProductBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: spacing.borderRadiusMd,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderStyle: 'dashed',
+    backgroundColor: colors.surface,
+    gap: 6,
+    marginBottom: spacing.sm,
+  },
+  addProductBtnText: {
+    ...typography.bodyBold,
+    color: colors.primary,
+    fontSize: 13,
+  },
+
+  // Product Selection Modal
+  productModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  productModalSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: spacing.borderRadiusLg,
+    borderTopRightRadius: spacing.borderRadiusLg,
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.screenPadding,
+    maxHeight: '75%',
+  },
+  productModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  productModalTitle: {
+    ...typography.h3,
+    color: colors.textPrimary,
+  },
+  productSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: spacing.borderRadiusMd,
+    paddingHorizontal: spacing.sm,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 6,
+  },
+  productSearchInput: {
+    flex: 1,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 7,
     fontSize: 13,
     color: colors.textPrimary,
   },
-  statusOptionSub: {
+  productListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: spacing.sm,
+  },
+  productListName: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 13,
+  },
+  productListSub: {
     ...typography.caption,
-    fontSize: 10.5,
-    color: colors.textSecondary,
+    color: colors.textMuted,
+    fontSize: 11,
     marginTop: 1,
+  },
+  productListEmpty: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+    gap: spacing.sm,
+  },
+  productListEmptyText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 12,
   },
 
   // Attachment
   attachmentPickerGrid: {
     flexDirection: 'row',
-    gap: spacing.xs,
+    gap: spacing.sm,
     marginBottom: spacing.sm,
   },
   pickerTile: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
     backgroundColor: colors.surface,
     borderRadius: spacing.borderRadiusMd,
     borderWidth: 1,
     borderColor: colors.border,
     borderStyle: 'dashed',
-    gap: 4,
+    gap: 6,
   },
   pickerTileText: {
     ...typography.captionBold,
     color: colors.primary,
-    fontSize: 11,
+    fontSize: 12,
   },
   attachmentPreviewCard: {
     padding: spacing.sm,
@@ -1127,15 +1153,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: spacing.borderRadiusSm,
-    marginRight: spacing.sm,
-  },
-  attachmentPdfIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: spacing.borderRadiusSm,
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginRight: spacing.sm,
   },
   attachmentMetaCol: {
@@ -1193,57 +1210,6 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
   },
 
-
-  // Modals
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: spacing.borderRadiusXl,
-    borderTopRightRadius: spacing.borderRadiusXl,
-    padding: spacing.lg,
-    paddingBottom: Platform.OS === 'ios' ? spacing.xxl : spacing.lg,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-    paddingBottom: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
-  },
-  modalTitle: {
-    ...typography.h3,
-    color: colors.textPrimary,
-  },
-  productOptionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
-  },
-  productOptionName: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13,
-  },
-  productOptionSub: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 10.5,
-    marginTop: 2,
-  },
-  productOptionPrice: {
-    ...typography.bodyBold,
-    color: colors.primary,
-    fontSize: 13,
-  },
-
   // Summary Modal
   summaryModalOverlay: {
     flex: 1,
@@ -1279,6 +1245,7 @@ const styles = StyleSheet.create({
   summaryDetailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 4,
   },
   summaryDetailLabel: {
@@ -1290,6 +1257,23 @@ const styles = StyleSheet.create({
     ...typography.bodyBold,
     color: colors.textPrimary,
     fontSize: 12,
+    maxWidth: '60%',
+    textAlign: 'right',
+  },
+  summaryStatusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  summaryStatusText: {
+    ...typography.captionBold,
+    fontSize: 10.5,
+  },
+  summaryProductLine: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 11,
+    marginBottom: 2,
   },
   summaryTotalRow: {
     flexDirection: 'row',

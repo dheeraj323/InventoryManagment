@@ -1,5 +1,5 @@
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
+import { File } from 'expo-file-system';
 import { Image } from 'react-native';
 
 export interface CompressImageOptions {
@@ -15,6 +15,7 @@ export interface CompressedImageResult {
   uri: string;
   name: string;
   mimeType: string;
+  base64?: string;
   originalSize: number;
   compressedSize: number;
   savedPercentage: number;
@@ -37,6 +38,18 @@ const getImageDimensions = (uri: string): Promise<{ width: number; height: numbe
       }
     );
   });
+};
+
+/**
+ * Helper to safely get file size using Expo File System
+ */
+const safeGetFileSize = (uri: string): number => {
+  try {
+    const file = new File(uri);
+    return file.size || 0;
+  } catch {
+    return 0;
+  }
 };
 
 /**
@@ -73,17 +86,7 @@ export const compressBillImage = async (
 
   // 1. If it's a PDF, do not manipulate/compress as image
   if (isPdf) {
-    let size = knownSize || 0;
-    if (!size) {
-      try {
-        const fileInfo = await FileSystem.getInfoAsync(inputUri);
-        if (fileInfo.exists && (fileInfo as any).size) {
-          size = (fileInfo as any).size;
-        }
-      } catch (e) {
-        console.warn('Could not read PDF file size:', e);
-      }
-    }
+    const size = knownSize || safeGetFileSize(inputUri);
 
     return {
       uri: inputUri,
@@ -99,17 +102,7 @@ export const compressBillImage = async (
   }
 
   // 2. Determine original file size
-  let originalSize = knownSize || 0;
-  if (!originalSize) {
-    try {
-      const info = await FileSystem.getInfoAsync(inputUri);
-      if (info.exists && (info as any).size) {
-        originalSize = (info as any).size;
-      }
-    } catch (e) {
-      console.warn('Could not read original image size:', e);
-    }
-  }
+  const originalSize = knownSize || safeGetFileSize(inputUri);
 
   // 3. Inspect image dimensions
   const dims = await getImageDimensions(inputUri);
@@ -169,18 +162,11 @@ export const compressBillImage = async (
     const result = await manipulateAsync(inputUri, actions, {
       compress: targetQuality,
       format: saveFormat,
+      base64: true,
     });
 
     // 5. Query compressed file size
-    let compressedSize = 0;
-    try {
-      const compInfo = await FileSystem.getInfoAsync(result.uri);
-      if (compInfo.exists && (compInfo as any).size) {
-        compressedSize = (compInfo as any).size;
-      }
-    } catch (e) {
-      console.warn('Could not read compressed file size:', e);
-    }
+    let compressedSize = safeGetFileSize(result.uri);
 
     if (compressedSize === 0) {
       compressedSize = originalSize > 0 ? Math.round(originalSize * targetQuality) : 0;
@@ -196,6 +182,7 @@ export const compressBillImage = async (
       uri: result.uri,
       name: cleanName,
       mimeType: outMimeType,
+      base64: result.base64,
       originalSize,
       compressedSize,
       savedPercentage,

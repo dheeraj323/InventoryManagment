@@ -85,10 +85,18 @@ export const useSupplierBillStore = create<SupplierBillState>((set, get) => ({
 
   subscribeSupplierBills: (supplierId: string) => {
     return supplierBillService.subscribeSupplierBills(supplierId, (supplierBills) => {
+      const seen = new Set<string>();
+      const deduped = supplierBills.filter((b) => {
+        const id = b.id || b.billId;
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+
       set((state) => ({
         bills: {
           ...state.bills,
-          [supplierId]: supplierBills,
+          [supplierId]: deduped,
         },
       }));
     });
@@ -109,14 +117,22 @@ export const useSupplierBillStore = create<SupplierBillState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const fetchedBills = await supplierBillService.getSupplierBills(supplierId);
+      const seen = new Set<string>();
+      const deduped = fetchedBills.filter((b) => {
+        const id = b.id || b.billId;
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+
       set((state) => ({
         bills: {
           ...state.bills,
-          [supplierId]: fetchedBills,
+          [supplierId]: deduped,
         },
         isLoading: false,
       }));
-      return fetchedBills;
+      return deduped;
     } catch (err: any) {
       console.error('Error in fetchSupplierBills:', err);
       set({ error: err.message || 'Failed to load bills', isLoading: false });
@@ -144,12 +160,15 @@ export const useSupplierBillStore = create<SupplierBillState>((set, get) => ({
     try {
       const createdBill = await supplierBillService.addBill(supplierId, billData, user);
       
-      // Optimistically add to state
+      // Optimistically add to state without creating duplicate keys
       const currentSupplierBills = get().bills[supplierId] || [];
+      const remainingBills = currentSupplierBills.filter(
+        (b) => b.id !== createdBill.id && b.billId !== createdBill.id
+      );
       set((state) => ({
         bills: {
           ...state.bills,
-          [supplierId]: [createdBill, ...currentSupplierBills],
+          [supplierId]: [createdBill, ...remainingBills],
         },
         isLoading: false,
       }));

@@ -72,7 +72,14 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
   }, [bills, supplierId, billId]);
 
   const history: BillAuditRecord[] = useMemo(() => {
-    return billHistory[billId] || [];
+    const raw = billHistory[billId] || [];
+    const seen = new Set<string>();
+    return raw.filter((r) => {
+      const id = r.id;
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
   }, [billHistory, billId]);
 
   useEffect(() => {
@@ -216,6 +223,7 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
       setReplaceStepText('Uploading optimized file to Cloudinary...');
       const uploadResult = await uploadToCloudinary({
         uri: compressed.uri,
+        base64: compressed.base64,
         fileName: compressed.name,
         fileType: compressed.mimeType,
         fileSize: compressed.compressedSize,

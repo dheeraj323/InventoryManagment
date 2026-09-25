@@ -79,7 +79,14 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
   }, [supplierId]);
 
   const supplierBills = useMemo(() => {
-    return (bills[supplierId] || []).filter((b) => !b.isDeleted);
+    const raw = (bills[supplierId] || []).filter((b) => !b.isDeleted);
+    const seen = new Set<string>();
+    return raw.filter((b) => {
+      const id = b.id || b.billId;
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
   }, [bills, supplierId]);
 
   const stats = useMemo(() => {
@@ -211,17 +218,26 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
       list = list.filter((b) => b.paymentStatus === 'PENDING' || b.paymentStatus === 'PARTIALLY_PAID');
     }
 
+    // Helper: safely convert createdAt to a string (Firestore serverTimestamp returns a Timestamp object)
+    const toStr = (val: any): string => {
+      if (!val) return '';
+      if (typeof val === 'string') return val;
+      if (typeof val?.toDate === 'function') return val.toDate().toISOString();
+      if (typeof val?.toISOString === 'function') return val.toISOString();
+      return String(val);
+    };
+
     // 3. Sorting
     list.sort((a, b) => {
       if (sortBy === 'NEWEST') {
         const dateDiff = (b.billDate || '').localeCompare(a.billDate || '');
         if (dateDiff !== 0) return dateDiff;
-        return (b.createdAt || '').localeCompare(a.createdAt || '');
+        return toStr(b.createdAt).localeCompare(toStr(a.createdAt));
       }
       if (sortBy === 'OLDEST') {
         const dateDiff = (a.billDate || '').localeCompare(b.billDate || '');
         if (dateDiff !== 0) return dateDiff;
-        return (a.createdAt || '').localeCompare(b.createdAt || '');
+        return toStr(a.createdAt).localeCompare(toStr(b.createdAt));
       }
       if (sortBy === 'HIGHEST_AMOUNT') {
         return (b.totalAmount || 0) - (a.totalAmount || 0);
@@ -477,12 +493,12 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
             )}
           </View>
 
-          {supplierBills.slice(0, 3).map((b) => (
+          {supplierBills.slice(0, 3).map((b, idx) => (
             <Card
-              key={b.id}
+              key={`recent-bill-${b.id || b.billId || idx}-${idx}`}
               style={styles.recentBillRow}
               onPress={() =>
-                navigation.navigate('SupplierBillDetail', { supplierId, billId: b.id })
+                navigation.navigate('SupplierBillDetail', { supplierId, billId: b.id || b.billId })
               }
               outlined
               elevation="sm"
@@ -606,9 +622,9 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
                   { key: 'PAID', label: `Paid (${stats.paidBillsCount})` },
                   { key: 'PENDING', label: `Unpaid / Credit (${stats.pendingBillsCount})` },
                 ] as const
-              ).map((chip) => (
+              ).map((chip, chipIdx) => (
                 <TouchableOpacity
-                  key={chip.key}
+                  key={`chip-${chip.key}-${chipIdx}`}
                   style={[styles.filterPill, activeFilter === chip.key && styles.filterPillActive]}
                   onPress={() => setActiveFilter(chip.key)}
                   activeOpacity={0.8}
@@ -629,7 +645,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
           {/* Bills FlatList */}
           <FlatList
             data={filteredBills}
-            keyExtractor={(item, index) => item.id || `bill-${index}`}
+            keyExtractor={(item, index) => `bill-item-${item.id || item.billId || index}-${index}`}
             contentContainerStyle={styles.billsListContainer}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
