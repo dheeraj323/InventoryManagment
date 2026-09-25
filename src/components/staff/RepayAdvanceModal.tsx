@@ -169,7 +169,7 @@ export const RepayAdvanceModal: React.FC<RepayAdvanceModalProps> = ({
                   {/* Advance summary card */}
                   <View style={styles.summaryCard}>
                     <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>Total Advance Disbursed:</Text>
+                      <Text style={styles.summaryLabel}>Total Advance Given:</Text>
                       <Text style={styles.summaryVal}>₹{advance.amount.toLocaleString('en-IN')}</Text>
                     </View>
                     <View style={styles.summaryRow}>

@@ -55,7 +55,7 @@ export const DisburseSalaryModal: React.FC<DisburseSalaryModalProps> = ({
   const handleSubmit = async () => {
     const numAmount = parseFloat(paidAmount.replace(/,/g, ''));
     if (isNaN(numAmount) || numAmount <= 0) {
-      Alert.alert('Validation Error', 'Please enter a valid disbursed amount.');
+      Alert.alert('Validation Error', 'Please enter a valid payment amount.');
       return;
     }
 
@@ -76,7 +76,7 @@ export const DisburseSalaryModal: React.FC<DisburseSalaryModalProps> = ({
       });
 
       Alert.alert(
-        'Salary Disbursed',
+        'Payment Recorded',
         `₹${numAmount.toLocaleString('en-IN')} paid to ${slip.staffName} for ${slip.month}.`
       );
       onSuccess?.();
@@ -97,7 +97,7 @@ export const DisburseSalaryModal: React.FC<DisburseSalaryModalProps> = ({
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <View>
-              <Text style={styles.modalTitle}>Disburse Salary</Text>
+              <Text style={styles.modalTitle}>Pay Staff Salary</Text>
               <Text style={styles.modalSub}>{slip.staffName} • Month: {slip.month}</Text>
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -149,7 +149,7 @@ export const DisburseSalaryModal: React.FC<DisburseSalaryModalProps> = ({
             </View>
 
             {/* Payment Date */}
-            <Text style={styles.inputLabel}>Disbursement Date (YYYY-MM-DD) *</Text>
+            <Text style={styles.inputLabel}>Payment Date (YYYY-MM-DD) *</Text>
             <TextInput
               style={styles.textInput}
               value={paymentDate}

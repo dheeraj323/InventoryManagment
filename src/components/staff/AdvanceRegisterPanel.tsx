@@ -287,7 +287,7 @@ export const AdvanceRegisterPanel: React.FC<AdvanceRegisterPanelProps> = ({
           <Text style={[styles.kpiValue, { color: colors.brandGreen }]}>
             ₹{metrics.totalRepaid.toLocaleString('en-IN')}
           </Text>
-          <Text style={styles.kpiSub}>Disbursed: ₹{metrics.totalDisbursed.toLocaleString('en-IN')}</Text>
+          <Text style={styles.kpiSub}>Total Given: ₹{metrics.totalDisbursed.toLocaleString('en-IN')}</Text>
         </View>
       </View>
 

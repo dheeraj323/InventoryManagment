@@ -264,7 +264,7 @@ export const SalaryPayrollPanel: React.FC<SalaryPayrollPanelProps> = ({
                 <View style={styles.paidInfoRow}>
                   <Ionicons name="checkmark-circle" size={13} color={colors.brandGreen} />
                   <Text style={styles.paidInfoText}>
-                    Disbursed ₹{(slip.paidAmount || netSalary).toLocaleString('en-IN')} on{' '}
+                    Paid ₹{(slip.paidAmount || netSalary).toLocaleString('en-IN')} on{' '}
                     {formatDate(slip.paymentDate)} ({slip.paymentMode || 'CASH'})
                   </Text>
                 </View>
@@ -315,7 +315,7 @@ export const SalaryPayrollPanel: React.FC<SalaryPayrollPanelProps> = ({
     <View style={styles.container}>
       {/* 1. Month Navigator Bar */}
       <View style={styles.monthBar}>
-        <TouchableOpacity onPress={handlePrevMonth} style={styles.monthNavBtn}>
+        <TouchableOpacity onPress={handlePrevDay ? handlePrevMonth : handlePrevMonth} style={styles.monthNavBtn}>
           <Ionicons name="chevron-back" size={20} color={colors.primary} />
         </TouchableOpacity>
 
@@ -344,7 +344,7 @@ export const SalaryPayrollPanel: React.FC<SalaryPayrollPanelProps> = ({
         </View>
 
         <View style={[styles.kpiCard, styles.kpiCardPaid]}>
-          <Text style={styles.kpiLabel}>DISBURSED</Text>
+          <Text style={styles.kpiLabel}>PAID OUT</Text>
           <Text style={[styles.kpiValue, { color: colors.brandGreen }]}>
             ₹{metrics.totalPaid.toLocaleString('en-IN')}
           </Text>

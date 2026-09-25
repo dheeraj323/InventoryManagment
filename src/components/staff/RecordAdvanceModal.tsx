@@ -168,7 +168,7 @@ export const RecordAdvanceModal: React.FC<RecordAdvanceModalProps> = ({
                     <View>
                       <Text style={styles.modalTitle}>Give Staff Advance</Text>
                       <Text style={styles.modalSubtitle}>
-                        Record salary advance disbursement
+                        Record advance payment given to staff
                       </Text>
                     </View>
                   </View>

@@ -19,7 +19,6 @@ import { useVendorStore } from '../../store/useVendorStore';
 import { useLedgerStore } from '../../store/useLedgerStore';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { invoiceService } from '../../services/invoiceService';
 import { paymentService } from '../../services/paymentService';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
@@ -35,7 +34,6 @@ import {
   Vendor,
   VendorStatus,
   LedgerEntry,
-  Invoice,
   Payment,
   Order,
   OrderStatus,
@@ -46,14 +44,12 @@ type DetailTab =
   | 'OVERVIEW'
   | 'LEDGER'
   | 'ORDERS'
-  | 'INVOICES'
   | 'PAYMENTS';
 
 const TABS: { label: string; value: DetailTab; icon: keyof typeof Ionicons.glyphMap }[] = [
   { label: 'Overview', value: 'OVERVIEW', icon: 'pie-chart-outline' },
   { label: 'Khata', value: 'LEDGER', icon: 'book-outline' },
   { label: 'Orders', value: 'ORDERS', icon: 'receipt-outline' },
-  { label: 'Invoices', value: 'INVOICES', icon: 'document-text-outline' },
   { label: 'Payments', value: 'PAYMENTS', icon: 'cash-outline' },
 ];
 
@@ -106,13 +102,11 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
 
-  // Live Async Data (Invoices & Payments)
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  // Live Async Data (Payments)
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [loadingInvoices, setLoadingInvoices] = useState(false);
 
   // Sub-tab filters
-  type LedgerCategoryFilter = 'ALL' | 'INVOICES' | 'PAYMENTS' | 'CREDITS' | 'ADJUSTMENTS';
+  type LedgerCategoryFilter = 'ALL' | 'BILLS' | 'PAYMENTS' | 'CREDITS' | 'ADJUSTMENTS';
   type LedgerDateFilter = 'ALL_TIME' | 'TODAY' | 'THIS_WEEK' | 'THIS_MONTH';
 
   const [ledgerCategoryFilter, setLedgerCategoryFilter] = useState<LedgerCategoryFilter>('ALL');
@@ -120,21 +114,14 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
   const [selectedTransaction, setSelectedTransaction] = useState<LedgerEntry | null>(null);
   const [orderFilter, setOrderFilter] = useState<'ALL' | OrderStatus>('ALL');
 
-  // Fetch Invoices & Payments for this vendor
+  // Fetch Payments for this vendor
   useEffect(() => {
     if (vendorId) {
-      setLoadingInvoices(true);
-      const unsubInvoices = invoiceService.subscribeVendorInvoices(vendorId, (invs) => {
-        setInvoices(invs);
-        setLoadingInvoices(false);
-      });
-
       const unsubPayments = paymentService.subscribeVendorPayments(vendorId, (pmts) => {
         setPayments(pmts);
       });
 
       return () => {
-        unsubInvoices();
         unsubPayments();
       };
     }
@@ -174,7 +161,7 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
       const formatted = formatTransaction(entry, 'ADMIN');
 
       // Category filter
-      if (ledgerCategoryFilter === 'INVOICES') {
+      if (ledgerCategoryFilter === 'BILLS') {
         if (formatted.category !== 'invoice') return false;
       } else if (ledgerCategoryFilter === 'PAYMENTS') {
         if (formatted.category !== 'payment') return false;
@@ -457,6 +444,8 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
               overdueAmount={summary.overdueAmount}
               partyName={`${vendor.shopName} Khata`}
               perspective="ADMIN"
+              debitLabel="Total Purchases"
+              creditLabel="Total Paid"
             />
 
             {/* Category Filter Tabs */}
@@ -469,7 +458,7 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
               {(
                 [
                   { key: 'ALL', label: 'All' },
-                  { key: 'INVOICES', label: 'Invoices' },
+                  { key: 'BILLS', label: 'Purchases / Bills' },
                   { key: 'PAYMENTS', label: 'Payments' },
                   { key: 'CREDITS', label: 'Credits' },
                   { key: 'ADJUSTMENTS', label: 'Adjustments' },
@@ -697,87 +686,7 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
         )}
 
         {/* ═══════════════════════════════════════════════════════════ */}
-        {/* TAB 4: INVOICES                                            */}
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {activeTab === 'INVOICES' && (
-          <View>
-            {loadingInvoices ? (
-              <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 24 }} />
-            ) : invoices.length > 0 ? (
-              <View style={styles.transactionCardGroup}>
-                {invoices.map((inv) => {
-                  const dateFormatted = new Date(
-                    inv.invoiceDate || inv.createdAt || Date.now()
-                  ).toLocaleDateString('en-IN', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                  });
-
-                  const isPaid = inv.status === 'PAID';
-                  const isPartial = inv.status === 'PARTIALLY_PAID';
-
-                  const statusLabel = isPaid
-                    ? 'Paid'
-                    : isPartial
-                    ? 'Partially Paid'
-                    : 'Balance Due';
-
-                  const statusColor = isPaid
-                    ? colors.brandGreen
-                    : isPartial
-                    ? '#B45309'
-                    : colors.debit;
-
-                  const statusBg = isPaid
-                    ? colors.brandGreenLight
-                    : isPartial
-                    ? '#FEF3C7'
-                    : colors.debitLight;
-
-                  return (
-                    <View key={inv.id} style={styles.orderListItem}>
-                      <View style={[styles.orderIconBox, { backgroundColor: statusBg }]}>
-                        <Ionicons
-                          name={isPaid ? 'document-text' : 'receipt-outline'}
-                          size={17}
-                          color={statusColor}
-                        />
-                      </View>
-
-                      <View style={styles.orderItemContent}>
-                        <View style={styles.orderItemRowTop}>
-                          <Text style={styles.orderItemTitle} numberOfLines={1}>
-                            Tax Invoice ({inv.lineItems?.length || 1} item{inv.lineItems?.length !== 1 ? 's' : ''})
-                          </Text>
-                          <Text style={styles.orderItemAmount}>₹{fmt(inv.totalAmount)}</Text>
-                        </View>
-
-                        <View style={styles.orderItemRowBottom}>
-                          <Text style={styles.orderItemMeta} numberOfLines={1}>
-                            {dateFormatted}  •  {isPaid ? 'Fully Settled' : `Due: ₹${fmt(inv.balanceDue)}`}
-                          </Text>
-                          <Text style={[styles.orderStatusBadge, { color: statusColor }]}>
-                            {statusLabel}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            ) : (
-              <EmptyState
-                iconName="document-text-outline"
-                title="No formal invoices"
-                description="Invoices are generated upon successful order deliveries."
-              />
-            )}
-          </View>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════ */}
-        {/* TAB 5: PAYMENTS                                            */}
+        {/* TAB 4: PAYMENTS                                            */}
         {/* ═══════════════════════════════════════════════════════════ */}
         {activeTab === 'PAYMENTS' && (
           <View>
