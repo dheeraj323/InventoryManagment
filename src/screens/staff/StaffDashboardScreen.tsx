@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,20 +11,40 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useCashStore } from '../../store/useCashStore';
+import { useStaffStockStore } from '../../store/useStaffStockStore';
 import { Header } from '../../components/common/Header';
 import { Button } from '../../components/common/Button';
-import { colors, typography, spacing } from '../../theme';
+import {
+  MorningStockLoadModal,
+  EveningStockReturnModal,
+  StaffVehicleStockModal,
+} from '../../components/staff';
+import { colors, typography, spacing, shadows } from '../../theme';
 
 export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { currentUser, activeRole, activeStaffId } = useAuthStore();
   const { getOrdersByStaff, orders } = useOrderStore();
   const { settlements, getStaffCashInHand } = useCashStore();
+  const { todaySession, subscribeTodaySession } = useStaffStockStore();
+
+  const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [isViewStockModalOpen, setIsViewStockModalOpen] = useState(false);
 
   const staff = {
-    id: activeStaffId || currentUser?.staffId || '',
+    id: activeStaffId || currentUser?.staffId || currentUser?.id || '',
     name: currentUser?.name || 'Delivery Executive',
     cashInHand: getStaffCashInHand(activeStaffId || currentUser?.staffId || '', orders),
   };
+
+  useEffect(() => {
+    if (staff.id) {
+      const unsub = subscribeTodaySession(staff.id);
+      return () => {
+        if (unsub) unsub();
+      };
+    }
+  }, [staff.id]);
 
   // Get assigned orders (excluding pending approval orders)
   const staffAssigned = getOrdersByStaff(staff.id);
@@ -45,6 +65,15 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
   );
 
   const isAllCompleted = assignedOrders.length > 0 && pendingDeliveries.length === 0;
+
+  // Stock Session Metrics
+  const hasActiveSession = !!todaySession;
+  const isStockReturned = todaySession?.status === 'RETURNED' || todaySession?.status === 'DISCREPANCY';
+  const totalLoaded = todaySession?.totalLoadedUnits || 0;
+  const totalDelivered = todaySession?.totalDeliveredUnits || 0;
+  const totalInVehicle = todaySession
+    ? (todaySession.items || []).reduce((sum, it) => sum + (it.currentStock || 0), 0)
+    : 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -93,7 +122,169 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
           )}
         </View>
 
-        {/* 2. Today's Delivery Progress Metric Bar */}
+        {/* 2. Daily Delivery Vehicle Stock Tracker Card */}
+        <View style={styles.stockCard}>
+          {/* Header row */}
+          <View style={styles.stockHeaderRow}>
+            <View style={styles.stockTitleWrap}>
+              <View
+                style={[
+                  styles.stockIconCircle,
+                  isStockReturned
+                    ? { backgroundColor: '#DCFCE7' }
+                    : hasActiveSession
+                    ? { backgroundColor: colors.accentLight }
+                    : { backgroundColor: '#FEF3C7' },
+                ]}
+              >
+                <Ionicons
+                  name={
+                    isStockReturned
+                      ? 'checkmark-circle'
+                      : hasActiveSession
+                      ? 'bicycle'
+                      : 'cube-outline'
+                  }
+                  size={16}
+                  color={
+                    isStockReturned
+                      ? colors.brandGreen
+                      : hasActiveSession
+                      ? colors.accent
+                      : '#D97706'
+                  }
+                />
+              </View>
+              <View>
+                <Text style={styles.stockCardTitle}>VEHICLE STOCK TRACKER</Text>
+                <Text style={styles.stockCardSubtitle}>
+                  {isStockReturned
+                    ? 'Day-end leftover returned to warehouse'
+                    : hasActiveSession
+                    ? 'Active delivery inventory in vehicle'
+                    : 'Morning stock loading required'}
+                </Text>
+              </View>
+            </View>
+
+            {hasActiveSession && (
+              <TouchableOpacity
+                style={styles.viewInventoryBtn}
+                onPress={() => setIsViewStockModalOpen(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.viewInventoryBtnText}>View Van</Text>
+                <Ionicons name="chevron-forward" size={12} color={colors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Metric Tiles */}
+          <View style={styles.stockMetricGrid}>
+            <View style={styles.stockMetricTile}>
+              <Text style={styles.stockMetricLabel}>LOADED</Text>
+              <Text style={styles.stockMetricVal}>{totalLoaded}</Text>
+              <Text style={styles.stockMetricSub}>Morning taken</Text>
+            </View>
+
+            <View style={styles.stockMetricTile}>
+              <Text style={styles.stockMetricLabel}>DELIVERED</Text>
+              <Text style={[styles.stockMetricVal, { color: colors.brandGreen }]}>
+                {totalDelivered}
+              </Text>
+              <Text style={styles.stockMetricSub}>Given to shops</Text>
+            </View>
+
+            <View
+              style={[
+                styles.stockMetricTile,
+                { backgroundColor: isStockReturned ? '#F0FDF4' : '#EFF6FF' },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.stockMetricLabel,
+                  { color: isStockReturned ? colors.brandGreen : colors.accent },
+                ]}
+              >
+                {isStockReturned ? 'RETURNED' : 'IN VAN NOW'}
+              </Text>
+              <Text
+                style={[
+                  styles.stockMetricVal,
+                  { color: isStockReturned ? colors.brandGreen : colors.accent },
+                ]}
+              >
+                {isStockReturned ? todaySession?.totalReturnedUnits || 0 : totalInVehicle}
+              </Text>
+              <Text style={styles.stockMetricSub}>
+                {isStockReturned ? 'Restocked' : 'Live balance'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Action Triggers */}
+          <View style={styles.stockActionRow}>
+            {/* Morning Load Button */}
+            <TouchableOpacity
+              style={[
+                styles.stockActionBtn,
+                !hasActiveSession ? styles.stockActionBtnPrimary : styles.stockActionBtnSecondary,
+              ]}
+              onPress={() => setIsLoadModalOpen(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="sunny-outline"
+                size={16}
+                color={!hasActiveSession ? colors.textInverse : colors.primary}
+              />
+              <Text
+                style={[
+                  styles.stockActionBtnText,
+                  !hasActiveSession
+                    ? styles.stockActionBtnTextPrimary
+                    : styles.stockActionBtnTextSecondary,
+                ]}
+              >
+                {hasActiveSession ? '+ Load More' : 'Load Morning Stock'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Evening Return Button */}
+            {hasActiveSession && (
+              <TouchableOpacity
+                style={[
+                  styles.stockActionBtn,
+                  isStockReturned
+                    ? styles.stockActionBtnDisabled
+                    : styles.stockActionBtnEvening,
+                ]}
+                onPress={() => setIsReturnModalOpen(true)}
+                disabled={isStockReturned}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={isStockReturned ? 'checkmark-done-circle' : 'moon-outline'}
+                  size={16}
+                  color={isStockReturned ? colors.brandGreen : colors.textInverse}
+                />
+                <Text
+                  style={[
+                    styles.stockActionBtnText,
+                    isStockReturned
+                      ? { color: colors.brandGreen }
+                      : { color: colors.textInverse },
+                  ]}
+                >
+                  {isStockReturned ? 'Stock Settled' : 'Return Stock'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* 3. Today's Delivery Progress Metric Bar */}
         <View style={styles.progressSection}>
           <Text style={styles.sectionHeaderLabel}>TODAY'S DISPATCH PROGRESS</Text>
           <View style={styles.metricGrid}>
@@ -123,7 +314,7 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
           </View>
         </View>
 
-        {/* 3. Primary Delivery Action CTA */}
+        {/* 4. Primary Delivery Action CTA */}
         <View style={styles.actionBox}>
           <Button
             title={
@@ -152,6 +343,28 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
           />
         </View>
       </ScrollView>
+
+      {/* ── Modals ── */}
+      <MorningStockLoadModal
+        visible={isLoadModalOpen}
+        onClose={() => setIsLoadModalOpen(false)}
+        staffId={staff.id}
+        staffName={staff.name}
+      />
+
+      <EveningStockReturnModal
+        visible={isReturnModalOpen}
+        onClose={() => setIsReturnModalOpen(false)}
+        staffId={staff.id}
+        session={todaySession}
+      />
+
+      <StaffVehicleStockModal
+        visible={isViewStockModalOpen}
+        onClose={() => setIsViewStockModalOpen(false)}
+        session={todaySession}
+        staffName={staff.name}
+      />
     </SafeAreaView>
   );
 };
@@ -169,7 +382,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.navy,
     borderRadius: spacing.borderRadiusLg,
     padding: spacing.lg,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -242,6 +455,132 @@ const styles = StyleSheet.create({
     fontSize: 12,
     flex: 1,
   },
+  stockCard: {
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadows.sm,
+  },
+  stockHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  stockTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stockIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stockCardTitle: {
+    ...typography.captionBold,
+    color: colors.textPrimary,
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
+  stockCardSubtitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  viewInventoryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: spacing.borderRadiusSm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 2,
+  },
+  viewInventoryBtnText: {
+    ...typography.captionBold,
+    color: colors.primary,
+    fontSize: 11,
+  },
+  stockMetricGrid: {
+    flexDirection: 'row',
+    gap: spacing.xs + 2,
+    marginBottom: spacing.sm,
+  },
+  stockMetricTile: {
+    flex: 1,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: spacing.borderRadiusMd,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  stockMetricLabel: {
+    ...typography.label,
+    color: colors.textMuted,
+    fontSize: 9,
+    letterSpacing: 0.5,
+  },
+  stockMetricVal: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 16,
+    marginVertical: 1,
+  },
+  stockMetricSub: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 9,
+  },
+  stockActionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  stockActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: spacing.borderRadiusMd,
+    gap: 6,
+  },
+  stockActionBtnPrimary: {
+    backgroundColor: colors.navy,
+  },
+  stockActionBtnSecondary: {
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  stockActionBtnEvening: {
+    backgroundColor: colors.accent,
+  },
+  stockActionBtnDisabled: {
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  stockActionBtnText: {
+    ...typography.captionBold,
+    fontSize: 12,
+  },
+  stockActionBtnTextPrimary: {
+    color: colors.textInverse,
+  },
+  stockActionBtnTextSecondary: {
+    color: colors.primary,
+  },
   progressSection: {
     marginBottom: spacing.lg,
   },
@@ -290,4 +629,3 @@ const styles = StyleSheet.create({
     borderRadius: spacing.borderRadiusXl,
   },
 });
-

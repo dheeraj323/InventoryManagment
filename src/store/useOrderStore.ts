@@ -4,6 +4,7 @@ import { orderService } from '../services/orderService';
 import { BUSINESS_RULES } from '../constants/rules';
 import { useVendorStore } from './useVendorStore';
 import { useLedgerStore } from './useLedgerStore';
+import { useStaffStockStore } from './useStaffStockStore';
 
 interface OrderState {
   orders: Order[];
@@ -235,6 +236,16 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     }
 
     useLedgerStore.setState({ entries: [...newEntries, ...filteredEntries] });
+
+    // Optimistically update assigned staff's vehicle stock
+    if (order.assignedStaffId) {
+      const deliveredItems = updatedItems.map((item) => ({
+        productId: item.productId,
+        deliveredQty: item.deliveredQty || 0,
+        damagedQty: item.damagedQty || 0,
+      }));
+      useStaffStockStore.getState().recordDeliveredUnits(order.assignedStaffId, deliveredItems);
+    }
 
     try {
       await orderService.recordDelivery(

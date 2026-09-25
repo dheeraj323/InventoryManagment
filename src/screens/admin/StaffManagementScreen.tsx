@@ -30,6 +30,7 @@ import {
   SalaryPayrollPanel,
   RecordAdvanceModal,
   SalaryConfigModal,
+  StaffVehicleStockPanel,
 } from '../../components/staff';
 import { colors, typography, spacing, shadows } from '../../theme';
 
@@ -44,7 +45,7 @@ const PREDEFINED_AREAS = [
   'All Areas',
 ];
 
-type MainTab = 'ROSTER' | 'ATTENDANCE' | 'PAYROLL' | 'ADVANCES';
+type MainTab = 'ROSTER' | 'ATTENDANCE' | 'PAYROLL' | 'ADVANCES' | 'VEHICLE_STOCK';
 
 // Attendance status color/label helpers
 const ATT_CONFIG = {
@@ -479,10 +480,11 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
 
   // ─── Tabs Config ─────────────────────────────────────────────────────────────
   const TABS: { key: MainTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-    { key: 'ROSTER',     label: 'Roster',     icon: 'people-outline'   },
-    { key: 'ATTENDANCE', label: 'Attendance', icon: 'calendar-outline'  },
-    { key: 'PAYROLL',    label: 'Payroll',    icon: 'cash-outline'      },
-    { key: 'ADVANCES',   label: 'Advances',   icon: 'wallet-outline'    },
+    { key: 'ROSTER',        label: 'Roster',     icon: 'people-outline'   },
+    { key: 'VEHICLE_STOCK', label: 'Van Stock',  icon: 'cube-outline'     },
+    { key: 'ATTENDANCE',    label: 'Attendance', icon: 'calendar-outline' },
+    { key: 'PAYROLL',       label: 'Payroll',    icon: 'cash-outline'     },
+    { key: 'ADVANCES',      label: 'Advances',   icon: 'wallet-outline'   },
   ];
 
   // ─── Main Render ─────────────────────────────────────────────────────────────
@@ -694,9 +696,10 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
         </View>
       )}
 
-      {activeTab === 'ATTENDANCE' && <DailyAttendancePanel staffList={staffList} onOpenStaffProfile={handleOpenManageModal} />}
-      {activeTab === 'PAYROLL'    && <SalaryPayrollPanel   staffList={staffList} onOpenStaffProfile={handleOpenManageModal} />}
-      {activeTab === 'ADVANCES'   && <AdvanceRegisterPanel staffList={staffList} onOpenStaffProfile={handleOpenManageModal} />}
+      {activeTab === 'VEHICLE_STOCK' && <StaffVehicleStockPanel staffList={staffList} onOpenStaffProfile={handleOpenManageModal} />}
+      {activeTab === 'ATTENDANCE'    && <DailyAttendancePanel staffList={staffList} onOpenStaffProfile={handleOpenManageModal} />}
+      {activeTab === 'PAYROLL'       && <SalaryPayrollPanel   staffList={staffList} onOpenStaffProfile={handleOpenManageModal} />}
+      {activeTab === 'ADVANCES'      && <AdvanceRegisterPanel staffList={staffList} onOpenStaffProfile={handleOpenManageModal} />}
 
       {/* ═══════════════════════════════════════════════════════════
           Modal: Add New Staff

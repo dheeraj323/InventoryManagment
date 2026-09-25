@@ -6,3 +6,7 @@ export * from './RepayAdvanceModal';
 export * from './SalarySlipModal';
 export * from './DisburseSalaryModal';
 export * from './SalaryConfigModal';
+export * from './MorningStockLoadModal';
+export * from './EveningStockReturnModal';
+export * from './StaffVehicleStockModal';
+export * from './StaffVehicleStockPanel';

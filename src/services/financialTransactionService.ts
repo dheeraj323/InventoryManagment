@@ -34,6 +34,7 @@ import {
   OrderStatus,
 } from '../types';
 import { BUSINESS_RULES } from '../constants/rules';
+import { staffStockService } from './staffStockService';
 
 const ORDERS_COLLECTION = 'orders';
 const VENDORS_COLLECTION = 'vendors';
@@ -385,5 +386,29 @@ export const financialTransactionService = {
         createdAt: serverTimestamp(),
       });
     });
+
+    // 8. Update staff's on-hand vehicle stock session for today
+    try {
+      const deliveredPayload = updatedItems.map((it) => ({
+        productId: it.productId,
+        deliveredQty: it.deliveredQty || 0,
+        damagedQty: it.damagedQty || 0,
+      }));
+
+      // We read the order to get the assigned staff ID
+      const orderRef = doc(db, ORDERS_COLLECTION, orderId);
+      const orderDoc = await import('firebase/firestore').then((m) => m.getDoc(orderRef));
+      if (orderDoc.exists()) {
+        const orderData = orderDoc.data() as Order;
+        if (orderData.assignedStaffId) {
+          await staffStockService.recordDeliveredUnits(
+            orderData.assignedStaffId,
+            deliveredPayload
+          );
+        }
+      }
+    } catch (stockErr) {
+      console.warn('[financialTransactionService] Could not update staff vehicle stock session:', stockErr);
+    }
   },
 };

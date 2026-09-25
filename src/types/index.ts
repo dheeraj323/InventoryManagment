@@ -548,3 +548,47 @@ export interface StaffSalarySlip {
   updatedAt?: string;
 }
 
+// ── Staff Daily Delivery Vehicle Stock Types ──
+export type StockSessionStatus = 'ACTIVE' | 'RETURNED' | 'DISCREPANCY';
+
+export interface StaffStockItem {
+  productId: string;
+  productName: string;
+  unit: string;
+  sku?: string;
+  price?: number;
+  preOrderedQty: number; // Pre-booked quantities from assigned orders (already decremented at order placement)
+  extraLoadedQty: number; // Extra quantities taken from warehouse stock (decremented on morning load)
+  loadedQty: number;     // Total loaded in vehicle = preOrderedQty + extraLoadedQty
+  deliveredQty: number;  // Total delivered to vendors
+  returnedQty?: number;  // Evening returned quantity to inventory (ADDED back to stock)
+  damagedQty?: number;   // Damaged / broken items (NOT added to stock)
+  missingQty?: number;   // Missing / lost items (NOT added to stock)
+  varianceQty?: number;  // Discrepancy = loadedQty - (deliveredQty + (returnedQty || 0) + (damagedQty || 0) + (missingQty || 0))
+  currentStock: number;  // Current on-hand in vehicle
+}
+
+export interface StaffDailyStockSession {
+  id: string; // e.g. "stock_<staffId>_<YYYY-MM-DD>"
+  sessionId?: string;
+  staffId: string;
+  staffName: string;
+  date: string; // YYYY-MM-DD
+  status: StockSessionStatus;
+  items: StaffStockItem[];
+  totalPreOrderedUnits: number;
+  totalExtraLoadedUnits: number;
+  totalLoadedUnits: number;
+  totalDeliveredUnits: number;
+  totalReturnedUnits: number;
+  totalDamagedUnits?: number;
+  totalMissingUnits?: number;
+  totalVarianceUnits?: number;
+  notes?: string;
+  loadedAt: string;     // ISO String timestamp
+  returnedAt?: string;  // ISO String timestamp
+  approvedByAdmin?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+

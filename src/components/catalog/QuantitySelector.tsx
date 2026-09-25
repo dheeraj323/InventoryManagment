@@ -36,6 +36,7 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
         onPress={onDecrease}
         disabled={isMin || isLoading}
         activeOpacity={0.7}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         accessibilityRole="button"
         accessibilityLabel="Decrease quantity"
       >
@@ -83,6 +84,7 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
         onPress={onIncrease}
         disabled={isMax || isLoading}
         activeOpacity={0.7}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         accessibilityRole="button"
         accessibilityLabel="Increase quantity"
       >
