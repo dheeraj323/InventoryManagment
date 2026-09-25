@@ -22,6 +22,9 @@ interface StaffState {
     email?: string;
     activeArea?: string;
     role?: UserRole;
+    monthlySalary?: number;
+    salaryType?: 'MONTHLY' | 'DAILY';
+    dailyRate?: number;
     notes?: string;
   }) => Promise<Staff>;
 
@@ -33,6 +36,9 @@ interface StaffState {
       phone?: string;
       email?: string;
       activeArea?: string;
+      monthlySalary?: number;
+      salaryType?: 'MONTHLY' | 'DAILY';
+      dailyRate?: number;
       notes?: string;
     }
   ) => Promise<void>;

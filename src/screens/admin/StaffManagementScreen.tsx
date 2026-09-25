@@ -17,9 +17,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useStaffStore, StaffFilter } from '../../store/useStaffStore';
+import { useStaffPayrollStore } from '../../store/useStaffPayrollStore';
 import { Staff, UserRole } from '../../types';
 import { Header } from '../../components/common/Header';
 import { Button } from '../../components/common/Button';
+import {
+  DailyAttendancePanel,
+  AdvanceRegisterPanel,
+  SalaryPayrollPanel,
+  RecordAdvanceModal,
+  SalaryConfigModal,
+} from '../../components/staff';
 import { colors, typography, spacing, shadows } from '../../theme';
 
 const PREDEFINED_AREAS = [
@@ -32,6 +40,8 @@ const PREDEFINED_AREAS = [
   'Market Main',
   'All Areas',
 ];
+
+type MainTab = 'ROSTER' | 'ATTENDANCE' | 'PAYROLL' | 'ADVANCES';
 
 export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const {
@@ -51,11 +61,27 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
     setRole,
   } = useStaffStore();
 
+  const {
+    dailyAttendanceMap,
+    advancesList,
+    subscribeAttendance,
+    subscribeAdvances,
+    subscribePayroll,
+    unsubscribeAll,
+  } = useStaffPayrollStore();
+
+  // Active top-level sub-tab
+  const [activeTab, setActiveTab] = useState<MainTab>('ROSTER');
+
   // Modals state
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [isManageModalVisible, setIsManageModalVisible] = useState(false);
   const [isApproveModalVisible, setIsApproveModalVisible] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
+
+  // Advance & Salary Modals from Roster quick actions
+  const [isGiveAdvanceModalOpen, setIsGiveAdvanceModalOpen] = useState(false);
+  const [isSalaryConfigModalOpen, setIsSalaryConfigModalOpen] = useState(false);
 
   // Form states - Add Staff
   const [newName, setNewName] = useState('');
@@ -63,6 +89,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
   const [newEmail, setNewEmail] = useState('');
   const [newArea, setNewArea] = useState(PREDEFINED_AREAS[0]);
   const [newRole, setNewRole] = useState<UserRole>('STAFF');
+  const [newSalary, setNewSalary] = useState('');
   const [newNotes, setNewNotes] = useState('');
 
   // Form states - Edit / Manage Staff
@@ -70,6 +97,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editArea, setEditArea] = useState('');
+  const [editSalary, setEditSalary] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
   // Form state - Approve Route
@@ -79,23 +107,38 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
 
   useEffect(() => {
     subscribeStaff();
+    subscribeAttendance();
+    subscribeAdvances();
+    subscribePayroll();
+
     return () => {
       unsubscribeStaff();
+      unsubscribeAll();
     };
   }, []);
 
-  // Compute Metrics
+  // Compute Metrics for Roster
   const metrics = useMemo(() => {
     const total = staffList.length;
-    const active = staffList.filter((s) => s.status === 'ACTIVE' || (s.active && s.status !== 'PENDING_VERIFICATION' && s.status !== 'SUSPENDED')).length;
+    const active = staffList.filter(
+      (s) => s.status === 'ACTIVE' || (s.active && s.status !== 'PENDING_VERIFICATION' && s.status !== 'SUSPENDED')
+    ).length;
     const pending = staffList.filter((s) => s.status === 'PENDING_VERIFICATION').length;
     const suspended = staffList.filter((s) => s.status === 'SUSPENDED' || s.status === 'REJECTED').length;
     const totalCashInHand = staffList.reduce((acc, s) => acc + (s.cashInHand || 0), 0);
 
-    return { total, active, pending, suspended, totalCashInHand };
-  }, [staffList]);
+    // Compute live advance dues from advancesList
+    let totalAdvanceDues = 0;
+    advancesList.forEach((a) => {
+      if (a.status === 'ACTIVE' || a.status === 'PARTIALLY_REPAID') {
+        totalAdvanceDues += a.remainingAmount ?? (a.amount - (a.amountRepaid || 0));
+      }
+    });
 
-  // Filter & Search
+    return { total, active, pending, suspended, totalCashInHand, totalAdvanceDues };
+  }, [staffList, advancesList]);
+
+  // Filter & Search for Roster list
   const filteredStaff = useMemo(() => {
     return staffList.filter((s) => {
       // 1. Status Filter
@@ -154,6 +197,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
     setNewEmail('');
     setNewArea(PREDEFINED_AREAS[0]);
     setNewRole('STAFF');
+    setNewSalary('');
     setNewNotes('');
     setIsAddModalVisible(true);
   };
@@ -169,6 +213,8 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
       return;
     }
 
+    const numSalary = parseFloat(newSalary.replace(/,/g, '')) || 0;
+
     setActionLoading(true);
     try {
       await addStaff({
@@ -177,6 +223,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
         email: newEmail.trim() || undefined,
         activeArea: newArea,
         role: newRole,
+        monthlySalary: numSalary,
         notes: newNotes.trim() || undefined,
       });
       setIsAddModalVisible(false);
@@ -195,6 +242,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
     setEditPhone(staff.phone || '');
     setEditEmail(staff.email || '');
     setEditArea(staff.activeArea || PREDEFINED_AREAS[0]);
+    setEditSalary(staff.monthlySalary ? staff.monthlySalary.toString() : '');
     setEditNotes(staff.notes || '');
     setIsManageModalVisible(true);
   };
@@ -207,6 +255,8 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
       return;
     }
 
+    const numSalary = parseFloat(editSalary.replace(/,/g, '')) || 0;
+
     setActionLoading(true);
     try {
       await updateStaff(selectedStaff.staffId || selectedStaff.id, selectedStaff.userId, {
@@ -214,6 +264,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
         phone: editPhone.trim(),
         email: editEmail.trim(),
         activeArea: editArea,
+        monthlySalary: numSalary,
         notes: editNotes.trim(),
       });
       setIsManageModalVisible(false);
@@ -339,11 +390,25 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
     );
   };
 
-  // Render Staff Card
+  // Render Staff Card in Roster
   const renderStaffCard = ({ item }: { item: Staff }) => {
+    const key = item.staffId || item.id;
     const isPending = item.status === 'PENDING_VERIFICATION';
     const isSuspended = item.status === 'SUSPENDED' || item.status === 'REJECTED';
     const isCoAdmin = item.role === 'ADMIN';
+
+    // Attendance for today
+    const attRecord = dailyAttendanceMap[key];
+    const attStatus = attRecord?.status;
+
+    // Advance balance for this staff
+    const staffAdvances = advancesList.filter(
+      (a) => a.staffId === key && (a.status === 'ACTIVE' || a.status === 'PARTIALLY_REPAID')
+    );
+    const staffAdvDue = staffAdvances.reduce(
+      (acc, a) => acc + (a.remainingAmount ?? (a.amount - (a.amountRepaid || 0))),
+      0
+    );
 
     return (
       <View style={[styles.card, isPending && styles.cardPending]}>
@@ -402,7 +467,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
           </View>
         </View>
 
-        {/* Operating Area & Stats */}
+        {/* Operating Area, Attendance & Salary Indicators */}
         <View style={styles.detailsRow}>
           <View style={styles.areaBadge}>
             <Ionicons name="location-outline" size={12} color={colors.textSecondary} />
@@ -411,14 +476,88 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
 
           {!isPending && (
             <View style={styles.statsContainer}>
-              <View style={styles.statPill}>
-                <Ionicons name="cube-outline" size={12} color={colors.accent} />
-                <Text style={styles.statPillText}>
-                  {item.todayAssignedDeliveries || 0} Orders
+              {/* Today's Attendance Pill */}
+              <View
+                style={[
+                  styles.statPill,
+                  attStatus === 'PRESENT'
+                    ? styles.attPillPresent
+                    : attStatus === 'HALF_DAY'
+                    ? styles.attPillHalfDay
+                    : attStatus === 'ABSENT'
+                    ? styles.attPillAbsent
+                    : attStatus === 'LEAVE'
+                    ? styles.attPillLeave
+                    : styles.attPillUnmarked,
+                ]}
+              >
+                <Ionicons
+                  name={
+                    attStatus === 'PRESENT'
+                      ? 'checkmark-circle'
+                      : attStatus === 'HALF_DAY'
+                      ? 'pie-chart'
+                      : attStatus === 'ABSENT'
+                      ? 'close-circle'
+                      : attStatus === 'LEAVE'
+                      ? 'calendar'
+                      : 'time-outline'
+                  }
+                  size={11}
+                  color={
+                    attStatus === 'PRESENT'
+                      ? colors.brandGreen
+                      : attStatus === 'HALF_DAY'
+                      ? '#D97706'
+                      : attStatus === 'ABSENT'
+                      ? colors.danger
+                      : attStatus === 'LEAVE'
+                      ? colors.accent
+                      : colors.textMuted
+                  }
+                />
+                <Text
+                  style={[
+                    styles.statPillText,
+                    {
+                      color:
+                        attStatus === 'PRESENT'
+                          ? colors.brandGreen
+                          : attStatus === 'HALF_DAY'
+                          ? '#D97706'
+                          : attStatus === 'ABSENT'
+                          ? colors.danger
+                          : attStatus === 'LEAVE'
+                          ? colors.accent
+                          : colors.textMuted,
+                    },
+                  ]}
+                >
+                  {attStatus === 'PRESENT'
+                    ? 'Present'
+                    : attStatus === 'HALF_DAY'
+                    ? 'Half Day'
+                    : attStatus === 'ABSENT'
+                    ? 'Absent'
+                    : attStatus === 'LEAVE'
+                    ? 'Leave'
+                    : 'Att. Not Marked'}
                 </Text>
               </View>
+
+              {/* Outstanding Advance Pill (if any) */}
+              {staffAdvDue > 0 && (
+                <View style={[styles.statPill, styles.advPill]}>
+                  <Ionicons name="wallet-outline" size={11} color={colors.danger} />
+                  <Text style={styles.advPillText}>
+                    Adv: ₹{staffAdvDue.toLocaleString('en-IN')}
+                  </Text>
+                </View>
+              )}
+
+              {/* Cash in Hand */}
               <View style={[styles.statPill, styles.cashPill]}>
-                <Ionicons name="cash-outline" size={12} color={colors.brandGreen} />
+                <Ionicons name="cash-outline" size={11} color={colors.brandGreen} />
                 <Text style={styles.cashPillText}>
                   ₹{(item.cashInHand || 0).toLocaleString('en-IN')}
                 </Text>
@@ -488,130 +627,239 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
     <SafeAreaView style={styles.container}>
       <Header
         title="Staff Management"
-        subtitle="Team roster, route assignments & verification"
+        subtitle="Roster, attendance, salary & advance ledger"
         showBack
         onBackPress={() => navigation.goBack()}
         rightAction={
-          <TouchableOpacity
-            style={styles.addStaffHeaderBtn}
-            onPress={handleOpenAddModal}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="person-add" size={16} color={colors.textInverse} />
-            <Text style={styles.addStaffHeaderBtnText}>Add Staff</Text>
-          </TouchableOpacity>
+          activeTab === 'ROSTER' ? (
+            <TouchableOpacity
+              style={styles.addStaffHeaderBtn}
+              onPress={handleOpenAddModal}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="person-add" size={15} color={colors.textInverse} />
+              <Text style={styles.addStaffHeaderBtnText}>Add Staff</Text>
+            </TouchableOpacity>
+          ) : activeTab === 'ADVANCES' ? (
+            <TouchableOpacity
+              style={styles.addStaffHeaderBtn}
+              onPress={() => setIsGiveAdvanceModalOpen(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add-circle" size={15} color={colors.textInverse} />
+              <Text style={styles.addStaffHeaderBtnText}>Give Advance</Text>
+            </TouchableOpacity>
+          ) : null
         }
       />
 
-      {/* Summary KPI Cards */}
-      <View style={styles.kpiContainer}>
-        <View style={styles.kpiCard}>
-          <Text style={styles.kpiLabel}>TOTAL TEAM</Text>
-          <Text style={styles.kpiValue}>{metrics.total}</Text>
-        </View>
-        <View style={styles.kpiCard}>
-          <Text style={styles.kpiLabel}>ON FIELD</Text>
-          <Text style={[styles.kpiValue, { color: colors.brandGreen }]}>{metrics.active}</Text>
-        </View>
+      {/* Primary Section Switcher Tabs */}
+      <View style={styles.sectionTabsContainer}>
         <TouchableOpacity
-          style={[styles.kpiCard, metrics.pending > 0 && styles.kpiCardAlert]}
-          onPress={() => setFilter('PENDING')}
+          style={[styles.sectionTab, activeTab === 'ROSTER' && styles.sectionTabActive]}
+          onPress={() => setActiveTab('ROSTER')}
           activeOpacity={0.8}
         >
-          <Text style={[styles.kpiLabel, metrics.pending > 0 && { color: colors.statusPendingText }]}>
-            PENDING
-          </Text>
-          <Text style={[styles.kpiValue, metrics.pending > 0 && { color: colors.warning }]}>
-            {metrics.pending}
+          <Ionicons
+            name="people"
+            size={14}
+            color={activeTab === 'ROSTER' ? colors.primary : colors.textMuted}
+          />
+          <Text style={[styles.sectionTabText, activeTab === 'ROSTER' && styles.sectionTabTextActive]}>
+            Team Roster
           </Text>
         </TouchableOpacity>
-        <View style={styles.kpiCard}>
-          <Text style={styles.kpiLabel}>CASH IN HAND</Text>
-          <Text style={[styles.kpiValue, { color: colors.accent }]} numberOfLines={1}>
-            ₹{metrics.totalCashInHand.toLocaleString('en-IN')}
-          </Text>
-        </View>
-      </View>
 
-      {/* Search Bar */}
-      <View style={styles.searchBarContainer}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={18} color={colors.textMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by name, phone, area..."
-            placeholderTextColor={colors.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+        <TouchableOpacity
+          style={[styles.sectionTab, activeTab === 'ATTENDANCE' && styles.sectionTabActive]}
+          onPress={() => setActiveTab('ATTENDANCE')}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name="calendar"
+            size={14}
+            color={activeTab === 'ATTENDANCE' ? colors.primary : colors.textMuted}
           />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="close-circle" size={16} color={colors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
+          <Text style={[styles.sectionTabText, activeTab === 'ATTENDANCE' && styles.sectionTabTextActive]}>
+            Attendance
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.sectionTab, activeTab === 'PAYROLL' && styles.sectionTabActive]}
+          onPress={() => setActiveTab('PAYROLL')}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name="cash"
+            size={14}
+            color={activeTab === 'PAYROLL' ? colors.primary : colors.textMuted}
+          />
+          <Text style={[styles.sectionTabText, activeTab === 'PAYROLL' && styles.sectionTabTextActive]}>
+            Salary & Payroll
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.sectionTab, activeTab === 'ADVANCES' && styles.sectionTabActive]}
+          onPress={() => setActiveTab('ADVANCES')}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name="wallet"
+            size={14}
+            color={activeTab === 'ADVANCES' ? colors.primary : colors.textMuted}
+          />
+          <Text style={[styles.sectionTabText, activeTab === 'ADVANCES' && styles.sectionTabTextActive]}>
+            Advances
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Filter Tabs */}
-      <View style={styles.filterTabsContainer}>
-        {(['ALL', 'ACTIVE', 'PENDING', 'SUSPENDED'] as StaffFilter[]).map((tab) => {
-          const isSelected = selectedFilter === tab;
-          const count =
-            tab === 'ALL'
-              ? metrics.total
-              : tab === 'ACTIVE'
-              ? metrics.active
-              : tab === 'PENDING'
-              ? metrics.pending
-              : metrics.suspended;
-
-          return (
+      {/* ── Sub-Tab 1: Team Roster ── */}
+      {activeTab === 'ROSTER' && (
+        <View style={{ flex: 1 }}>
+          {/* Summary KPI Cards */}
+          <View style={styles.kpiContainer}>
+            <View style={styles.kpiCard}>
+              <Text style={styles.kpiLabel}>TOTAL TEAM</Text>
+              <Text style={styles.kpiValue}>{metrics.total}</Text>
+            </View>
+            <View style={styles.kpiCard}>
+              <Text style={styles.kpiLabel}>ON FIELD</Text>
+              <Text style={[styles.kpiValue, { color: colors.brandGreen }]}>{metrics.active}</Text>
+            </View>
             <TouchableOpacity
-              key={tab}
-              style={[styles.filterTab, isSelected && styles.filterTabActive]}
-              onPress={() => setFilter(tab)}
-              activeOpacity={0.7}
+              style={[styles.kpiCard, metrics.totalAdvanceDues > 0 && styles.kpiCardAlertAdv]}
+              onPress={() => setActiveTab('ADVANCES')}
+              activeOpacity={0.8}
             >
-              <Text style={[styles.filterTabText, isSelected && styles.filterTabTextActive]}>
-                {tab === 'ALL' ? 'All' : tab === 'ACTIVE' ? 'Active' : tab === 'PENDING' ? 'Pending' : 'Suspended'} ({count})
+              <Text style={[styles.kpiLabel, metrics.totalAdvanceDues > 0 && { color: colors.danger }]}>
+                ADVANCE DUE
+              </Text>
+              <Text
+                style={[
+                  styles.kpiValue,
+                  metrics.totalAdvanceDues > 0 && { color: colors.danger },
+                ]}
+                numberOfLines={1}
+              >
+                ₹{metrics.totalAdvanceDues.toLocaleString('en-IN')}
               </Text>
             </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Staff List */}
-      {isLoading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading staff directory...</Text>
-        </View>
-      ) : filteredStaff.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="people-outline" size={44} color={colors.textMuted} />
+            <View style={styles.kpiCard}>
+              <Text style={styles.kpiLabel}>CASH IN HAND</Text>
+              <Text style={[styles.kpiValue, { color: colors.accent }]} numberOfLines={1}>
+                ₹{metrics.totalCashInHand.toLocaleString('en-IN')}
+              </Text>
+            </View>
           </View>
-          <Text style={styles.emptyTitle}>No Staff Members Found</Text>
-          <Text style={styles.emptySubtitle}>
-            {searchQuery
-              ? `No staff matching "${searchQuery}" in ${selectedFilter.toLowerCase()} tab.`
-              : `There are no ${selectedFilter.toLowerCase()} staff accounts.`}
-          </Text>
-          <Button
-            title="+ Add Staff Member"
-            onPress={handleOpenAddModal}
-            variant="primary"
-            size="sm"
-            style={styles.emptyBtn}
-          />
+
+          {/* Search Bar */}
+          <View style={styles.searchBarContainer}>
+            <View style={styles.searchBox}>
+              <Ionicons name="search-outline" size={18} color={colors.textMuted} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search staff by name, phone, area..."
+                placeholderTextColor={colors.textMuted}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle" size={16} color={colors.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* Filter Tabs */}
+          <View style={styles.filterTabsContainer}>
+            {(['ALL', 'ACTIVE', 'PENDING', 'SUSPENDED'] as StaffFilter[]).map((tab) => {
+              const isSelected = selectedFilter === tab;
+              const count =
+                tab === 'ALL'
+                  ? metrics.total
+                  : tab === 'ACTIVE'
+                  ? metrics.active
+                  : tab === 'PENDING'
+                  ? metrics.pending
+                  : metrics.suspended;
+
+              return (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.filterTab, isSelected && styles.filterTabActive]}
+                  onPress={() => setFilter(tab)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.filterTabText, isSelected && styles.filterTabTextActive]}>
+                    {tab === 'ALL' ? 'All' : tab === 'ACTIVE' ? 'Active' : tab === 'PENDING' ? 'Pending' : 'Suspended'} ({count})
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Staff List */}
+          {isLoading ? (
+            <View style={styles.centerContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.loadingText}>Loading staff directory...</Text>
+            </View>
+          ) : filteredStaff.length === 0 ? (
+            <View style={styles.centerContainer}>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="people-outline" size={44} color={colors.textMuted} />
+              </View>
+              <Text style={styles.emptyTitle}>No Staff Members Found</Text>
+              <Text style={styles.emptySubtitle}>
+                {searchQuery
+                  ? `No staff matching "${searchQuery}" in ${selectedFilter.toLowerCase()} tab.`
+                  : `There are no ${selectedFilter.toLowerCase()} staff accounts.`}
+              </Text>
+              <Button
+                title="+ Add Staff Member"
+                onPress={handleOpenAddModal}
+                variant="primary"
+                size="sm"
+                style={styles.emptyBtn}
+              />
+            </View>
+          ) : (
+            <FlatList
+              data={filteredStaff}
+              keyExtractor={(item) => item.staffId || item.id}
+              renderItem={renderStaffCard}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
         </View>
-      ) : (
-        <FlatList
-          data={filteredStaff}
-          keyExtractor={(item) => item.staffId || item.id}
-          renderItem={renderStaffCard}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
+      )}
+
+      {/* ── Sub-Tab 2: Attendance ── */}
+      {activeTab === 'ATTENDANCE' && (
+        <DailyAttendancePanel
+          staffList={staffList}
+          onOpenStaffProfile={handleOpenManageModal}
+        />
+      )}
+
+      {/* ── Sub-Tab 3: Salary & Payroll ── */}
+      {activeTab === 'PAYROLL' && (
+        <SalaryPayrollPanel
+          staffList={staffList}
+          onOpenStaffProfile={handleOpenManageModal}
+        />
+      )}
+
+      {/* ── Sub-Tab 4: Advance Register ── */}
+      {activeTab === 'ADVANCES' && (
+        <AdvanceRegisterPanel
+          staffList={staffList}
+          onOpenStaffProfile={handleOpenManageModal}
         />
       )}
 
@@ -636,6 +884,8 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
               <Text style={styles.inputLabel}>Full Name *</Text>
               <TextInput
                 style={styles.textInput}
+                placeholder="e.g. Ramesh Kumar"
+                placeholderTextColor={colors.textMuted}
                 value={newName}
                 onChangeText={setNewName}
               />
@@ -645,6 +895,8 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
                 style={styles.textInput}
                 keyboardType="phone-pad"
                 maxLength={10}
+                placeholder="10-digit mobile number"
+                placeholderTextColor={colors.textMuted}
                 value={newPhone}
                 onChangeText={setNewPhone}
               />
@@ -654,8 +906,20 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
                 style={styles.textInput}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                placeholder="staff@panihaardms.local"
+                placeholderTextColor={colors.textMuted}
                 value={newEmail}
                 onChangeText={setNewEmail}
+              />
+
+              <Text style={styles.inputLabel}>Base Monthly Salary (₹) (Optional)</Text>
+              <TextInput
+                style={styles.textInput}
+                keyboardType="numeric"
+                placeholder="e.g. 15000"
+                placeholderTextColor={colors.textMuted}
+                value={newSalary}
+                onChangeText={setNewSalary}
               />
 
               <Text style={styles.inputLabel}>Assigned Delivery Route / Area</Text>
@@ -709,6 +973,8 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
                 style={[styles.textInput, styles.notesInput]}
                 multiline
                 numberOfLines={2}
+                placeholder="Vehicle number, license, emergency contact..."
+                placeholderTextColor={colors.textMuted}
                 value={newNotes}
                 onChangeText={setNewNotes}
               />
@@ -779,6 +1045,16 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
                 onChangeText={setEditEmail}
               />
 
+              <Text style={styles.inputLabel}>Base Monthly Salary (₹)</Text>
+              <TextInput
+                style={styles.textInput}
+                keyboardType="numeric"
+                value={editSalary}
+                onChangeText={setEditSalary}
+                placeholder="e.g. 15000"
+                placeholderTextColor={colors.textMuted}
+              />
+
               <Text style={styles.inputLabel}>Delivery Route / Operating Area</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.areaPillsRow}>
                 {PREDEFINED_AREAS.map((area) => (
@@ -794,7 +1070,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
                 ))}
               </ScrollView>
 
-              <Text style={styles.inputLabel}>Notes / Notes</Text>
+              <Text style={styles.inputLabel}>Notes / Remarks</Text>
               <TextInput
                 style={[styles.textInput, styles.notesInput]}
                 multiline
@@ -803,8 +1079,52 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
                 onChangeText={setEditNotes}
               />
 
-              {/* Action Rows: Role & Status toggles */}
+              {/* Action Rows: Salary & Advance Quick Controls */}
               <View style={styles.managementControls}>
+                <TouchableOpacity
+                  style={styles.controlRow}
+                  onPress={() => {
+                    setIsManageModalVisible(false);
+                    setIsGiveAdvanceModalOpen(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.controlInfo}>
+                    <Ionicons name="wallet-outline" size={20} color={colors.accent} />
+                    <View style={styles.controlTexts}>
+                      <Text style={styles.controlTitle}>Give Advance Money</Text>
+                      <Text style={styles.controlSub}>
+                        {selectedStaff?.totalAdvanceOutstanding
+                          ? `Current active due: ₹${selectedStaff.totalAdvanceOutstanding.toLocaleString('en-IN')}`
+                          : 'Record emergency or salary advance loan'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.controlRow}
+                  onPress={() => {
+                    setIsManageModalVisible(false);
+                    setIsSalaryConfigModalOpen(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.controlInfo}>
+                    <Ionicons name="cash-outline" size={20} color={colors.brandGreen} />
+                    <View style={styles.controlTexts}>
+                      <Text style={styles.controlTitle}>Salary & Wage Structure</Text>
+                      <Text style={styles.controlSub}>
+                        {selectedStaff?.monthlySalary
+                          ? `Base: ₹${selectedStaff.monthlySalary.toLocaleString('en-IN')}/mo (₹${selectedStaff.dailyRate || Math.round(selectedStaff.monthlySalary / 30)}/day)`
+                          : 'Configure monthly or daily wage model'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                </TouchableOpacity>
+
                 <TouchableOpacity
                   style={styles.controlRow}
                   onPress={() => selectedStaff && handleToggleRole(selectedStaff)}
@@ -954,6 +1274,21 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
           </View>
         </View>
       </Modal>
+
+      {/* ── Modal 4: Give Advance Modal from Roster Shortcut ── */}
+      <RecordAdvanceModal
+        visible={isGiveAdvanceModalOpen}
+        staffList={staffList}
+        preselectedStaff={selectedStaff}
+        onClose={() => setIsGiveAdvanceModalOpen(false)}
+      />
+
+      {/* ── Modal 5: Salary Config Modal from Roster Shortcut ── */}
+      <SalaryConfigModal
+        visible={isSalaryConfigModalOpen}
+        staff={selectedStaff}
+        onClose={() => setIsSalaryConfigModalOpen(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -963,49 +1298,79 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.surfaceSubtle,
   },
+  sectionTabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    gap: 4,
+  },
+  sectionTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  sectionTabActive: {
+    backgroundColor: '#EEF2F6',
+  },
+  sectionTabText: {
+    ...typography.captionBold,
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  sectionTabTextActive: {
+    color: colors.primary,
+  },
   addStaffHeaderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.primary,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
-    gap: 6,
+    gap: 4,
   },
   addStaffHeaderBtnText: {
     ...typography.captionBold,
     color: colors.textInverse,
+    fontSize: 11,
   },
   kpiContainer: {
     flexDirection: 'row',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    gap: 8,
+    gap: 6,
   },
   kpiCard: {
     flex: 1,
     backgroundColor: colors.surface,
     paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: 'center',
     ...shadows.sm,
   },
-  kpiCardAlert: {
-    borderColor: colors.statusPendingText,
-    backgroundColor: colors.statusPendingBg,
+  kpiCardAlertAdv: {
+    borderColor: '#FECACA',
+    backgroundColor: '#FEF2F2',
   },
   kpiLabel: {
     ...typography.captionBold,
-    fontSize: 9,
+    fontSize: 8,
     color: colors.textMuted,
     marginBottom: 2,
   },
   kpiValue: {
     ...typography.h3,
-    fontSize: 15,
+    fontSize: 13,
     color: colors.textPrimary,
   },
   searchBarContainer: {
@@ -1020,13 +1385,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 10,
     paddingHorizontal: 12,
-    height: 42,
+    height: 40,
     gap: 8,
   },
   searchInput: {
     flex: 1,
     ...typography.body,
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textPrimary,
     paddingVertical: 0,
   },
@@ -1037,9 +1402,9 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   filterTab: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 16,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
@@ -1050,7 +1415,7 @@ const styles = StyleSheet.create({
   },
   filterTabText: {
     ...typography.captionBold,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textSecondary,
   },
   filterTabTextActive: {
@@ -1058,6 +1423,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: spacing.md,
+    paddingTop: spacing.xs,
     gap: 12,
   },
   card: {
@@ -1075,12 +1441,12 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1095,7 +1461,7 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     ...typography.h3,
-    fontSize: 18,
+    fontSize: 17,
     color: colors.primary,
   },
   headerInfo: {
@@ -1108,36 +1474,37 @@ const styles = StyleSheet.create({
   },
   staffName: {
     ...typography.h3,
-    fontSize: 15,
+    fontSize: 14,
     color: colors.textPrimary,
   },
   coAdminBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.accentLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
     borderRadius: 4,
     gap: 2,
   },
   coAdminBadgeText: {
     ...typography.captionBold,
-    fontSize: 9,
+    fontSize: 8,
     color: colors.accent,
   },
   staffPhone: {
     ...typography.caption,
     color: colors.textSecondary,
+    fontSize: 11,
     marginTop: 1,
   },
   staffEmail: {
     ...typography.caption,
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 10,
   },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   statusBadgeActive: {
@@ -1151,7 +1518,7 @@ const styles = StyleSheet.create({
   },
   statusBadgeText: {
     ...typography.captionBold,
-    fontSize: 10,
+    fontSize: 9,
   },
   statusTextActive: {
     color: colors.statusDeliveredText,
@@ -1166,54 +1533,78 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 12,
-    paddingTop: 10,
+    marginTop: 10,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: colors.divider,
+    flexWrap: 'wrap',
+    gap: 6,
   },
   areaBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surfaceSubtle,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 6,
-    gap: 4,
+    gap: 3,
   },
   areaText: {
     ...typography.captionBold,
-    fontSize: 11,
+    fontSize: 10,
     color: colors.textSecondary,
   },
   statsContainer: {
     flexDirection: 'row',
-    gap: 6,
+    flexWrap: 'wrap',
+    gap: 5,
   },
   statPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.accentLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 6,
-    gap: 4,
+    gap: 3,
+  },
+  attPillPresent: {
+    backgroundColor: colors.brandGreenLight,
+  },
+  attPillHalfDay: {
+    backgroundColor: '#FFFBEB',
+  },
+  attPillAbsent: {
+    backgroundColor: '#FEF2F2',
+  },
+  attPillLeave: {
+    backgroundColor: colors.accentLight,
+  },
+  attPillUnmarked: {
+    backgroundColor: colors.surfaceSubtle,
+  },
+  advPill: {
+    backgroundColor: '#FEF2F2',
+  },
+  advPillText: {
+    ...typography.captionBold,
+    fontSize: 10,
+    color: colors.danger,
   },
   statPillText: {
     ...typography.captionBold,
-    fontSize: 11,
-    color: colors.accent,
+    fontSize: 10,
   },
   cashPill: {
     backgroundColor: colors.brandGreenLight,
   },
   cashPillText: {
     ...typography.captionBold,
-    fontSize: 11,
+    fontSize: 10,
     color: colors.brandGreen,
   },
   cardActions: {
     flexDirection: 'row',
-    marginTop: 12,
+    marginTop: 10,
     gap: 8,
   },
   contactBtn: {
@@ -1228,7 +1619,7 @@ const styles = StyleSheet.create({
   },
   contactBtnText: {
     ...typography.captionBold,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.accent,
   },
   manageBtn: {
@@ -1243,7 +1634,7 @@ const styles = StyleSheet.create({
   },
   manageBtnText: {
     ...typography.captionBold,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.primary,
   },
   approveBtn: {
@@ -1252,13 +1643,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.brandGreen,
-    paddingVertical: 9,
+    paddingVertical: 8,
     borderRadius: 8,
-    gap: 6,
+    gap: 4,
   },
   approveBtnText: {
     ...typography.captionBold,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textInverse,
   },
   rejectBtn: {
@@ -1268,13 +1659,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.danger,
-    paddingVertical: 9,
+    paddingVertical: 8,
     borderRadius: 8,
     gap: 4,
   },
   rejectBtnText: {
     ...typography.captionBold,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.danger,
   },
   centerContainer: {
@@ -1289,9 +1680,9 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   emptyIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: colors.surfaceSubtle,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1300,17 +1691,17 @@ const styles = StyleSheet.create({
   emptyTitle: {
     ...typography.h3,
     color: colors.textPrimary,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   emptySubtitle: {
     ...typography.body,
-    fontSize: 13,
+    fontSize: 12,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   emptyBtn: {
-    minWidth: 180,
+    minWidth: 160,
   },
   modalOverlay: {
     flex: 1,
@@ -1348,8 +1739,9 @@ const styles = StyleSheet.create({
   inputLabel: {
     ...typography.captionBold,
     color: colors.textSecondary,
-    marginTop: 12,
-    marginBottom: 6,
+    marginTop: 10,
+    marginBottom: 4,
+    fontSize: 11,
   },
   textInput: {
     backgroundColor: colors.surfaceSubtle,
@@ -1357,9 +1749,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 9,
     ...typography.body,
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textPrimary,
   },
   notesInput: {
@@ -1368,16 +1760,16 @@ const styles = StyleSheet.create({
   },
   areaPillsRow: {
     flexDirection: 'row',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   areaPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
     backgroundColor: colors.surfaceSubtle,
     borderWidth: 1,
     borderColor: colors.border,
-    marginRight: 8,
+    marginRight: 6,
   },
   areaPillActive: {
     backgroundColor: colors.primary,
@@ -1385,7 +1777,7 @@ const styles = StyleSheet.create({
   },
   areaPillText: {
     ...typography.captionBold,
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textSecondary,
   },
   areaPillTextActive: {
@@ -1393,15 +1785,15 @@ const styles = StyleSheet.create({
   },
   roleToggleRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginBottom: 6,
+    gap: 8,
+    marginBottom: 4,
   },
   roleOption: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
@@ -1414,6 +1806,7 @@ const styles = StyleSheet.create({
   },
   roleOptionText: {
     ...typography.captionBold,
+    fontSize: 11,
     color: colors.textMuted,
   },
   roleOptionTextActive: {
@@ -1422,7 +1815,7 @@ const styles = StyleSheet.create({
   managementControls: {
     backgroundColor: colors.surfaceSubtle,
     borderRadius: 10,
-    marginTop: 16,
+    marginTop: 14,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -1430,7 +1823,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
+    padding: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -1445,13 +1838,13 @@ const styles = StyleSheet.create({
   },
   controlTitle: {
     ...typography.bodyBold,
-    fontSize: 13,
+    fontSize: 12,
     color: colors.textPrimary,
   },
   controlSub: {
     ...typography.caption,
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 1,
   },
   approveNotice: {
@@ -1466,7 +1859,7 @@ const styles = StyleSheet.create({
   modalActionButtons: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 20,
+    marginTop: 18,
     marginBottom: 20,
   },
   modalCancelBtn: {

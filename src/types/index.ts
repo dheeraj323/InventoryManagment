@@ -70,6 +70,10 @@ export interface Staff {
   status?: AccountStatus;
   todayAssignedDeliveries: number;
   cashInHand: number;
+  monthlySalary?: number;
+  salaryType?: 'MONTHLY' | 'DAILY';
+  dailyRate?: number;
+  totalAdvanceOutstanding?: number;
   active?: boolean;
   notes?: string;
   createdAt?: string;
@@ -440,5 +444,98 @@ export interface SupplierPurchaseStats {
   outstandingAmount: number;
   paidBillsCount: number;
   pendingBillsCount: number;
+}
+
+// ── Staff Attendance Types ──
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LEAVE';
+
+export interface StaffAttendance {
+  id: string; // e.g. "att_<staffId>_<YYYY-MM-DD>"
+  staffId: string;
+  staffName: string;
+  date: string; // YYYY-MM-DD
+  status: AttendanceStatus;
+  checkInTime?: string;
+  checkOutTime?: string;
+  notes?: string;
+  markedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MonthlyAttendanceSummary {
+  totalDaysInMonth: number;
+  presentDays: number;
+  halfDays: number;
+  absentDays: number;
+  leaveDays: number;
+  unmarkedDays: number;
+  payableDays: number; // present + (halfDays * 0.5)
+}
+
+// ── Staff Advance Types ──
+export type AdvanceStatus = 'ACTIVE' | 'PARTIALLY_REPAID' | 'REPAID' | 'DEDUCTED_FROM_SALARY';
+
+export interface StaffAdvanceRepayment {
+  id: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  type: 'CASH_RETURN' | 'SALARY_DEDUCTION' | 'ONLINE_RETURN';
+  salarySlipId?: string;
+  notes?: string;
+  createdAt?: string;
+}
+
+export interface StaffAdvance {
+  id: string;
+  advanceNumber: string; // e.g. "ADV-2609-001"
+  staffId: string;
+  staffName: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  reason?: string;
+  paymentMode: 'CASH' | 'UPI' | 'BANK_TRANSFER';
+  status: AdvanceStatus;
+  amountRepaid: number;
+  remainingAmount: number;
+  repayments?: StaffAdvanceRepayment[];
+  notes?: string;
+  approvedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ── Staff Salary & Payroll Types ──
+export type SalaryPaymentStatus = 'PENDING' | 'PAID' | 'PARTIAL';
+
+export interface StaffSalarySlip {
+  id: string; // e.g. "sal_<staffId>_<YYYY-MM>"
+  staffId: string;
+  staffName: string;
+  month: string; // YYYY-MM (e.g. "2026-09")
+  baseSalary: number;
+  salaryType: 'MONTHLY' | 'DAILY';
+  dailyRate: number;
+  totalWorkingDays: number;
+  presentDays: number;
+  halfDays: number;
+  absentDays: number;
+  leaveDays: number;
+  payableDays: number;
+  earnedSalary: number;
+  bonusOrIncentive: number;
+  allowances: number;
+  advanceDeducted: number;
+  otherDeductions: number;
+  deductionNotes?: string;
+  netPayableSalary: number;
+  paidAmount: number;
+  status: SalaryPaymentStatus;
+  paymentMode?: 'CASH' | 'UPI' | 'BANK_TRANSFER';
+  paymentDate?: string; // YYYY-MM-DD
+  transactionRef?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 

@@ -140,6 +140,9 @@ export const staffService = {
     email?: string;
     activeArea?: string;
     role?: UserRole;
+    monthlySalary?: number;
+    salaryType?: 'MONTHLY' | 'DAILY';
+    dailyRate?: number;
     notes?: string;
   }): Promise<Staff> => {
     const staffId = `staff-${Date.now().toString(36)}`;
@@ -148,6 +151,9 @@ export const staffService = {
     const trimmedEmail = params.email?.trim().toLowerCase() || `${staffId}@panihaardms.local`;
     const area = params.activeArea?.trim() || 'Central Zone';
     const role: UserRole = params.role || 'STAFF';
+    const monthlySalary = params.monthlySalary || 0;
+    const salaryType = params.salaryType || 'MONTHLY';
+    const dailyRate = params.dailyRate || (monthlySalary > 0 ? Math.round(monthlySalary / 30) : 0);
 
     // 1. Create staff record
     const staffRef = doc(db, 'staff', staffId);
@@ -162,6 +168,10 @@ export const staffService = {
       status: 'ACTIVE',
       todayAssignedDeliveries: 0,
       cashInHand: 0,
+      monthlySalary,
+      salaryType,
+      dailyRate,
+      totalAdvanceOutstanding: 0,
       active: true,
       notes: params.notes?.trim() || '',
       createdAt: new Date().toISOString(),
@@ -211,6 +221,9 @@ export const staffService = {
       phone?: string;
       email?: string;
       activeArea?: string;
+      monthlySalary?: number;
+      salaryType?: 'MONTHLY' | 'DAILY';
+      dailyRate?: number;
       notes?: string;
     }
   ): Promise<void> => {
@@ -234,6 +247,9 @@ export const staffService = {
           ...(updates.phone ? { phone: updates.phone } : {}),
           ...(updates.email ? { email: updates.email } : {}),
           ...(updates.activeArea ? { area: updates.activeArea } : {}),
+          ...(updates.monthlySalary !== undefined ? { monthlySalary: updates.monthlySalary } : {}),
+          ...(updates.salaryType ? { salaryType: updates.salaryType } : {}),
+          ...(updates.dailyRate !== undefined ? { dailyRate: updates.dailyRate } : {}),
           updatedAt: timestamp,
         });
       }
