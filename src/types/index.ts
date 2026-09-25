@@ -1,6 +1,21 @@
 export type UserRole = 'ADMIN' | 'STAFF' | 'VENDOR';
 export type AccountStatus = 'ACTIVE' | 'PENDING_VERIFICATION' | 'SUSPENDED' | 'REJECTED';
 
+export interface DeliveryRoute {
+  id: string;
+  routeId?: string;
+  name: string;
+  code?: string;
+  description?: string;
+  assignedStaffId?: string;
+  assignedStaffName?: string;
+  assignedStaffPhone?: string;
+  vendorCount?: number;
+  active?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface User {
   id: string;
   uid?: string;
@@ -14,6 +29,8 @@ export interface User {
   vendorId?: string;
   staffId?: string;
   businessName?: string;
+  routeId?: string;
+  routeName?: string;
   area?: string;
   address?: string;
   locationUrl?: string;
@@ -42,6 +59,8 @@ export interface Vendor {
   locationUrl?: string;
   latitude?: number;
   longitude?: number;
+  routeId?: string;
+  routeName?: string;
   area?: string;
   vendorType?: string; // e.g. "Retailer", "Supermarket", "Kirana Store", "Wholesaler"
   paymentTerms?: string; // e.g. "Net 15 Days", "Payment On Delivery", "Weekly"
@@ -71,6 +90,8 @@ export interface Staff {
   name: string;
   phone: string;
   email?: string;
+  assignedRouteId?: string;
+  assignedRouteName?: string;
   activeArea?: string;
   role?: UserRole;
   status?: AccountStatus;
@@ -165,6 +186,8 @@ export interface Order {
   locationUrl?: string;
   latitude?: number;
   longitude?: number;
+  routeId?: string;
+  routeName?: string;
   items: OrderItem[];
   subtotal: number;
   tax: number;

@@ -9,12 +9,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Input } from '../common/Input';
 import { Button } from '../common/Button';
 import { GoogleMapsLocationPicker } from '../common/GoogleMapsLocationPicker';
 import { Vendor, VendorStatus } from '../../types';
+import { useRouteStore } from '../../store/useRouteStore';
 import { colors, typography, spacing } from '../../theme';
 
 export interface AddVendorModalProps {
@@ -28,10 +30,15 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
   onClose,
   onSave,
 }) => {
+  const { routes, createRoute } = useRouteStore();
+
   const [shopName, setShopName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [selectedRouteId, setSelectedRouteId] = useState<string>('');
+  const [isCreatingNewRoute, setIsCreatingNewRoute] = useState(false);
+  const [newRouteName, setNewRouteName] = useState('');
   const [locationUrl, setLocationUrl] = useState('');
   const [latitude, setLatitude] = useState<number | undefined>();
   const [longitude, setLongitude] = useState<number | undefined>();
@@ -79,12 +86,27 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
     setLoading(true);
 
     try {
+      let finalRouteId = selectedRouteId;
+      let finalRouteName = '';
+
+      if (isCreatingNewRoute && newRouteName.trim()) {
+        const created = await createRoute({ name: newRouteName.trim() });
+        finalRouteId = created.id;
+        finalRouteName = created.name;
+      } else if (finalRouteId) {
+        const rObj = routes.find((r) => r.id === finalRouteId);
+        finalRouteName = rObj?.name || '';
+      }
+
       await onSave({
         shopName: shopName.trim(),
         name: ownerName.trim(),
         ownerName: ownerName.trim(),
         phone: phone.trim(),
         address: address.trim(),
+        routeId: finalRouteId || undefined,
+        routeName: finalRouteName || undefined,
+        area: finalRouteName || undefined,
         locationUrl: locationUrl.trim() || undefined,
         latitude,
         longitude,
@@ -105,6 +127,9 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
       setOwnerName('');
       setPhone('');
       setAddress('');
+      setSelectedRouteId('');
+      setIsCreatingNewRoute(false);
+      setNewRouteName('');
       setLocationUrl('');
       setLatitude(undefined);
       setLongitude(undefined);
@@ -195,10 +220,93 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
                   />
 
                   <Input
-                    label="Address / Location (Optional)"
+                    label="Address / Shop Location"
                     value={address}
                     onChangeText={setAddress}
+                    placeholder="e.g. Shop #4, Market Complex"
                   />
+
+                  {/* Route Selection */}
+                  <View style={styles.inputGroup}>
+                    <View style={styles.routeHeaderRow}>
+                      <Text style={styles.fieldLabel}>Distribution Route</Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setIsCreatingNewRoute(!isCreatingNewRoute);
+                          if (!isCreatingNewRoute) setSelectedRouteId('');
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.toggleNewRouteText}>
+                          {isCreatingNewRoute ? '← Choose Existing' : '+ New Route'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {isCreatingNewRoute ? (
+                      <View style={styles.newRouteInputWrap}>
+                        <Input
+                          placeholder="Enter new route name (e.g. North Hub)"
+                          value={newRouteName}
+                          onChangeText={setNewRouteName}
+                          style={styles.newRouteInput}
+                        />
+                      </View>
+                    ) : (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.chipRow}
+                      >
+                        <TouchableOpacity
+                          style={[
+                            styles.chip,
+                            !selectedRouteId ? styles.chipActive : null,
+                          ]}
+                          onPress={() => setSelectedRouteId('')}
+                          activeOpacity={0.8}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              !selectedRouteId ? styles.chipTextActive : null,
+                            ]}
+                          >
+                            No Route
+                          </Text>
+                        </TouchableOpacity>
+                        {routes.map((r) => {
+                          const isSelected = selectedRouteId === r.id;
+                          return (
+                            <TouchableOpacity
+                              key={r.id}
+                              style={[
+                                styles.chip,
+                                isSelected ? styles.chipActive : null,
+                              ]}
+                              onPress={() => setSelectedRouteId(r.id)}
+                              activeOpacity={0.8}
+                            >
+                              <Ionicons
+                                name="navigate-outline"
+                                size={12}
+                                color={isSelected ? colors.textInverse : colors.primary}
+                                style={{ marginRight: 4 }}
+                              />
+                              <Text
+                                style={[
+                                  styles.chipText,
+                                  isSelected ? styles.chipTextActive : null,
+                                ]}
+                              >
+                                {r.name}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    )}
+                  </View>
 
                   <GoogleMapsLocationPicker
                     locationUrl={locationUrl}
@@ -369,10 +477,26 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: spacing.md,
   },
+  routeHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  toggleNewRouteText: {
+    ...typography.captionBold,
+    color: colors.primary,
+    fontSize: 11,
+  },
+  newRouteInputWrap: {
+    marginTop: 4,
+  },
+  newRouteInput: {
+    marginBottom: 0,
+  },
   fieldLabel: {
     ...typography.captionBold,
     color: colors.textSecondary,
-    marginBottom: spacing.xs,
     fontSize: 11,
     textTransform: 'uppercase',
     letterSpacing: 0.4,

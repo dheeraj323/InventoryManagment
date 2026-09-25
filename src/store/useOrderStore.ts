@@ -5,6 +5,8 @@ import { BUSINESS_RULES } from '../constants/rules';
 import { useVendorStore } from './useVendorStore';
 import { useLedgerStore } from './useLedgerStore';
 import { useStaffStockStore } from './useStaffStockStore';
+import { useRouteStore } from './useRouteStore';
+import { useStaffStore } from './useStaffStore';
 
 interface OrderState {
   orders: Order[];
@@ -74,9 +76,66 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   },
 
   updateOrderStatus: async (orderId: string, status: OrderStatus) => {
+    const existing = get().getOrderById(orderId);
+    let newStatus = status;
+    let autoStaffId = existing?.assignedStaffId;
+    let autoStaffName = existing?.assignedStaffName;
+    let autoStaffPhone = existing?.assignedStaffPhone;
+    let targetRouteId = existing?.routeId;
+    let targetRouteName = existing?.routeName;
+
+    if (status === 'APPROVED' || status === 'OUT_FOR_DELIVERY') {
+      if (!targetRouteId && existing?.vendorId) {
+        const vendor = useVendorStore.getState().getVendorById(existing.vendorId);
+        targetRouteId = vendor?.routeId;
+        targetRouteName = vendor?.routeName || vendor?.area;
+      }
+
+      if (targetRouteId) {
+        const route = useRouteStore.getState().getRouteById(targetRouteId);
+        if (route) {
+          targetRouteName = targetRouteName || route.name;
+          if (!autoStaffId && route.assignedStaffId) {
+            autoStaffId = route.assignedStaffId;
+            autoStaffName = route.assignedStaffName;
+            autoStaffPhone = route.assignedStaffPhone;
+          }
+        }
+      }
+
+      if (!autoStaffId && targetRouteName) {
+        const route = useRouteStore.getState().routes.find(
+          (r) => r.name.toLowerCase() === targetRouteName?.toLowerCase()
+        );
+        if (route?.assignedStaffId) {
+          targetRouteId = targetRouteId || route.id;
+          autoStaffId = route.assignedStaffId;
+          autoStaffName = route.assignedStaffName;
+          autoStaffPhone = route.assignedStaffPhone;
+        }
+      }
+
+      if (autoStaffId) {
+        newStatus = 'OUT_FOR_DELIVERY';
+      }
+    }
+
     set({
       orders: get().orders.map((o) =>
-        o.id === orderId ? { ...o, status } : o
+        o.id === orderId
+          ? {
+              ...o,
+              status: newStatus,
+              ...(targetRouteId ? { routeId: targetRouteId } : {}),
+              ...(targetRouteName ? { routeName: targetRouteName } : {}),
+              ...(autoStaffId ? {
+                assignedStaffId: autoStaffId,
+                assignedStaffName: autoStaffName || 'Delivery Staff',
+                assignedStaffPhone: autoStaffPhone || '',
+                dispatchedAt: o.dispatchedAt || new Date().toISOString(),
+              } : {}),
+            }
+          : o
       ),
     });
     try {
@@ -265,9 +324,32 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   },
 
   getOrdersByStaff: (staffId: string) => {
-    return get().orders.filter(
-      (o) => o.assignedStaffId === staffId && o.status !== 'PENDING' && o.status !== 'CANCELLED'
+    if (!staffId) return [];
+
+    // Find all routes assigned to this staff member
+    const assignedRoutes = useRouteStore.getState().getRoutesByStaff(staffId);
+    const routeIds = new Set(
+      assignedRoutes.map((r) => r.id || r.routeId).filter(Boolean) as string[]
     );
+
+    // Also check if staff record has assignedRouteId
+    const staffMember = useStaffStore
+      .getState()
+      .staffList.find(
+        (s) => s.id === staffId || s.staffId === staffId || s.userId === staffId
+      );
+    if (staffMember?.assignedRouteId) {
+      routeIds.add(staffMember.assignedRouteId);
+    }
+
+    return get().orders.filter((o) => {
+      if (o.status === 'CANCELLED') return false;
+      // 1. Explicitly assigned staff match
+      if (o.assignedStaffId === staffId) return true;
+      // 2. Route assignment match (staff assigned to the order's route)
+      if (o.routeId && routeIds.has(o.routeId)) return true;
+      return false;
+    });
   },
 
   getOrderById: (orderId: string) => {

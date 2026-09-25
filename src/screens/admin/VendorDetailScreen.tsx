@@ -19,6 +19,7 @@ import { useVendorStore } from '../../store/useVendorStore';
 import { useLedgerStore } from '../../store/useLedgerStore';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useRouteStore } from '../../store/useRouteStore';
 import { paymentService } from '../../services/paymentService';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
@@ -96,8 +97,14 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
   }, [route.params?.initialTab]);
 
   // Modals
+  const { routes, createRoute } = useRouteStore();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showRouteModal, setShowRouteModal] = useState(false);
+  const [selectedRouteId, setSelectedRouteId] = useState<string>('');
+  const [isCreatingNewRoute, setIsCreatingNewRoute] = useState(false);
+  const [newRouteName, setNewRouteName] = useState('');
+  const [savingRoute, setSavingRoute] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPass, setShowNewPass] = useState(false);
@@ -248,6 +255,43 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
     }
   };
 
+  const handleOpenRouteModal = () => {
+    setSelectedRouteId(vendor.routeId || '');
+    setIsCreatingNewRoute(false);
+    setNewRouteName('');
+    setShowRouteModal(true);
+  };
+
+  const handleSaveRouteAssignment = async () => {
+    setSavingRoute(true);
+    try {
+      let finalRouteId = selectedRouteId;
+      let finalRouteName = '';
+
+      if (isCreatingNewRoute && newRouteName.trim()) {
+        const created = await createRoute({ name: newRouteName.trim() });
+        finalRouteId = created.id;
+        finalRouteName = created.name;
+      } else if (finalRouteId) {
+        const rObj = routes.find((r) => r.id === finalRouteId);
+        finalRouteName = rObj?.name || '';
+      }
+
+      await updateVendorProfile(vendor.id || vendorId, {
+        routeId: finalRouteId || undefined,
+        routeName: finalRouteName || undefined,
+        area: finalRouteName || undefined,
+      });
+
+      setShowRouteModal(false);
+      Alert.alert('Route Updated', `Distribution route updated for ${vendor.shopName}.`);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to update vendor route.');
+    } finally {
+      setSavingRoute(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* ── Top Header ────────────────────────────────────────────── */}
@@ -387,6 +431,23 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
                 <Ionicons name="call-outline" size={16} color={colors.textMuted} />
                 <Text style={styles.infoLabel}>Phone</Text>
                 <Text style={styles.infoVal}>{vendor.phone || 'Not provided'}</Text>
+              </View>
+
+              <View style={styles.infoRow}>
+                <Ionicons name="navigate-outline" size={16} color={colors.primary} />
+                <Text style={styles.infoLabel}>Delivery Route</Text>
+                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                  <Text style={[styles.infoVal, { color: vendor.routeName || vendor.area ? colors.primary : colors.textMuted, fontWeight: '600' }]} numberOfLines={1}>
+                    {vendor.routeName || vendor.area || 'No Route'}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.changePasswordPillBtn}
+                    onPress={handleOpenRouteModal}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.changePasswordPillText}>Change</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
@@ -886,6 +947,135 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
                       variant="primary"
                       onPress={handleAdminSavePassword}
                       loading={savingPassword}
+                      style={{ flex: 1.5 }}
+                    />
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Route Selection Modal ───────────────────────────────── */}
+      <Modal
+        visible={showRouteModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowRouteModal(false)}
+        statusBarTranslucent
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          <TouchableWithoutFeedback onPress={() => setShowRouteModal(false)}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+                <View style={styles.passwordModalCard}>
+                  <View style={styles.modalHeader}>
+                    <View style={styles.modalHeaderLeft}>
+                      <View style={styles.iconCircle}>
+                        <Ionicons name="navigate" size={18} color={colors.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.modalTitle}>Assign Delivery Route</Text>
+                        <Text style={styles.modalSubtitle} numberOfLines={1}>
+                          For {vendor.shopName}
+                        </Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setShowRouteModal(false)}
+                      style={styles.closeBtn}
+                    >
+                      <Ionicons name="close" size={20} color={colors.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={styles.passwordModalBody} showsVerticalScrollIndicator={false}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <Text style={styles.infoLabel}>Choose Distribution Route</Text>
+                      <TouchableOpacity
+                        onPress={() => setIsCreatingNewRoute(!isCreatingNewRoute)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.changePasswordPillText}>
+                          {isCreatingNewRoute ? '← Existing Routes' : '+ New Route'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {isCreatingNewRoute ? (
+                      <View style={{ marginTop: 4 }}>
+                        <Input
+                          label="New Route Name *"
+                          placeholder="e.g. South Sector, Outer Ring"
+                          value={newRouteName}
+                          onChangeText={setNewRouteName}
+                        />
+                      </View>
+                    ) : (
+                      <View style={{ gap: 6, marginVertical: 4 }}>
+                        <TouchableOpacity
+                          style={[
+                            styles.statusBtn,
+                            selectedRouteId === '' && styles.statusBtnActive,
+                          ]}
+                          onPress={() => setSelectedRouteId('')}
+                        >
+                          <Ionicons
+                            name={selectedRouteId === '' ? 'radio-button-on' : 'radio-button-off'}
+                            size={16}
+                            color={selectedRouteId === '' ? colors.primary : colors.textMuted}
+                          />
+                          <Text style={styles.statusBtnLabel}>No Route Assigned</Text>
+                        </TouchableOpacity>
+
+                        {routes.map((r) => {
+                          const isSelected = selectedRouteId === r.id;
+                          return (
+                            <TouchableOpacity
+                              key={r.id}
+                              style={[
+                                styles.statusBtn,
+                                isSelected && styles.statusBtnActive,
+                              ]}
+                              onPress={() => setSelectedRouteId(r.id)}
+                            >
+                              <Ionicons
+                                name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                                size={16}
+                                color={isSelected ? colors.primary : colors.textMuted}
+                              />
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.statusBtnLabel}>{r.name}</Text>
+                                {r.assignedStaffName && (
+                                  <Text style={styles.pmtCollector}>
+                                    Staff: {r.assignedStaffName}
+                                  </Text>
+                                )}
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </ScrollView>
+
+                  <View style={styles.modalFooter}>
+                    <Button
+                      title="Cancel"
+                      variant="secondary"
+                      onPress={() => setShowRouteModal(false)}
+                      style={{ flex: 1 }}
+                      disabled={savingRoute}
+                    />
+                    <Button
+                      title={savingRoute ? 'Saving...' : 'Save Route'}
+                      variant="primary"
+                      onPress={handleSaveRouteAssignment}
+                      loading={savingRoute}
                       style={{ flex: 1.5 }}
                     />
                   </View>

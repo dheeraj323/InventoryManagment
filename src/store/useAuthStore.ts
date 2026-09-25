@@ -19,6 +19,8 @@ interface AuthState {
     pass: string;
     phone: string;
     shopName: string;
+    routeId?: string;
+    routeName?: string;
     area?: string;
     address?: string;
   }) => Promise<void>;
@@ -33,6 +35,8 @@ interface AuthState {
     name?: string;
     phone?: string;
     area?: string;
+    routeId?: string;
+    routeName?: string;
     address?: string;
     businessName?: string;
     locationUrl?: string;
@@ -208,6 +212,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     name?: string;
     phone?: string;
     area?: string;
+    routeId?: string;
+    routeName?: string;
     address?: string;
     businessName?: string;
     locationUrl?: string;

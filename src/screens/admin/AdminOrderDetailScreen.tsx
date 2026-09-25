@@ -115,16 +115,31 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
                   </>
                 )}
 
-                {(order.status === 'APPROVED' || order.status === 'OUT_FOR_DELIVERY') && (
+                {order.status === 'APPROVED' && (
+                  <>
+                    <Button
+                      title="Dispatch (On Way)"
+                      onPress={() => handleUpdateStatus('OUT_FOR_DELIVERY')}
+                      size="sm"
+                      variant="primary"
+                      style={styles.statusBtn}
+                    />
+                    <Button
+                      title="Change Staff"
+                      onPress={() => setDispatchModalVisible(true)}
+                      size="sm"
+                      variant="outline"
+                      style={styles.statusBtn}
+                    />
+                  </>
+                )}
+
+                {order.status === 'OUT_FOR_DELIVERY' && (
                   <Button
-                    title={
-                      order.status === 'OUT_FOR_DELIVERY'
-                        ? 'Reassign Delivery Staff'
-                        : 'Assign Staff & Dispatch'
-                    }
+                    title="Reassign Delivery Staff"
                     onPress={() => setDispatchModalVisible(true)}
                     size="sm"
-                    variant={order.status === 'OUT_FOR_DELIVERY' ? 'outline' : 'primary'}
+                    variant="outline"
                     style={styles.statusBtn}
                   />
                 )}
@@ -218,6 +233,14 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
           <Card style={styles.card} outlined elevation="sm">
             <Text style={styles.cardTitle}>CUSTOMER VENDOR PROFILE</Text>
             <Text style={styles.shopName}>{order.shopName}</Text>
+            {Boolean(order.routeName) && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3, marginBottom: 2 }}>
+                <Ionicons name="navigate-outline" size={13} color={colors.primary} />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary }}>
+                  Route: {order.routeName}
+                </Text>
+              </View>
+            )}
             {Boolean(order.address) && <Text style={styles.detailText}>Address: {order.address}</Text>}
             {(Boolean(order.locationUrl) || (order.latitude !== undefined && order.longitude !== undefined)) && (
               <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 6 }}>

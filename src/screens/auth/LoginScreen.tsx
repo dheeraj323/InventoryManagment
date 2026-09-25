@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useRouteStore } from '../../store/useRouteStore';
 import { colors, typography, spacing } from '../../theme';
 
 type AuthMode = 'LOGIN' | 'REGISTER' | 'FORGOT_PASSWORD';
@@ -30,6 +31,7 @@ export const LoginScreen: React.FC = () => {
     authError,
     clearError,
   } = useAuthStore();
+  const { routes } = useRouteStore();
 
   const [authMode, setAuthMode] = useState<AuthMode>('LOGIN');
   const [registerRole, setRegisterRole] = useState<RegisterRole>('VENDOR');
@@ -41,7 +43,7 @@ export const LoginScreen: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [shopName, setShopName] = useState('');
-  const [area, setArea] = useState('');
+  const [selectedRouteId, setSelectedRouteId] = useState('');
   const [address, setAddress] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [resetSent, setResetSent] = useState(false);
@@ -114,13 +116,16 @@ export const LoginScreen: React.FC = () => {
     clearError();
     try {
       if (registerRole === 'VENDOR') {
+        const routeObj = routes.find((r) => r.id === selectedRouteId);
         await registerVendor({
           name: fullName.trim(),
           email: email.trim(),
           pass: password,
           phone: phone.trim(),
           shopName: shopName.trim(),
-          area: area.trim() || 'Central',
+          routeId: selectedRouteId || undefined,
+          routeName: routeObj?.name || undefined,
+          area: routeObj?.name || undefined,
           address: address.trim() || '',
         });
       } else {
@@ -429,15 +434,68 @@ export const LoginScreen: React.FC = () => {
 
                 {registerRole === 'VENDOR' && (
                   <>
-                    <Input
-                      label="Area / Locality"
-                      value={area}
-                      onChangeText={setArea}
-                    />
+                    <View style={styles.inputGroupWrap}>
+                      <Text style={styles.fieldLabelText}>SELECT YOUR SHOP'S DELIVERY ROUTE</Text>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.routeChipRow}
+                      >
+                        <TouchableOpacity
+                          style={[
+                            styles.routeSelectChip,
+                            !selectedRouteId && styles.routeSelectChipActive,
+                          ]}
+                          onPress={() => setSelectedRouteId('')}
+                          activeOpacity={0.8}
+                        >
+                          <Text
+                            style={[
+                              styles.routeSelectChipText,
+                              !selectedRouteId && styles.routeSelectChipTextActive,
+                            ]}
+                          >
+                            No Route / Other
+                          </Text>
+                        </TouchableOpacity>
+
+                        {routes.map((r) => {
+                          const isSelected = selectedRouteId === r.id;
+                          return (
+                            <TouchableOpacity
+                              key={r.id}
+                              style={[
+                                styles.routeSelectChip,
+                                isSelected && styles.routeSelectChipActive,
+                              ]}
+                              onPress={() => setSelectedRouteId(r.id)}
+                              activeOpacity={0.8}
+                            >
+                              <Ionicons
+                                name="navigate-outline"
+                                size={12}
+                                color={isSelected ? colors.textInverse : colors.primary}
+                                style={{ marginRight: 4 }}
+                              />
+                              <Text
+                                style={[
+                                  styles.routeSelectChipText,
+                                  isSelected && styles.routeSelectChipTextActive,
+                                ]}
+                              >
+                                {r.name}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+
                     <Input
                       label="Shop Address (Optional)"
                       value={address}
                       onChangeText={setAddress}
+                      placeholder="e.g. Shop #12, Market Complex"
                     />
                   </>
                 )}
@@ -674,6 +732,43 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#2563EB',
+  },
+  inputGroupWrap: {
+    marginBottom: spacing.md,
+  },
+  fieldLabelText: {
+    ...typography.captionBold,
+    color: colors.textSecondary,
+    fontSize: 10,
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  routeChipRow: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingBottom: 2,
+  },
+  routeSelectChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: spacing.borderRadiusFull,
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  routeSelectChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  routeSelectChipText: {
+    ...typography.captionBold,
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  routeSelectChipTextActive: {
+    color: colors.textInverse,
   },
 });
 

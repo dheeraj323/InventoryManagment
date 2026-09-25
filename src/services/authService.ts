@@ -380,6 +380,8 @@ export const authService = {
     pass: string;
     phone: string;
     shopName: string;
+    routeId?: string;
+    routeName?: string;
     area?: string;
     address?: string;
   }): Promise<User> => {
@@ -387,6 +389,7 @@ export const authService = {
     const cred = await createUserWithEmailAndPassword(auth, trimmedEmail, params.pass);
     const uid = cred.user.uid;
     const vendorId = `vendor-${Date.now().toString(36)}`;
+    const effectiveRouteName = params.routeName?.trim() || params.area?.trim() || '';
 
     // 1. Create Vendor Doc
     const vendorRef = doc(db, 'vendors', vendorId);
@@ -400,7 +403,9 @@ export const authService = {
       phone: params.phone.trim(),
       email: trimmedEmail,
       address: params.address?.trim() || '',
-      area: params.area?.trim() || 'Central',
+      routeId: params.routeId?.trim() || undefined,
+      routeName: effectiveRouteName || undefined,
+      area: effectiveRouteName || undefined,
       vendorType: 'Retailer',
       openingBalance: 0,
       currentBalance: 0,
@@ -433,7 +438,9 @@ export const authService = {
       active: true,
       vendorId,
       businessName: params.shopName.trim(),
-      area: params.area?.trim() || 'Central',
+      routeId: params.routeId?.trim() || undefined,
+      routeName: effectiveRouteName || undefined,
+      area: effectiveRouteName || undefined,
       address: params.address?.trim() || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -630,6 +637,8 @@ export const authService = {
       name?: string;
       phone?: string;
       area?: string;
+      routeId?: string;
+      routeName?: string;
       address?: string;
       businessName?: string;
       locationUrl?: string;

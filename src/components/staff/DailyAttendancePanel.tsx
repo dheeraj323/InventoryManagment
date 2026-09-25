@@ -177,7 +177,7 @@ export const DailyAttendancePanel: React.FC<DailyAttendancePanelProps> = ({
             </Text>
             <View style={styles.routeRow}>
               <Ionicons name="location-outline" size={11} color={colors.textMuted} />
-              <Text style={styles.routeText}>{item.activeArea || 'Central Zone'}</Text>
+              <Text style={styles.routeText}>{item.assignedRouteName || item.activeArea || 'No Route'}</Text>
               {attRecord?.checkInTime && (
                 <>
                   <Text style={styles.dotSeparator}>•</Text>

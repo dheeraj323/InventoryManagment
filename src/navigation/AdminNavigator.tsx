@@ -17,6 +17,7 @@ import { StaffSettlementsScreen } from '../screens/admin/StaffSettlementsScreen'
 import { AuditHistoryScreen } from '../screens/admin/AuditHistoryScreen';
 import { StaffApprovalScreen } from '../screens/admin/StaffApprovalScreen';
 import { StaffManagementScreen } from '../screens/admin/StaffManagementScreen';
+import { RouteManagementScreen } from '../screens/admin/RouteManagementScreen';
 import { AdminProfileScreen } from '../screens/admin/AdminProfileScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography } from '../theme';
@@ -30,6 +31,7 @@ const AdminHomeStack = () => (
     <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
     <Stack.Screen name="VendorList" component={VendorListScreen} />
     <Stack.Screen name="VendorDetail" component={VendorDetailScreen} />
+    <Stack.Screen name="RouteManagement" component={RouteManagementScreen} />
     <Stack.Screen name="AdminOrders" component={AdminOrdersScreen} />
     <Stack.Screen name="AdminOrderDetail" component={AdminOrderDetailScreen} />
     <Stack.Screen name="Inventory" component={InventoryScreen} />
@@ -58,11 +60,12 @@ const AdminVendorsStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="VendorList" component={VendorListScreen} />
     <Stack.Screen name="VendorDetail" component={VendorDetailScreen} />
+    <Stack.Screen name="RouteManagement" component={RouteManagementScreen} />
     <Stack.Screen name="AdminOrderDetail" component={AdminOrderDetailScreen} />
   </Stack.Navigator>
 );
 
-// 4. Finance Stack (Finance summary -> Settlements, Audit, Supplier, Vendor Detail)
+// 5. Finance Stack (Finance summary -> Settlements, Audit, Supplier, Vendor Detail)
 const AdminFinanceStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="AdminFinance" component={AdminFinanceScreen} />
@@ -77,11 +80,11 @@ const AdminFinanceStack = () => (
   </Stack.Navigator>
 );
 
-
-// 5. Admin Profile Stack
+// 6. Admin Profile Stack
 const AdminProfileStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
+    <Stack.Screen name="RouteManagement" component={RouteManagementScreen} />
     <Stack.Screen name="StaffManagement" component={StaffManagementScreen} />
     <Stack.Screen name="StaffApproval" component={StaffApprovalScreen} />
     <Stack.Screen name="AuditHistory" component={AuditHistoryScreen} />

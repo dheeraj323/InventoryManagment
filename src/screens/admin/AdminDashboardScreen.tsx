@@ -97,6 +97,14 @@ export const AdminDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
       badge: lowStockItems.length > 0 ? lowStockItems.length : undefined,
     },
     {
+      icon: 'navigate-outline',
+      iconColor: colors.statusOutForDeliveryText,
+      iconBg: colors.statusOutForDeliveryBg,
+      title: 'Routes & Territories',
+      subtitle: 'Manage distribution routes & staff allocation',
+      route: 'RouteManagement',
+    },
+    {
       icon: 'business-outline',
       iconColor: colors.debit,
       iconBg: colors.debitLight,

@@ -149,7 +149,7 @@ export const staffService = {
     const trimmedName = params.name.trim();
     const trimmedPhone = params.phone.trim();
     const trimmedEmail = params.email?.trim().toLowerCase() || `${staffId}@panihaardms.local`;
-    const area = params.activeArea?.trim() || 'Central Zone';
+    const area = params.activeArea?.trim() || '';
     const role: UserRole = params.role || 'STAFF';
     const monthlySalary = params.monthlySalary || 0;
     const salaryType = params.salaryType || 'MONTHLY';
@@ -333,7 +333,7 @@ export const staffService = {
         name: uData?.name || 'Staff Member',
         phone: uData?.phone || '',
         email: uData?.email || '',
-        activeArea: activeArea || uData?.area || 'Central Zone',
+        activeArea: activeArea || uData?.area || '',
         todayAssignedDeliveries: 0,
         cashInHand: 0,
         active: true,

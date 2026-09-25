@@ -9,6 +9,7 @@ import { useLedgerStore } from '../store/useLedgerStore';
 import { useInventoryStore } from '../store/useInventoryStore';
 import { useCashStore } from '../store/useCashStore';
 import { useVendorStore } from '../store/useVendorStore';
+import { useRouteStore } from '../store/useRouteStore';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { PendingApprovalScreen } from '../screens/auth/PendingApprovalScreen';
 import { AdminNavigator } from './AdminNavigator';
@@ -29,6 +30,7 @@ export const RootNavigator: React.FC = () => {
   const { subscribeInventory } = useInventoryStore();
   const { subscribeSettlements } = useCashStore();
   const { subscribeVendors } = useVendorStore();
+  const { subscribeRoutes } = useRouteStore();
 
   useEffect(() => {
     initAuth();
@@ -54,6 +56,7 @@ export const RootNavigator: React.FC = () => {
     const unsubInventory = subscribeInventory();
     const unsubSettlements = activeRole === 'VENDOR' ? () => {} : subscribeSettlements(activeRole === 'STAFF' ? staffFilter : undefined);
     const unsubVendors = subscribeVendors(vendorFilter);
+    const unsubRoutes = subscribeRoutes();
 
     return () => {
       unsubOrders();
@@ -61,6 +64,7 @@ export const RootNavigator: React.FC = () => {
       unsubInventory();
       unsubSettlements();
       unsubVendors();
+      unsubRoutes();
     };
   }, [currentUser, activeRole, activeVendorId, activeStaffId]);
 

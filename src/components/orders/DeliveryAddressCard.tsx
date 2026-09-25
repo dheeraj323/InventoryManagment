@@ -16,6 +16,7 @@ interface DeliveryAddressCardProps {
   locationUrl?: string;
   latitude?: number;
   longitude?: number;
+  routeName?: string;
 }
 
 export const DeliveryAddressCard: React.FC<DeliveryAddressCardProps> = ({
@@ -25,6 +26,7 @@ export const DeliveryAddressCard: React.FC<DeliveryAddressCardProps> = ({
   locationUrl,
   latitude,
   longitude,
+  routeName,
 }) => {
   const hasExactCoords = Boolean(
     latitude !== undefined &&
@@ -91,6 +93,14 @@ export const DeliveryAddressCard: React.FC<DeliveryAddressCardProps> = ({
         </View>
         <View style={styles.addressCol}>
           <Text style={styles.shopName}>{shopName}</Text>
+          {routeName ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2, marginBottom: 2 }}>
+              <Ionicons name="navigate-outline" size={12} color={colors.primary} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>
+                Route: {routeName}
+              </Text>
+            </View>
+          ) : null}
           <Text style={styles.addressText}>{address || 'No street address provided'}</Text>
           {phone ? <Text style={styles.phoneText}>Phone: {phone}</Text> : null}
           {hasExactCoords && (

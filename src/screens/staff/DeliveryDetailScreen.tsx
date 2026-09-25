@@ -188,6 +188,7 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
             locationUrl={effectiveLocationUrl}
             latitude={effectiveLatitude}
             longitude={effectiveLongitude}
+            routeName={order.routeName}
           />
 
           {/* 3. Delivered Items Summary */}
@@ -276,6 +277,7 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
           locationUrl={effectiveLocationUrl}
           latitude={effectiveLatitude}
           longitude={effectiveLongitude}
+          routeName={order.routeName}
         />
 
         {/* 2. Quantity Verification List */}

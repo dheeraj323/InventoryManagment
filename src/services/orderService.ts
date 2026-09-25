@@ -20,6 +20,9 @@ const ORDERS_COLLECTION = 'orders';
 const VENDORS_COLLECTION = 'vendors';
 const PRODUCTS_COLLECTION = 'products';
 
+const ROUTES_COLLECTION = 'routes';
+const STAFF_COLLECTION = 'staff';
+
 function cleanFirestoreData<T extends Record<string, any>>(obj: T): T {
   const cleaned: any = {};
   for (const [key, value] of Object.entries(obj)) {
@@ -45,12 +48,6 @@ const normalizeOrder = (docSnap: any): Order => {
     orderId: docSnap.id,
     ...data,
   };
-  // Pending orders are unapproved by definition and cannot have assigned delivery staff
-  if (order.status === 'PENDING') {
-    order.assignedStaffId = undefined;
-    order.assignedStaffName = undefined;
-    order.assignedStaffPhone = undefined;
-  }
   return order;
 };
 
@@ -72,9 +69,8 @@ export const orderService = {
     let q = query(collection(db, ORDERS_COLLECTION));
     if (vendorId) {
       q = query(collection(db, ORDERS_COLLECTION), where('vendorId', '==', vendorId));
-    } else if (staffId) {
-      q = query(collection(db, ORDERS_COLLECTION), where('assignedStaffId', '==', staffId));
     }
+    // Note: For staff, we subscribe to all orders so client-side store can dynamically match orders by both assignedStaffId AND assigned routeIds
 
     return onSnapshot(q, (snapshot) => {
       const orders = snapshot.docs.map(normalizeOrder);
@@ -94,8 +90,30 @@ export const orderService = {
       // 1. Fetch Vendor Document
       const vendorRef = doc(db, VENDORS_COLLECTION, orderData.vendorId);
       const vendorSnap = await transaction.get(vendorRef);
+      const vendor = vendorSnap.exists() ? (vendorSnap.data() as Vendor) : null;
 
-      // 2. Fetch and validate stock for all items first (ALL READS)
+      // 2. Resolve Route & Assigned Staff for the Order
+      const targetRouteId = orderData.routeId || vendor?.routeId;
+      let targetRouteName = orderData.routeName || vendor?.routeName || vendor?.area;
+      let autoStaffId = orderData.assignedStaffId;
+      let autoStaffName = orderData.assignedStaffName;
+      let autoStaffPhone = orderData.assignedStaffPhone;
+
+      if (targetRouteId) {
+        const routeRef = doc(db, ROUTES_COLLECTION, targetRouteId);
+        const routeSnap = await transaction.get(routeRef);
+        if (routeSnap.exists()) {
+          const routeData = routeSnap.data();
+          targetRouteName = targetRouteName || routeData.name;
+          if (!autoStaffId && routeData.assignedStaffId) {
+            autoStaffId = routeData.assignedStaffId;
+            autoStaffName = routeData.assignedStaffName || 'Delivery Staff';
+            autoStaffPhone = routeData.assignedStaffPhone || '';
+          }
+        }
+      }
+
+      // 3. Fetch and validate stock for all items first (ALL READS)
       const productUpdates: { ref: any; productId: string; newStock: number }[] = [];
       for (const item of orderData.items) {
         const productRef = doc(db, PRODUCTS_COLLECTION, item.productId);
@@ -110,7 +128,7 @@ export const orderService = {
         }
       }
 
-      // 3. NOW PERFORM ALL WRITES
+      // 4. NOW PERFORM ALL WRITES
       const liveStockUpdates: Record<string, number> = {};
       for (const pUpdate of productUpdates) {
         transaction.update(pUpdate.ref, {
@@ -130,25 +148,21 @@ export const orderService = {
       const timestampPart = Date.now().toString().slice(-4);
       const orderNumber = `ORD-2026-${timestampPart}`;
 
-      // Credit limit check: if PAY_LATER order would exceed the vendor's credit limit,
-      // flag it as pendingAdminOverride instead of blocking the order outright.
-      // The Admin must then approve or reject the override before the order proceeds.
+      // Credit limit check
       let pendingAdminOverride = false;
       if (
         orderData.preferredPaymentMode === 'PAY_LATER' &&
         vendorSnap.exists()
       ) {
-        const vendor = vendorSnap.data() as Vendor;
-        const limit = vendor.creditLimit || 0;
+        const limit = vendor?.creditLimit || 0;
         if (limit > 0) {
-          const currentOutstanding = vendor.currentBalance || 0;
+          const currentOutstanding = vendor?.currentBalance || 0;
           if (currentOutstanding + orderData.totalAmount > limit) {
             pendingAdminOverride = true;
           }
         }
       }
 
-      const vendor = vendorSnap.exists() ? (vendorSnap.data() as Vendor) : null;
       const finalAddress = orderData.address || vendor?.address || '';
       const finalLocationUrl = orderData.locationUrl || vendor?.locationUrl || undefined;
       const finalLat = orderData.latitude !== undefined ? orderData.latitude : vendor?.latitude;
@@ -156,6 +170,11 @@ export const orderService = {
 
       const newOrder: Order = {
         ...orderData,
+        routeId: targetRouteId || undefined,
+        routeName: targetRouteName || undefined,
+        assignedStaffId: autoStaffId || undefined,
+        assignedStaffName: autoStaffName || undefined,
+        assignedStaffPhone: autoStaffPhone || undefined,
         address: finalAddress,
         locationUrl: finalLocationUrl,
         latitude: finalLat,
@@ -183,6 +202,93 @@ export const orderService = {
   // Update Order Status
   updateOrderStatus: async (orderId: string, status: OrderStatus): Promise<void> => {
     const docRef = doc(db, ORDERS_COLLECTION, orderId);
+
+    if (status === 'APPROVED' || status === 'OUT_FOR_DELIVERY') {
+      try {
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const orderData = snap.data();
+          let assignedStaffId = orderData.assignedStaffId;
+          let assignedStaffName = orderData.assignedStaffName;
+          let assignedStaffPhone = orderData.assignedStaffPhone;
+          let routeId = orderData.routeId;
+          let routeName = orderData.routeName;
+
+          // 1. If no routeId on order, resolve from vendor
+          if (!routeId && orderData.vendorId) {
+            const vendorRef = doc(db, 'vendors', orderData.vendorId);
+            const vSnap = await getDoc(vendorRef);
+            if (vSnap.exists()) {
+              const vData = vSnap.data();
+              routeId = vData.routeId || routeId;
+              routeName = vData.routeName || vData.area || routeName;
+            }
+          }
+
+          // 2. If still no routeId, check if any route matches order area/name
+          if (!routeId && (orderData.area || routeName)) {
+            const matchName = (orderData.area || routeName || '').toLowerCase().trim();
+            if (matchName) {
+              const routesSnap = await getDocs(collection(db, ROUTES_COLLECTION));
+              const matched = routesSnap.docs.find(
+                (d) => (d.data().name || '').toLowerCase().trim() === matchName
+              );
+              if (matched) {
+                routeId = matched.id;
+                routeName = matched.data().name;
+              }
+            }
+          }
+
+          // 3. Resolve assigned staff from the Route
+          if (routeId) {
+            const routeRef = doc(db, ROUTES_COLLECTION, routeId);
+            const routeSnap = await getDoc(routeRef);
+            if (routeSnap.exists()) {
+              const rData = routeSnap.data();
+              routeName = routeName || rData.name;
+              if (rData.assignedStaffId) {
+                assignedStaffId = rData.assignedStaffId;
+                assignedStaffName = rData.assignedStaffName;
+                assignedStaffPhone = rData.assignedStaffPhone;
+              }
+            }
+          }
+
+          // 4. If still no staff, check staff collection directly by routeId
+          if (!assignedStaffId && routeId) {
+            const staffSnap = await getDocs(collection(db, STAFF_COLLECTION));
+            const matchedStaff = staffSnap.docs.find(
+              (d) => d.data().assignedRouteId === routeId || (routeName && (d.data().activeArea || '').toLowerCase() === routeName.toLowerCase())
+            );
+            if (matchedStaff) {
+              const sData = matchedStaff.data();
+              assignedStaffId = sData.staffId || matchedStaff.id;
+              assignedStaffName = sData.name;
+              assignedStaffPhone = sData.phone || '';
+            }
+          }
+
+          // If staff is resolved, directly dispatch to OUT_FOR_DELIVERY
+          if (assignedStaffId) {
+            await updateDoc(docRef, {
+              status: 'OUT_FOR_DELIVERY',
+              assignedStaffId,
+              assignedStaffName: assignedStaffName || 'Delivery Staff',
+              assignedStaffPhone: assignedStaffPhone || '',
+              ...(routeId ? { routeId } : {}),
+              ...(routeName ? { routeName } : {}),
+              dispatchedAt: orderData.dispatchedAt || new Date().toISOString(),
+              updatedAt: serverTimestamp(),
+            });
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Error auto-dispatching approved order:', e);
+      }
+    }
+
     await updateDoc(docRef, {
       status,
       updatedAt: serverTimestamp(),

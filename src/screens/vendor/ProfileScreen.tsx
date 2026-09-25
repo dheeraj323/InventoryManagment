@@ -13,16 +13,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useVendorStore } from '../../store/useVendorStore';
+import { useRouteStore } from '../../store/useRouteStore';
 import { Header } from '../../components/common/Header';
 import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import { GoogleMapsLocationPicker } from '../../components/common/GoogleMapsLocationPicker';
-import { colors, spacing } from '../../theme';
+import { colors, spacing, typography } from '../../theme';
 
 export const ProfileScreen: React.FC = () => {
   const { currentUser, activeVendorId, updateProfile, logout, sendPasswordReset } =
     useAuthStore();
   const { getVendorById, updateVendorProfile } = useVendorStore();
+  const { routes } = useRouteStore();
 
   const effectiveVendorId = activeVendorId || currentUser?.vendorId || '';
   const vendor = getVendorById(effectiveVendorId);
@@ -35,6 +37,9 @@ export const ProfileScreen: React.FC = () => {
   const [phone, setPhone] = useState(currentUser?.phone || vendor?.phone || '');
   const [address, setAddress] = useState(
     currentUser?.address || vendor?.address || ''
+  );
+  const [selectedRouteId, setSelectedRouteId] = useState<string>(
+    currentUser?.routeId || vendor?.routeId || ''
   );
   const [locationUrl, setLocationUrl] = useState(
     currentUser?.locationUrl || vendor?.locationUrl || ''
@@ -68,6 +73,7 @@ export const ProfileScreen: React.FC = () => {
     setShopName(currentUser?.businessName || vendor?.shopName || '');
     setPhone(currentUser?.phone || vendor?.phone || '');
     setAddress(currentUser?.address || vendor?.address || '');
+    setSelectedRouteId(currentUser?.routeId || vendor?.routeId || '');
     setLocationUrl(currentUser?.locationUrl || vendor?.locationUrl || '');
     setLatitude(currentUser?.latitude !== undefined ? currentUser.latitude : vendor?.latitude);
     setLongitude(currentUser?.longitude !== undefined ? currentUser.longitude : vendor?.longitude);
@@ -85,12 +91,18 @@ export const ProfileScreen: React.FC = () => {
 
     setSaving(true);
     try {
+      const routeObj = routes.find((r) => r.id === selectedRouteId);
+      const effectiveRouteName = routeObj?.name || undefined;
+
       // 1. Update user profile document in Auth/Users
       await updateProfile({
         name: name.trim(),
         businessName: shopName.trim(),
         phone: phone.trim(),
         address: address.trim(),
+        routeId: selectedRouteId || undefined,
+        routeName: effectiveRouteName,
+        area: effectiveRouteName,
         locationUrl: locationUrl.trim(),
         latitude,
         longitude,
@@ -105,6 +117,9 @@ export const ProfileScreen: React.FC = () => {
             shopName: shopName.trim(),
             phone: phone.trim(),
             address: address.trim(),
+            routeId: selectedRouteId || undefined,
+            routeName: effectiveRouteName,
+            area: effectiveRouteName,
             locationUrl: locationUrl.trim(),
             latitude,
             longitude,
@@ -114,7 +129,7 @@ export const ProfileScreen: React.FC = () => {
       }
 
       setIsEditing(false);
-      showToast('Profile and Google Maps location updated successfully!', 'success');
+      showToast('Profile and delivery route updated successfully!', 'success');
     } catch (err: any) {
       showToast(err.message || 'Could not save profile changes.', 'error');
     } finally {
@@ -127,6 +142,7 @@ export const ProfileScreen: React.FC = () => {
     setShopName(currentUser?.businessName || vendor?.shopName || '');
     setPhone(currentUser?.phone || vendor?.phone || '');
     setAddress(currentUser?.address || vendor?.address || '');
+    setSelectedRouteId(currentUser?.routeId || vendor?.routeId || '');
     setLocationUrl(currentUser?.locationUrl || vendor?.locationUrl || '');
     setLatitude(currentUser?.latitude !== undefined ? currentUser.latitude : vendor?.latitude);
     setLongitude(currentUser?.longitude !== undefined ? currentUser.longitude : vendor?.longitude);
@@ -299,6 +315,63 @@ export const ProfileScreen: React.FC = () => {
                   multiline
                 />
 
+                {/* Route Selector */}
+                <View style={{ marginBottom: spacing.md }}>
+                  <Text style={styles.inputLabelText}>DELIVERY ROUTE</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ flexDirection: 'row', gap: 6, marginTop: 4 }}
+                  >
+                    <TouchableOpacity
+                      style={[
+                        styles.routeChip,
+                        !selectedRouteId ? styles.routeChipActive : null,
+                      ]}
+                      onPress={() => setSelectedRouteId('')}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.routeChipText,
+                          !selectedRouteId ? styles.routeChipTextActive : null,
+                        ]}
+                      >
+                        No Route
+                      </Text>
+                    </TouchableOpacity>
+                    {routes.map((r) => {
+                      const isSelected = selectedRouteId === r.id;
+                      return (
+                        <TouchableOpacity
+                          key={r.id}
+                          style={[
+                            styles.routeChip,
+                            isSelected ? styles.routeChipActive : null,
+                          ]}
+                          onPress={() => setSelectedRouteId(r.id)}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons
+                            name="navigate-outline"
+                            size={12}
+                            color={isSelected ? colors.textInverse : colors.primary}
+                            style={{ marginRight: 4 }}
+                          />
+                          <Text
+                            style={[
+                              styles.routeChipText,
+                              isSelected ? styles.routeChipTextActive : null,
+                            ]}
+                          >
+                            {r.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+
                 <GoogleMapsLocationPicker
                   locationUrl={locationUrl}
                   latitude={latitude}
@@ -339,6 +412,16 @@ export const ProfileScreen: React.FC = () => {
                 <View style={styles.infoRow}>
                   <Text style={styles.infoLabel}>Proprietor Name</Text>
                   <Text style={styles.infoValue}>{displayProprietorName}</Text>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Delivery Route</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="navigate-outline" size={14} color={colors.primary} />
+                    <Text style={[styles.infoValue, { color: colors.primary, fontWeight: '600' }]}>
+                      {currentUser?.routeName || vendor?.routeName || vendor?.area || 'No Route Assigned'}
+                    </Text>
+                  </View>
                 </View>
 
                 {Boolean(currentUser?.username || vendor?.username) && (
@@ -562,5 +645,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#0F172A',
+  },
+  inputLabelText: {
+    ...typography.captionBold,
+    color: colors.textSecondary,
+    fontSize: 10,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  routeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: spacing.borderRadiusFull,
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  routeChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  routeChipText: {
+    ...typography.captionBold,
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  routeChipTextActive: {
+    color: colors.textInverse,
   },
 });

@@ -79,6 +79,8 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           v.shopName.toLowerCase().includes(q) ||
           v.name.toLowerCase().includes(q) ||
           (v.ownerName && v.ownerName.toLowerCase().includes(q)) ||
+          (v.routeName && v.routeName.toLowerCase().includes(q)) ||
+          (v.area && v.area.toLowerCase().includes(q)) ||
           v.phone.includes(q);
 
         if (!matchesSearch) return false;
@@ -138,16 +140,26 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           if (navigation.canGoBack()) navigation.goBack();
         }}
         rightAction={
-          <TouchableOpacity
-            style={styles.headerAddBtn}
-            onPress={() => setIsAddVendorVisible(true)}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Add New Vendor"
-          >
-            <Ionicons name="add" size={16} color={colors.textInverse} />
-            <Text style={styles.headerAddBtnText}>Add Vendor</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            <TouchableOpacity
+              style={styles.headerRouteBtn}
+              onPress={() => navigation.navigate('RouteManagement')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="navigate-outline" size={15} color={colors.primary} />
+              <Text style={styles.headerRouteBtnText}>Routes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerAddBtn}
+              onPress={() => setIsAddVendorVisible(true)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Add New Vendor"
+            >
+              <Ionicons name="add" size={16} color={colors.textInverse} />
+              <Text style={styles.headerAddBtnText}>Add Vendor</Text>
+            </TouchableOpacity>
+          </View>
         }
       />
 
@@ -239,9 +251,19 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                   <Text style={styles.shopName} numberOfLines={1}>
                     {v.shopName}
                   </Text>
-                  <Text style={styles.ownerText} numberOfLines={1}>
-                    {v.name || v.ownerName || 'Retail Partner'}
-                  </Text>
+                  <View style={styles.ownerRouteRow}>
+                    <Text style={styles.ownerText} numberOfLines={1}>
+                      {v.name || v.ownerName || 'Retail Partner'}
+                    </Text>
+                    {(v.routeName || v.area) ? (
+                      <View style={styles.routeChip}>
+                        <Ionicons name="navigate-outline" size={10} color={colors.statusOutForDeliveryText} />
+                        <Text style={styles.routeChipText} numberOfLines={1}>
+                          {v.routeName || v.area}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
 
                 {/* Direct Call & WhatsApp Contact Shortcuts */}
@@ -460,7 +482,27 @@ const styles = StyleSheet.create({
   ownerText: {
     ...typography.caption,
     color: colors.textSecondary,
+  },
+  ownerRouteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginTop: 2,
+    flexWrap: 'wrap',
+  },
+  routeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.statusOutForDeliveryBg,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    gap: 3,
+  },
+  routeChipText: {
+    ...typography.captionBold,
+    color: colors.statusOutForDeliveryText,
+    fontSize: 10,
   },
   contactRow: {
     flexDirection: 'row',
@@ -511,6 +553,22 @@ const styles = StyleSheet.create({
   },
   balanceSettled: {
     color: colors.textMuted,
+  },
+  headerRouteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: spacing.borderRadiusFull,
+    gap: 3,
+  },
+  headerRouteBtnText: {
+    ...typography.captionBold,
+    color: colors.primary,
+    fontSize: 12,
   },
   headerAddBtn: {
     flexDirection: 'row',

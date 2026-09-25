@@ -133,6 +133,8 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         locationUrl: finalLocationUrl,
         latitude: finalLat,
         longitude: finalLng,
+        routeId: vendor.routeId || currentUser?.routeId || undefined,
+        routeName: vendor.routeName || vendor.area || currentUser?.routeName || currentUser?.area || undefined,
         items: [...items],
         subtotal,
         tax,

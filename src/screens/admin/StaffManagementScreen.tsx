@@ -21,6 +21,7 @@ import { useStaffStore, StaffFilter } from '../../store/useStaffStore';
 import { useStaffPayrollStore } from '../../store/useStaffPayrollStore';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useCashStore } from '../../store/useCashStore';
+import { useRouteStore } from '../../store/useRouteStore';
 import { Staff, UserRole } from '../../types';
 import { Header } from '../../components/common/Header';
 import { Button } from '../../components/common/Button';
@@ -34,17 +35,6 @@ import {
 } from '../../components/staff';
 import { colors, typography, spacing, shadows } from '../../theme';
 
-const PREDEFINED_AREAS = [
-  'Central Zone',
-  'North Route',
-  'South Suburbs',
-  'East District',
-  'West Belt',
-  'Industrial Area',
-  'Market Main',
-  'All Areas',
-];
-
 type MainTab = 'ROSTER' | 'ATTENDANCE' | 'PAYROLL' | 'ADVANCES' | 'VEHICLE_STOCK';
 
 // Attendance status color/label helpers
@@ -57,6 +47,11 @@ const ATT_CONFIG = {
 };
 
 export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const { routes } = useRouteStore();
+  const availableRoutes = useMemo(() => {
+    return routes.length > 0 ? routes.map((r) => r.name) : ['General Route'];
+  }, [routes]);
+
   const {
     staffList,
     isLoading,
@@ -98,7 +93,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newArea, setNewArea] = useState(PREDEFINED_AREAS[0]);
+  const [newArea, setNewArea] = useState(availableRoutes[0]);
   const [newRole, setNewRole] = useState<UserRole>('STAFF');
   const [newSalary, setNewSalary] = useState('');
   const [newNotes, setNewNotes] = useState('');
@@ -111,7 +106,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
   const [editSalary, setEditSalary] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
-  const [approveArea, setApproveArea] = useState(PREDEFINED_AREAS[0]);
+  const [approveArea, setApproveArea] = useState(availableRoutes[0]);
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
@@ -185,7 +180,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
 
   const handleOpenAddModal = () => {
     setNewName(''); setNewPhone(''); setNewEmail('');
-    setNewArea(PREDEFINED_AREAS[0]); setNewRole('STAFF');
+    setNewArea(availableRoutes[0] || 'General Route'); setNewRole('STAFF');
     setNewSalary(''); setNewNotes('');
     setIsAddModalVisible(true);
   };
@@ -212,7 +207,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
   const handleOpenManageModal = (staff: Staff) => {
     setSelectedStaff(staff);
     setEditName(staff.name || ''); setEditPhone(staff.phone || '');
-    setEditEmail(staff.email || ''); setEditArea(staff.activeArea || PREDEFINED_AREAS[0]);
+    setEditEmail(staff.email || ''); setEditArea(staff.activeArea || availableRoutes[0] || 'General Route');
     setEditSalary(staff.monthlySalary ? staff.monthlySalary.toString() : '');
     setEditNotes(staff.notes || '');
     setIsManageModalVisible(true);
@@ -288,7 +283,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
 
   const handleOpenApproveModal = (staff: Staff) => {
     setSelectedStaff(staff);
-    setApproveArea(staff.activeArea || PREDEFINED_AREAS[0]);
+    setApproveArea(staff.activeArea || availableRoutes[0] || 'General Route');
     setIsApproveModalVisible(true);
   };
 
@@ -735,9 +730,9 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
                     <Text style={styles.fieldLabel}>Monthly Salary ₹ (Optional)</Text>
                     <TextInput style={styles.fieldInput} keyboardType="numeric" placeholder="e.g. 15000" placeholderTextColor={colors.textMuted} value={newSalary} onChangeText={setNewSalary} />
 
-                    <Text style={styles.fieldLabel}>Delivery Area</Text>
+                    <Text style={styles.fieldLabel}>Delivery Route</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsRow}>
-                      {PREDEFINED_AREAS.map((area) => (
+                      {availableRoutes.map((area) => (
                         <TouchableOpacity
                           key={area}
                           style={[styles.pill, newArea === area && styles.pillActive]}
@@ -923,9 +918,9 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
                     <Text style={styles.fieldLabel}>Monthly Salary ₹</Text>
                     <TextInput style={styles.fieldInput} keyboardType="numeric" value={editSalary} onChangeText={setEditSalary} placeholder="e.g. 15000" placeholderTextColor={colors.textMuted} />
 
-                    <Text style={styles.fieldLabel}>Delivery Area</Text>
+                    <Text style={styles.fieldLabel}>Delivery Route</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsRow}>
-                      {PREDEFINED_AREAS.map((area) => (
+                      {availableRoutes.map((area) => (
                         <TouchableOpacity
                           key={area}
                           style={[styles.pill, editArea === area && styles.pillActive]}
@@ -979,9 +974,9 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
                     </Text>
                   </View>
 
-                  <Text style={styles.fieldLabel}>Assign Delivery Area</Text>
+                  <Text style={styles.fieldLabel}>Assign Delivery Route</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsRow}>
-                    {PREDEFINED_AREAS.map((area) => (
+                    {availableRoutes.map((area) => (
                       <TouchableOpacity
                         key={area}
                         style={[styles.pill, approveArea === area && styles.pillActive]}
