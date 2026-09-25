@@ -23,7 +23,7 @@ export type VendorTabParamList = {
 
 export type StaffTabParamList = {
   StaffDashboard: undefined;
-  TodayDeliveries: undefined;
+  TodayDeliveries: { filter?: 'PENDING' | 'DELIVERED' | 'ALL'; timestamp?: number } | undefined;
   DeliveryDetail: { orderId: string };
   ActualPayment: { orderId: string };
   CashSettlement: undefined;

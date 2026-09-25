@@ -28,7 +28,11 @@ const StaffHomeStack = () => (
 // 2. Deliveries Stack
 const StaffDeliveriesStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="TodayDeliveries" component={TodayDeliveriesScreen} />
+    <Stack.Screen
+      name="TodayDeliveries"
+      component={TodayDeliveriesScreen}
+      initialParams={{ filter: 'PENDING' }}
+    />
     <Stack.Screen name="DeliveryDetail" component={DeliveryDetailScreen} />
     <Stack.Screen name="ActualPayment" component={ActualPaymentScreen} />
   </Stack.Navigator>

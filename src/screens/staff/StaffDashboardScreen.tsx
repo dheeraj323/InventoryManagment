@@ -31,10 +31,16 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
   // Get assigned orders (excluding pending approval orders)
   const staffAssigned = getOrdersByStaff(staff.id);
   const assignedOrders = staffAssigned;
-  const completedDeliveries = assignedOrders.filter((o) => o.status === 'DELIVERED');
-  const pendingDeliveries = assignedOrders.filter(
-    (o) => o.status !== 'DELIVERED' && o.status !== 'CANCELLED' && o.status !== 'PENDING'
-  );
+  const isDeliveryCompleted = (status: string) =>
+    status === 'DELIVERED' || status === 'PARTIALLY_DELIVERED';
+  const isDeliveryPending = (status: string) =>
+    status !== 'DELIVERED' &&
+    status !== 'PARTIALLY_DELIVERED' &&
+    status !== 'CANCELLED' &&
+    status !== 'PENDING';
+
+  const completedDeliveries = assignedOrders.filter((o) => isDeliveryCompleted(o.status));
+  const pendingDeliveries = assignedOrders.filter((o) => isDeliveryPending(o.status));
 
   const pendingSettlement = settlements.find(
     (s) => s.staffId === staff.id && s.status === 'PENDING_VERIFICATION'
@@ -129,7 +135,7 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
             }
             onPress={() => {
               if (!isAllCompleted) {
-                navigation.navigate('TodayDeliveries');
+                navigation.navigate('TodayDeliveries', { filter: 'PENDING', timestamp: Date.now() });
               }
             }}
             icon={
@@ -157,7 +163,7 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
             </View>
           </View>
           <TouchableOpacity
-            onPress={() => navigation.navigate('TodayDeliveries')}
+            onPress={() => navigation.navigate('TodayDeliveries', { filter: 'ALL', timestamp: Date.now() })}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Text style={styles.seeAllText}>View All</Text>
