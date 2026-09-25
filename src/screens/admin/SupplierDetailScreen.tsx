@@ -629,7 +629,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
           {/* Bills FlatList */}
           <FlatList
             data={filteredBills}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item, index) => item.id || `bill-${index}`}
             contentContainerStyle={styles.billsListContainer}
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}

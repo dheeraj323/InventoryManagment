@@ -203,7 +203,7 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       {/* ── Vendor List ─────────────────────────────────────────── */}
       <FlatList
         data={filteredList}
-        keyExtractor={(item) => item.vendor.id}
+        keyExtractor={(item, index) => `${item.vendor.id || item.vendor.vendorId || 'vendor'}-${index}`}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={

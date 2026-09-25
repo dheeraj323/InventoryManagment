@@ -34,7 +34,14 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     set({ isLoading: true });
     try {
       const vendors = await vendorService.getVendors();
-      set({ vendors: vendors || [], isLoading: false });
+      const uniqueMap = new Map<string, Vendor>();
+      (vendors || []).forEach((v) => {
+        const key = v.id || v.vendorId;
+        if (key && !uniqueMap.has(key)) {
+          uniqueMap.set(key, v);
+        }
+      });
+      set({ vendors: Array.from(uniqueMap.values()), isLoading: false });
     } catch (err) {
       console.error('Error fetching vendors from Firestore:', err);
       set({ isLoading: false });
@@ -43,7 +50,14 @@ export const useVendorStore = create<VendorState>((set, get) => ({
 
   subscribeVendors: (vendorId?: string) => {
     return vendorService.subscribeVendors((firestoreVendors) => {
-      set({ vendors: firestoreVendors || [] });
+      const uniqueMap = new Map<string, Vendor>();
+      (firestoreVendors || []).forEach((v) => {
+        const key = v.id || v.vendorId;
+        if (key && !uniqueMap.has(key)) {
+          uniqueMap.set(key, v);
+        }
+      });
+      set({ vendors: Array.from(uniqueMap.values()) });
     }, vendorId);
   },
 
@@ -62,11 +76,29 @@ export const useVendorStore = create<VendorState>((set, get) => ({
         password: vendorData.password,
         adminName,
       });
-      set({ vendors: [vendor, ...get().vendors] });
+      set((state) => {
+        const uniqueMap = new Map<string, Vendor>();
+        const newKey = vendor.id || vendor.vendorId;
+        if (newKey) uniqueMap.set(newKey, vendor);
+        state.vendors.forEach((v) => {
+          const key = v.id || v.vendorId;
+          if (key && !uniqueMap.has(key)) uniqueMap.set(key, v);
+        });
+        return { vendors: Array.from(uniqueMap.values()) };
+      });
       return vendor;
     } else {
       const newVendor = await vendorService.addVendor(vendorData, adminName);
-      set({ vendors: [newVendor, ...get().vendors] });
+      set((state) => {
+        const uniqueMap = new Map<string, Vendor>();
+        const newKey = newVendor.id || newVendor.vendorId;
+        if (newKey) uniqueMap.set(newKey, newVendor);
+        state.vendors.forEach((v) => {
+          const key = v.id || v.vendorId;
+          if (key && !uniqueMap.has(key)) uniqueMap.set(key, v);
+        });
+        return { vendors: Array.from(uniqueMap.values()) };
+      });
       return newVendor;
     }
   },
