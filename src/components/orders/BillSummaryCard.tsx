@@ -36,12 +36,14 @@ export const BillSummaryCard: React.FC<BillSummaryCardProps> = ({
         </Text>
       </View>
 
-      <View style={styles.summaryRow}>
-        <Text style={styles.summaryLabel}>Tax / GST (5%)</Text>
-        <Text style={styles.summaryVal}>
-          ₹{tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-        </Text>
-      </View>
+      {tax > 0 && (
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Tax / GST</Text>
+          <Text style={styles.summaryVal}>
+            ₹{tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </Text>
+        </View>
+      )}
 
       <View style={styles.divider} />
 

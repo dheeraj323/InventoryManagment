@@ -16,8 +16,6 @@ import { useCartStore } from '../../store/useCartStore';
 import { useVendorStore } from '../../store/useVendorStore';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
-import { Button } from '../../components/common/Button';
-import { OrderCard } from '../../components/orders/OrderCard';
 import { colors, typography, spacing } from '../../theme';
 
 export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -44,7 +42,6 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
 
   const runningBalance = getPartyRunningBalance(effectiveVendorId);
   const vendorOrders = getOrdersByVendor(effectiveVendorId);
-  const recentOrders = vendorOrders.slice(0, 3);
   const cartCount = getItemCount();
 
   const isDue = runningBalance > 0;
@@ -56,7 +53,6 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    // Simulate brief pull-to-refresh sync
     setTimeout(() => {
       setIsRefreshing(false);
     }, 600);
@@ -109,10 +105,10 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
           <View style={styles.balanceHeader}>
             <View style={styles.balanceLabelCol}>
               <Text style={styles.balanceSectionLabel}>
-                {isDue ? 'NET OUTSTANDING DUE' : 'ACCOUNT STATUS'}
+                {isDue ? 'NET OUTSTANDING BALANCE' : 'ACCOUNT BALANCE STATUS'}
               </Text>
               <Text style={styles.balanceShopName} numberOfLines={1}>
-                {vendor.shopName} · Khata
+                {vendor.shopName} · Official Khata
               </Text>
             </View>
 
@@ -124,114 +120,125 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
           </View>
 
           <View style={styles.amountRow}>
-            <Text style={[styles.heroAmount, { color: balanceAccentColor }]}>
-              ₹{fmt(Math.abs(runningBalance))}
-            </Text>
+            <View>
+              <Text style={[styles.heroAmount, { color: balanceAccentColor }]}>
+                ₹{fmt(Math.abs(runningBalance))}
+              </Text>
+              <Text style={styles.amountSubtext}>
+                {isDue ? 'Total outstanding payable amount' : 'No overdue balance on your account'}
+              </Text>
+            </View>
+
             <TouchableOpacity
               style={styles.viewLedgerBtn}
               onPress={() => navigation.navigate('VendorLedgerTab')}
               activeOpacity={0.7}
             >
-              <Text style={styles.viewLedgerText}>View Khata</Text>
+              <Text style={styles.viewLedgerText}>View Statement</Text>
               <Ionicons name="arrow-forward" size={12} color={colors.accent} />
             </TouchableOpacity>
           </View>
         </Card>
 
-        {/* ── 3. Primary Order CTA ────────────────────────────────────── */}
-        <View style={styles.ctaContainer}>
-          <Button
-            title="Browse Catalogue & Place Order"
+        {/* ── 2. Primary Catalogue & Ordering Action Card ─────────────── */}
+        <Card
+          style={styles.orderHeroCard}
+          outlined
+          elevation="sm"
+          onPress={() => navigation.navigate('ProductCatalogTab')}
+        >
+          <View style={styles.orderHeroContent}>
+            <View style={styles.orderHeroIconBox}>
+              <Ionicons name="storefront" size={26} color={colors.primary} />
+            </View>
+            <View style={styles.orderHeroTextBox}>
+              <Text style={styles.orderHeroTitle}>Product Catalogue</Text>
+              <Text style={styles.orderHeroSub}>
+                Browse wholesale inventory, live stock availability & place store orders.
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.orderHeroButton}
             onPress={() => navigation.navigate('ProductCatalogTab')}
-            icon={<Ionicons name="storefront-outline" size={18} color={colors.textInverse} />}
-            size="lg"
-            style={styles.primaryCta}
-          />
+            activeOpacity={0.85}
+          >
+            <Ionicons name="cart-outline" size={18} color={colors.textInverse} />
+            <Text style={styles.orderHeroButtonText}>Browse & Place Order</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textInverse} />
+          </TouchableOpacity>
+        </Card>
+
+        {/* ── 3. Quick Navigation & Services ─────────────────────────── */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Dashboard Services</Text>
         </View>
 
-        {/* ── 5. Quick Navigation Tiles ───────────────────────────────── */}
-        <View style={styles.quickActionsGrid}>
+        <View style={styles.servicesStack}>
+          {/* Tile 1: Orders */}
           <TouchableOpacity
-            style={styles.quickActionCard}
+            style={styles.serviceItemCard}
             onPress={() => navigation.navigate('VendorOrdersTab')}
             activeOpacity={0.7}
           >
-            <View style={[styles.quickIconWrap, { backgroundColor: colors.accentLight }]}>
-              <Ionicons name="receipt-outline" size={18} color={colors.accent} />
+            <View style={[styles.serviceIconWrap, { backgroundColor: colors.accentLight }]}>
+              <Ionicons name="receipt-outline" size={22} color={colors.accent} />
             </View>
-            <Text style={styles.quickActionTitle}>Orders</Text>
-            <Text style={styles.quickActionSub}>{vendorOrders.length} placed</Text>
+            <View style={styles.serviceTextGroup}>
+              <Text style={styles.serviceTitle}>My Orders</Text>
+              <Text style={styles.serviceSubtitle}>
+                {vendorOrders.length === 1 ? '1 total order placed' : `${vendorOrders.length} total orders placed`}
+              </Text>
+            </View>
+            <View style={styles.serviceTrailing}>
+              <View style={styles.countTag}>
+                <Text style={styles.countTagText}>{vendorOrders.length}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </View>
           </TouchableOpacity>
 
+          {/* Tile 2: Khata Ledger */}
           <TouchableOpacity
-            style={styles.quickActionCard}
+            style={styles.serviceItemCard}
             onPress={() => navigation.navigate('VendorLedgerTab')}
             activeOpacity={0.7}
           >
-            <View style={[styles.quickIconWrap, { backgroundColor: colors.brandGreenLight }]}>
-              <Ionicons name="book-outline" size={18} color={colors.brandGreen} />
+            <View style={[styles.serviceIconWrap, { backgroundColor: colors.brandGreenLight }]}>
+              <Ionicons name="book-outline" size={22} color={colors.brandGreen} />
             </View>
-            <Text style={styles.quickActionTitle}>Khata Ledger</Text>
-            <Text style={styles.quickActionSub}>Statement & due</Text>
+            <View style={styles.serviceTextGroup}>
+              <Text style={styles.serviceTitle}>Khata Ledger</Text>
+              <Text style={styles.serviceSubtitle}>
+                Account statement, debit/credit records & receipts
+              </Text>
+            </View>
+            <View style={styles.serviceTrailing}>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </View>
           </TouchableOpacity>
 
+          {/* Tile 3: Store Profile */}
           <TouchableOpacity
-            style={styles.quickActionCard}
+            style={styles.serviceItemCard}
             onPress={() => navigation.navigate('VendorProfileTab')}
             activeOpacity={0.7}
           >
-            <View style={[styles.quickIconWrap, { backgroundColor: colors.surfaceSubtle }]}>
-              <Ionicons name="business-outline" size={18} color={colors.primary} />
+            <View style={[styles.serviceIconWrap, { backgroundColor: colors.surfaceSubtle }]}>
+              <Ionicons name="business-outline" size={22} color={colors.primary} />
             </View>
-            <Text style={styles.quickActionTitle}>Store Profile</Text>
-            <Text style={styles.quickActionSub}>Terms & address</Text>
+            <View style={styles.serviceTextGroup}>
+              <Text style={styles.serviceTitle}>Store Profile</Text>
+              <Text style={styles.serviceSubtitle}>
+                Registered contact, delivery address & account terms
+              </Text>
+            </View>
+            <View style={styles.serviceTrailing}>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </View>
           </TouchableOpacity>
         </View>
-
-        {/* ── 6. Recent Orders Section ────────────────────────────────── */}
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleGroup}>
-            <Text style={styles.sectionTitle}>Recent Orders</Text>
-            {vendorOrders.length > 0 && (
-              <View style={styles.orderCountBadge}>
-                <Text style={styles.orderCountBadgeText}>{vendorOrders.length}</Text>
-              </View>
-            )}
-          </View>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('VendorOrdersTab')}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.seeAll}>See all</Text>
-          </TouchableOpacity>
-        </View>
-
-        {recentOrders.length === 0 ? (
-          <Card style={styles.emptyBox} outlined>
-            <Ionicons name="receipt-outline" size={32} color={colors.textMuted} />
-            <Text style={styles.emptyTitle}>No Orders Placed Yet</Text>
-            <Text style={styles.emptySubtitle}>
-              Explore our dairy, staple, and wholesale catalog to place your first store order.
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyCtaBtn}
-              onPress={() => navigation.navigate('ProductCatalogTab')}
-            >
-              <Text style={styles.emptyCtaText}>Browse Catalog</Text>
-            </TouchableOpacity>
-          </Card>
-        ) : (
-          recentOrders.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              showVendorName={false}
-              onPress={() =>
-                navigation.navigate('VendorOrderDetail', { orderId: order.id })
-              }
-            />
-          ))
-        )}
 
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
@@ -292,20 +299,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    marginTop: spacing.xs,
+    marginTop: spacing.sm,
   },
   heroAmount: {
     ...typography.hero,
-    fontSize: 26,
-    lineHeight: 32,
+    fontSize: 28,
+    lineHeight: 34,
+  },
+  amountSubtext: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 11,
+    marginTop: 2,
   },
   viewLedgerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: colors.accentLight,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 5,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: 6,
     borderRadius: spacing.borderRadiusSm,
   },
   viewLedgerText: {
@@ -314,114 +327,117 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
 
-  // 3. CTA
-  ctaContainer: {
-    marginBottom: spacing.md,
-  },
-  primaryCta: {
-    backgroundColor: colors.primary,
+  // 2. Catalogue Hero Order Card
+  orderHeroCard: {
+    backgroundColor: colors.surface,
     borderRadius: spacing.borderRadiusLg,
-  },
-
-  // 5. Quick Actions Grid
-  quickActionsGrid: {
-    flexDirection: 'row',
-    gap: spacing.sm,
+    padding: spacing.lg,
     marginBottom: spacing.lg,
   },
-  quickActionCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: spacing.borderRadiusMd,
-    padding: spacing.md,
+  orderHeroContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+    gap: spacing.md,
+    marginBottom: spacing.md,
   },
-  quickIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  orderHeroIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.surfaceSubtle,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
   },
-  quickActionTitle: {
-    ...typography.captionBold,
+  orderHeroTextBox: {
+    flex: 1,
+  },
+  orderHeroTitle: {
+    ...typography.h3,
+    fontSize: 16,
     color: colors.textPrimary,
-    fontSize: 12,
   },
-  quickActionSub: {
+  orderHeroSub: {
     ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 10,
-    marginTop: 1,
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  orderHeroButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: spacing.lg,
+    borderRadius: spacing.borderRadiusMd,
+  },
+  orderHeroButtonText: {
+    ...typography.bodyBold,
+    color: colors.textInverse,
+    fontSize: 14,
   },
 
-  // 6. Section Header
+  // 3. Section Header & Services Stack
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: spacing.sm + 2,
-  },
-  sectionTitleGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
   },
   sectionTitle: {
     ...typography.h3,
     fontSize: 16,
     color: colors.textPrimary,
   },
-  orderCountBadge: {
+  servicesStack: {
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  serviceItemCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    borderRadius: spacing.borderRadiusLg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.md,
+  },
+  serviceIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  serviceTextGroup: {
+    flex: 1,
+  },
+  serviceTitle: {
+    ...typography.bodyBold,
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  serviceSubtitle: {
+    ...typography.caption,
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  serviceTrailing: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  countTag: {
     backgroundColor: colors.surfaceSubtle,
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: spacing.borderRadiusFull,
   },
-  orderCountBadgeText: {
+  countTagText: {
     ...typography.captionBold,
     color: colors.textSecondary,
-    fontSize: 10,
-  },
-  seeAll: {
-    ...typography.captionBold,
-    color: colors.accent,
-    fontSize: 12,
-  },
-
-  // Empty state
-  emptyBox: {
-    alignItems: 'center',
-    paddingVertical: spacing.xxl,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: colors.surface,
-    borderRadius: spacing.borderRadiusLg,
-  },
-  emptyTitle: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    marginTop: spacing.sm,
-  },
-  emptySubtitle: {
-    ...typography.caption,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: 4,
-    marginBottom: spacing.md,
-    lineHeight: 18,
-  },
-  emptyCtaBtn: {
-    backgroundColor: colors.accentLight,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 8,
-    borderRadius: spacing.borderRadiusMd,
-  },
-  emptyCtaText: {
-    ...typography.captionBold,
-    color: colors.accent,
+    fontSize: 11,
   },
 
   // Cart button

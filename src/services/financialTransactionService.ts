@@ -33,6 +33,7 @@ import {
   PaymentMethod,
   OrderStatus,
 } from '../types';
+import { BUSINESS_RULES } from '../constants/rules';
 
 const ORDERS_COLLECTION = 'orders';
 const VENDORS_COLLECTION = 'vendors';
@@ -146,7 +147,7 @@ export const financialTransactionService = {
         (sum, item) => sum + item.deliveredQty * item.unitPrice,
         0
       );
-      const TAX_RATE = 0.05;
+      const TAX_RATE = BUSINESS_RULES.TAX_RATE || 0;
       const newTax = newSubtotal * TAX_RATE;
       const newTotalAmount = newSubtotal + newTax;
 

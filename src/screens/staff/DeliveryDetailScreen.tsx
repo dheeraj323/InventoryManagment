@@ -19,7 +19,7 @@ import {
   PaymentCollectionButton,
 } from '../../components/orders';
 import { OrderItem } from '../../types';
-import { PAYMENT_METHOD_LABELS } from '../../constants/rules';
+import { PAYMENT_METHOD_LABELS, BUSINESS_RULES } from '../../constants/rules';
 import { formatDate, formatDateTime } from '../../utils/dateFormatter';
 import { colors, typography, spacing } from '../../theme';
 
@@ -76,7 +76,7 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
     (sum, item) => sum + item.deliveredQty * item.unitPrice,
     0
   );
-  const calculatedTax = calculatedSubtotal * 0.05;
+  const calculatedTax = calculatedSubtotal * (BUSINESS_RULES.TAX_RATE || 0);
   const calculatedTotal = calculatedSubtotal + calculatedTax;
 
   const hasMissingOrDamaged = items.some((i) => i.missingDamagedQty > 0);
@@ -158,12 +158,14 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
               </Text>
             </View>
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>GST / Tax (5%)</Text>
-              <Text style={styles.summaryVal}>
-                ₹{order.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-              </Text>
-            </View>
+            {order.tax > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>GST / Tax</Text>
+                <Text style={styles.summaryVal}>
+                  ₹{order.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </Text>
+              </View>
+            )}
 
             <View style={styles.divider} />
 

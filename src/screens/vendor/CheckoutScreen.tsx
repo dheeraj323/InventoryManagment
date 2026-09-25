@@ -117,6 +117,19 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   if (placedOrder) {
     const itemCount = placedOrder.items.reduce((s, i) => s + i.orderedQty, 0);
 
+    const handleGoToDashboard = () => {
+      try {
+        navigation.popToTop();
+      } catch {
+        // fallback
+      }
+      navigation.navigate('VendorDashboardTab');
+    };
+
+    const handleViewOrderDetails = () => {
+      navigation.replace('VendorOrderDetail', { orderId: placedOrder.id });
+    };
+
     return (
       <SafeAreaView style={styles.container}>
         <Header
@@ -178,25 +191,11 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             <View style={styles.totalRow}>
               <View>
                 <Text style={styles.totalLabel}>Total Amount</Text>
-                <Text style={styles.totalSub}>Inclusive of GST</Text>
+                <Text style={styles.totalSub}>Final Order Amount</Text>
               </View>
               <Text style={styles.totalVal}>
                 ₹{placedOrder.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </Text>
-            </View>
-          </Card>
-
-          {/* Delivery Store Card */}
-          <Card style={styles.card} outlined elevation="sm">
-            <Text style={styles.cardTitle}>DELIVERY ADDRESS</Text>
-            <View style={styles.deliveryShopRow}>
-              <Ionicons name="business-outline" size={18} color={colors.primary} />
-              <Text style={styles.deliveryShopName}>{placedOrder.shopName || vendor.shopName}</Text>
-            </View>
-            <Text style={styles.deliveryAddressText}>{placedOrder.address || vendor.address || 'Standard Registered Store Address'}</Text>
-            <View style={styles.deliveryContactRow}>
-              <Ionicons name="call-outline" size={14} color={colors.textSecondary} />
-              <Text style={styles.deliveryPhoneText}>{placedOrder.phone || vendor.phone}</Text>
             </View>
           </Card>
 
@@ -207,14 +206,14 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         <View style={styles.successFooterContainer}>
           <Button
             title="Go to Dashboard"
-            onPress={() => navigation.navigate('VendorDashboardTab')}
+            onPress={handleGoToDashboard}
             size="lg"
             icon={<Ionicons name="home-outline" size={18} color={colors.textInverse} />}
           />
           <Button
             title="View Order Details"
             variant="outline"
-            onPress={() => navigation.navigate('VendorOrderDetail', { orderId: placedOrder.id })}
+            onPress={handleViewOrderDetails}
             size="lg"
             style={styles.viewOrderBtn}
             icon={<Ionicons name="receipt-outline" size={18} color={colors.primary} />}
@@ -349,19 +348,21 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             </Text>
           </View>
 
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>GST / Tax</Text>
-            <Text style={styles.infoVal}>
-              ₹{tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-            </Text>
-          </View>
+          {tax > 0 && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>GST / Tax</Text>
+              <Text style={styles.infoVal}>
+                ₹{tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </Text>
+            </View>
+          )}
 
           <View style={styles.divider} />
 
           <View style={styles.totalRow}>
             <View>
               <Text style={styles.totalLabel}>Grand Total</Text>
-              <Text style={styles.totalSub}>Inclusive of all taxes</Text>
+              <Text style={styles.totalSub}>Final payable amount</Text>
             </View>
             <Text style={styles.totalVal}>
               ₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}

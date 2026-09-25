@@ -142,10 +142,12 @@ export const VendorOrderDetailScreen: React.FC<{ route: any; navigation: any }> 
             <Text style={styles.infoLabel}>Subtotal</Text>
             <Text style={styles.infoVal}>₹{order.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Tax / GST (5%)</Text>
-            <Text style={styles.infoVal}>₹{order.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
-          </View>
+          {order.tax > 0 && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Tax / GST</Text>
+              <Text style={styles.infoVal}>₹{order.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+            </View>
+          )}
           <View style={[styles.infoRow, styles.totalRow]}>
             <Text style={styles.totalLabel}>Total Invoice Amount</Text>
             <Text style={styles.totalVal}>₹{order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>

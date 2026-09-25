@@ -137,19 +137,21 @@ export const CartScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </Text>
           </View>
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>GST / Tax ({Math.round(BUSINESS_RULES.TAX_RATE * 100)}%)</Text>
-            <Text style={styles.summaryVal}>
-              ₹{tax.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </Text>
-          </View>
+          {tax > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>GST / Tax ({Math.round(BUSINESS_RULES.TAX_RATE * 100)}%)</Text>
+              <Text style={styles.summaryVal}>
+                ₹{tax.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </Text>
+            </View>
+          )}
 
           <View style={styles.divider} />
 
           <View style={styles.totalRow}>
             <View>
               <Text style={styles.totalLabel}>Estimated Total</Text>
-              <Text style={styles.totalSub}>Inclusive of taxes</Text>
+              <Text style={styles.totalSub}>Final order amount</Text>
             </View>
             <Text style={styles.totalVal}>
               ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Order, OrderStatus, PaymentMethod, OrderItem, LedgerEntry } from '../types';
 import { orderService } from '../services/orderService';
+import { BUSINESS_RULES } from '../constants/rules';
 import { useVendorStore } from './useVendorStore';
 import { useLedgerStore } from './useLedgerStore';
 
@@ -115,7 +116,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       (sum, item) => sum + item.deliveredQty * item.unitPrice,
       0
     );
-    const newTax = newSubtotal * 0.05;
+    const newTax = newSubtotal * (BUSINESS_RULES.TAX_RATE || 0);
     const newTotalAmount = newSubtotal + newTax;
 
     const hasMissingOrDamaged = updatedItems.some(

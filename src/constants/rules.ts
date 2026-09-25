@@ -1,5 +1,5 @@
 export const BUSINESS_RULES = {
-  TAX_RATE: 0.05, // 5% GST/Tax
+  TAX_RATE: 0.0, // 0% GST/Tax (no extra GST)
 };
 
 export const PAYMENT_METHOD_LABELS = {
