@@ -45,6 +45,18 @@ export type AdminTabParamList = {
   AdminOrders: { initialFilter?: string; status?: string } | undefined;
   AdminOrderDetail: { orderId: string; hideVendorProfile?: boolean };
   Inventory: undefined;
+  Supplier: undefined;
+  SupplierDetail: {
+    supplierId: string;
+    initialTab?: 'OVERVIEW' | 'PRODUCTS' | 'BILLS';
+  };
+  AddSupplierBill: {
+    supplierId: string;
+  };
+  SupplierBillDetail: {
+    supplierId: string;
+    billId: string;
+  };
   AdminFinance: undefined;
   AuditHistory: undefined;
   StaffSettlements: undefined;

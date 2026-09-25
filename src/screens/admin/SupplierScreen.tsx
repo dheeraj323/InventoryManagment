@@ -101,17 +101,9 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   };
 
   const openSupplierDetail = (supplier: Supplier) => {
-    setSelectedSupplier(supplier);
-    setModalMode('DETAILS');
-    setAmount('');
-    setReference('');
-    setNotes('');
-    setActionError('');
-    setEditName(supplier.name);
-    setEditContact(supplier.contactPerson || '');
-    setEditPhone(supplier.phone || '');
-    setEditEmail(supplier.email || '');
+    navigation.navigate('SupplierDetail', { supplierId: supplier.id });
   };
+
 
   const handleAddSupplier = async () => {
     if (!name.trim()) {

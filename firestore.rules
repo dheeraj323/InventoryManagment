@@ -78,7 +78,18 @@ service cloud.firestore {
     // ── SUPPLIERS Collection (Confidential: Admin Only) ────────────────
     match /suppliers/{supplierId} {
       allow read, write: if isAdmin();
+
+      match /bills/{billId} {
+        allow read, write: if isAdmin();
+
+        match /history/{historyId} {
+          allow read: if isAdmin();
+          allow create: if isAdmin();
+          allow update, delete: if false; // Immutable audit trail
+        }
+      }
     }
+
 
     // ── ORDERS Collection ──────────────────────────────────────────────
     match /orders/{orderId} {

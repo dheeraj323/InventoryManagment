@@ -363,3 +363,82 @@ export interface AppNotification {
   type: 'ORDER' | 'PAYMENT' | 'INVENTORY' | 'SETTLEMENT';
   createdAt?: string;
 }
+
+// ─── Supplier Bill & History Types ──────────────────────────────────────────
+
+export type BillPaymentStatus = 'PAID' | 'PENDING' | 'PARTIALLY_PAID';
+
+export interface SupplierBillItem {
+  id?: string;
+  productId?: string;
+  productName: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  amount: number;
+}
+
+export type BillAuditAction =
+  | 'CREATED'
+  | 'UPDATED'
+  | 'PAYMENT_UPDATED'
+  | 'ATTACHMENT_REPLACED'
+  | 'DELETED';
+
+export interface BillAuditRecord {
+  id: string;
+  billId: string;
+  supplierId?: string;
+  action: BillAuditAction;
+  field?: string;
+  oldValue?: any;
+  newValue?: any;
+  description: string;
+  changedBy: string;
+  changedByName?: string;
+  changedAt: string;
+}
+
+export interface SupplierBill {
+  id: string;
+  billId?: string;
+  supplierId: string;
+  supplierName?: string;
+  userId: string;
+  createdByName?: string;
+  invoiceNumber: string;
+  billDate: string; // YYYY-MM-DD
+  uploadedAt?: string;
+  subtotal: number;
+  tax: number;
+  discount: number;
+  totalAmount: number;
+  paymentStatus: BillPaymentStatus;
+  paidAmount?: number;
+  cloudinaryUrl?: string;
+  cloudinaryPublicId?: string;
+  fileName?: string;
+  fileType?: string;
+  fileSize?: number;
+  notes?: string;
+  items: SupplierBillItem[];
+  isDeleted?: boolean;
+  deletedAt?: string;
+  deletedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SupplierPurchaseStats {
+  totalBills: number;
+  totalPurchases: number;
+  currentMonthPurchases: number;
+  currentYearPurchases: number;
+  lastPurchaseDate?: string;
+  averageBillValue: number;
+  totalProductsCount: number;
+  outstandingAmount: number;
+  paidBillsCount: number;
+  pendingBillsCount: number;
+}
+
