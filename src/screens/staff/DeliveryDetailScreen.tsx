@@ -8,6 +8,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useOrderStore } from '../../store/useOrderStore';
+import { useVendorStore } from '../../store/useVendorStore';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { StatusBadge } from '../../components/common/StatusBadge';
@@ -29,7 +30,14 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
 }) => {
   const { orderId } = route.params || {};
   const { getOrderById } = useOrderStore();
+  const { getVendorById } = useVendorStore();
   const order = getOrderById(orderId);
+  const vendor = order ? getVendorById(order.vendorId) : undefined;
+
+  const effectiveAddress = order?.address || vendor?.address || '';
+  const effectiveLocationUrl = order?.locationUrl || vendor?.locationUrl;
+  const effectiveLatitude = order?.latitude !== undefined ? order.latitude : vendor?.latitude;
+  const effectiveLongitude = order?.longitude !== undefined ? order.longitude : vendor?.longitude;
 
   const [items, setItems] = useState<OrderItem[]>(order ? order.items : []);
 
@@ -126,8 +134,11 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
           {/* 2. Customer & Address Profile */}
           <DeliveryAddressCard
             shopName={order.shopName}
-            address={order.address}
+            address={effectiveAddress}
             phone={order.phone}
+            locationUrl={effectiveLocationUrl}
+            latitude={effectiveLatitude}
+            longitude={effectiveLongitude}
           />
 
           {/* 3. Delivered Items Summary */}
@@ -211,8 +222,11 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
         {/* 1. Vendor Address & Phone Action */}
         <DeliveryAddressCard
           shopName={order.shopName}
-          address={order.address}
+          address={effectiveAddress}
           phone={order.phone}
+          locationUrl={effectiveLocationUrl}
+          latitude={effectiveLatitude}
+          longitude={effectiveLongitude}
         />
 
         {/* 2. Quantity Verification List */}

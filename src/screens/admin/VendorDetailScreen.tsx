@@ -30,6 +30,7 @@ import { LedgerRow } from '../../components/ledger/LedgerRow';
 import { TransactionDetailModal } from '../../components/ledger/TransactionDetailModal';
 import { formatTransaction } from '../../utils/transactionFormatter';
 import { RecordPaymentModal } from '../../components/vendor/RecordPaymentModal';
+import { GoogleMapsLocationPicker } from '../../components/common/GoogleMapsLocationPicker';
 import {
   Vendor,
   VendorStatus,
@@ -62,6 +63,7 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
     getVendorById,
     recordDirectPayment,
     updateVendorPassword,
+    updateVendorProfile,
   } = useVendorStore();
   const { getLedgerForParty, getVendorAccountSummary } =
     useLedgerStore();
@@ -391,6 +393,29 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
                 <Ionicons name="map-outline" size={16} color={colors.textMuted} />
                 <Text style={styles.infoLabel}>Address</Text>
                 <Text style={styles.infoVal}>{vendor.address || 'Not provided'}</Text>
+              </View>
+
+              <View style={{ marginTop: spacing.sm }}>
+                <GoogleMapsLocationPicker
+                  locationUrl={vendor.locationUrl || ''}
+                  latitude={vendor.latitude}
+                  longitude={vendor.longitude}
+                  address={vendor.address}
+                  shopName={vendor.shopName}
+                  editable={true}
+                  onChangeLocation={async (locData) => {
+                    try {
+                      await updateVendorProfile(vendor.id || vendorId, {
+                        locationUrl: locData.locationUrl,
+                        latitude: locData.latitude,
+                        longitude: locData.longitude,
+                      });
+                      Alert.alert('Success', 'Vendor Google Maps location updated.');
+                    } catch (err: any) {
+                      Alert.alert('Error', err.message || 'Could not update vendor location.');
+                    }
+                  }}
+                />
               </View>
             </Card>
 

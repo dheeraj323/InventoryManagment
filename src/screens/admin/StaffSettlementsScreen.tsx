@@ -34,7 +34,7 @@ interface StaffCashItem {
 
 export const StaffSettlementsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { settlements, verifySettlement, getStaffCashInHand, subscribeSettlements } = useCashStore();
-  const { staffList, subscribeStaff } = useStaffStore();
+  const { staffList, subscribeStaff, unsubscribeStaff } = useStaffStore();
   const { orders, subscribeToOrders } = useOrderStore();
   const { currentUser } = useAuthStore();
 
@@ -45,11 +45,11 @@ export const StaffSettlementsScreen: React.FC<{ navigation: any }> = ({ navigati
   const debouncedSearch = useDebounce(search, 300);
 
   useEffect(() => {
-    const unsubStaff = subscribeStaff();
+    subscribeStaff();
     const unsubOrders = subscribeToOrders();
     const unsubSettlements = subscribeSettlements();
     return () => {
-      if (unsubStaff) unsubStaff();
+      unsubscribeStaff();
       if (unsubOrders) unsubOrders();
       if (unsubSettlements) unsubSettlements();
     };

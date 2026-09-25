@@ -315,7 +315,7 @@ export const SalaryPayrollPanel: React.FC<SalaryPayrollPanelProps> = ({
     <View style={styles.container}>
       {/* 1. Month Navigator Bar */}
       <View style={styles.monthBar}>
-        <TouchableOpacity onPress={handlePrevDay ? handlePrevMonth : handlePrevMonth} style={styles.monthNavBtn}>
+        <TouchableOpacity onPress={handlePrevMonth} style={styles.monthNavBtn}>
           <Ionicons name="chevron-back" size={20} color={colors.primary} />
         </TouchableOpacity>
 

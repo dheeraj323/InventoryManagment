@@ -16,6 +16,7 @@ import { useVendorStore } from '../../store/useVendorStore';
 import { Header } from '../../components/common/Header';
 import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
+import { GoogleMapsLocationPicker } from '../../components/common/GoogleMapsLocationPicker';
 import { colors, spacing } from '../../theme';
 
 export const ProfileScreen: React.FC = () => {
@@ -34,6 +35,15 @@ export const ProfileScreen: React.FC = () => {
   const [phone, setPhone] = useState(currentUser?.phone || vendor?.phone || '');
   const [address, setAddress] = useState(
     currentUser?.address || vendor?.address || ''
+  );
+  const [locationUrl, setLocationUrl] = useState(
+    currentUser?.locationUrl || vendor?.locationUrl || ''
+  );
+  const [latitude, setLatitude] = useState<number | undefined>(
+    currentUser?.latitude !== undefined ? currentUser.latitude : vendor?.latitude
+  );
+  const [longitude, setLongitude] = useState<number | undefined>(
+    currentUser?.longitude !== undefined ? currentUser.longitude : vendor?.longitude
   );
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{
@@ -58,6 +68,9 @@ export const ProfileScreen: React.FC = () => {
     setShopName(currentUser?.businessName || vendor?.shopName || '');
     setPhone(currentUser?.phone || vendor?.phone || '');
     setAddress(currentUser?.address || vendor?.address || '');
+    setLocationUrl(currentUser?.locationUrl || vendor?.locationUrl || '');
+    setLatitude(currentUser?.latitude !== undefined ? currentUser.latitude : vendor?.latitude);
+    setLongitude(currentUser?.longitude !== undefined ? currentUser.longitude : vendor?.longitude);
   }, [currentUser, vendor]);
 
   const handleSave = async () => {
@@ -78,6 +91,9 @@ export const ProfileScreen: React.FC = () => {
         businessName: shopName.trim(),
         phone: phone.trim(),
         address: address.trim(),
+        locationUrl: locationUrl.trim(),
+        latitude,
+        longitude,
       });
 
       // 2. Synchronize vendor record in Firestore
@@ -89,13 +105,16 @@ export const ProfileScreen: React.FC = () => {
             shopName: shopName.trim(),
             phone: phone.trim(),
             address: address.trim(),
+            locationUrl: locationUrl.trim(),
+            latitude,
+            longitude,
           },
           name.trim()
         );
       }
 
       setIsEditing(false);
-      showToast('Profile updated successfully!', 'success');
+      showToast('Profile and Google Maps location updated successfully!', 'success');
     } catch (err: any) {
       showToast(err.message || 'Could not save profile changes.', 'error');
     } finally {
@@ -108,6 +127,9 @@ export const ProfileScreen: React.FC = () => {
     setShopName(currentUser?.businessName || vendor?.shopName || '');
     setPhone(currentUser?.phone || vendor?.phone || '');
     setAddress(currentUser?.address || vendor?.address || '');
+    setLocationUrl(currentUser?.locationUrl || vendor?.locationUrl || '');
+    setLatitude(currentUser?.latitude !== undefined ? currentUser.latitude : vendor?.latitude);
+    setLongitude(currentUser?.longitude !== undefined ? currentUser.longitude : vendor?.longitude);
     setIsEditing(false);
   };
 
@@ -277,6 +299,20 @@ export const ProfileScreen: React.FC = () => {
                   multiline
                 />
 
+                <GoogleMapsLocationPicker
+                  locationUrl={locationUrl}
+                  latitude={latitude}
+                  longitude={longitude}
+                  address={address}
+                  shopName={shopName}
+                  editable={true}
+                  onChangeLocation={(locData) => {
+                    setLocationUrl(locData.locationUrl);
+                    setLatitude(locData.latitude);
+                    setLongitude(locData.longitude);
+                  }}
+                />
+
                 <View style={styles.editActionRow}>
                   <Button
                     title="Cancel"
@@ -330,9 +366,20 @@ export const ProfileScreen: React.FC = () => {
                   </Text>
                 </View>
 
-                <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+                <View style={styles.infoRow}>
                   <Text style={styles.infoLabel}>Shop Address</Text>
                   <Text style={styles.infoValue}>{displayAddress}</Text>
+                </View>
+
+                <View style={{ marginTop: spacing.sm }}>
+                  <GoogleMapsLocationPicker
+                    locationUrl={locationUrl}
+                    latitude={latitude}
+                    longitude={longitude}
+                    address={displayAddress}
+                    shopName={displayShopName}
+                    editable={false}
+                  />
                 </View>
               </View>
             )}

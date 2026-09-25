@@ -16,6 +16,9 @@ export interface User {
   businessName?: string;
   area?: string;
   address?: string;
+  locationUrl?: string;
+  latitude?: number;
+  longitude?: number;
   avatarUrl?: string;
   passwordManagedByAdmin?: boolean;
   customPassword?: string;
@@ -36,6 +39,9 @@ export interface Vendor {
   phone: string;
   email?: string;
   address?: string;
+  locationUrl?: string;
+  latitude?: number;
+  longitude?: number;
   area?: string;
   vendorType?: string; // e.g. "Retailer", "Supermarket", "Kirana Store", "Wholesaler"
   paymentTerms?: string; // e.g. "Net 15 Days", "Payment On Delivery", "Weekly"
@@ -156,6 +162,9 @@ export interface Order {
   shopName: string;
   phone: string;
   address: string;
+  locationUrl?: string;
+  latitude?: number;
+  longitude?: number;
   items: OrderItem[];
   subtotal: number;
   tax: number;

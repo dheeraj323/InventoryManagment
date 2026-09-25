@@ -18,6 +18,7 @@ import { OrderItemRow } from '../../components/orders/OrderItemRow';
 import { DispatchStaffModal } from '../../components/orders/DispatchStaffModal';
 import { OrderStatus, Staff } from '../../types';
 import { formatDate } from '../../utils/dateFormatter';
+import { openGoogleMapsView } from '../../utils/locationUtils';
 import { colors, typography, spacing } from '../../theme';
 
 export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> = ({
@@ -217,9 +218,28 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
           <Card style={styles.card} outlined elevation="sm">
             <Text style={styles.cardTitle}>CUSTOMER VENDOR PROFILE</Text>
             <Text style={styles.shopName}>{order.shopName}</Text>
-            <Text style={styles.detailText}>Proprietor: {order.vendorName}</Text>
-            <Text style={styles.detailText}>Phone: {order.phone}</Text>
             {Boolean(order.address) && <Text style={styles.detailText}>Address: {order.address}</Text>}
+            {(Boolean(order.locationUrl) || (order.latitude !== undefined && order.longitude !== undefined)) && (
+              <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#DEF7EC', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                  <Ionicons name="location" size={13} color={colors.brandGreen} />
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.brandGreen }}>Maps Pin Linked</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => openGoogleMapsView({
+                    latitude: order.latitude,
+                    longitude: order.longitude,
+                    locationUrl: order.locationUrl,
+                    address: order.address,
+                    shopName: order.shopName,
+                  })}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 3 }}
+                >
+                  <Ionicons name="eye-outline" size={13} color={colors.primary} />
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>View on Google Maps</Text>
+                </TouchableOpacity>
+              </View>
+            )}
             <Text style={styles.detailText}>Delivery Date: {formatDate(order.deliveryDate)}</Text>
           </Card>
         )}

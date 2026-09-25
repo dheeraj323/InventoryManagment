@@ -13,6 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Input } from '../common/Input';
 import { Button } from '../common/Button';
+import { GoogleMapsLocationPicker } from '../common/GoogleMapsLocationPicker';
 import { Vendor, VendorStatus } from '../../types';
 import { colors, typography, spacing } from '../../theme';
 
@@ -31,6 +32,9 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
   const [ownerName, setOwnerName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [locationUrl, setLocationUrl] = useState('');
+  const [latitude, setLatitude] = useState<number | undefined>();
+  const [longitude, setLongitude] = useState<number | undefined>();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -81,6 +85,9 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
         ownerName: ownerName.trim(),
         phone: phone.trim(),
         address: address.trim(),
+        locationUrl: locationUrl.trim() || undefined,
+        latitude,
+        longitude,
         username: username.trim().toLowerCase().replace(/\s+/g, '_'),
         password: password,
         openingBalance: 0,
@@ -98,6 +105,9 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
       setOwnerName('');
       setPhone('');
       setAddress('');
+      setLocationUrl('');
+      setLatitude(undefined);
+      setLongitude(undefined);
       setUsername('');
       setPassword('');
       setShowPassword(false);
@@ -188,6 +198,20 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
                     label="Address / Location (Optional)"
                     value={address}
                     onChangeText={setAddress}
+                  />
+
+                  <GoogleMapsLocationPicker
+                    locationUrl={locationUrl}
+                    latitude={latitude}
+                    longitude={longitude}
+                    address={address}
+                    shopName={shopName}
+                    editable={true}
+                    onChangeLocation={(locData) => {
+                      setLocationUrl(locData.locationUrl);
+                      setLatitude(locData.latitude);
+                      setLongitude(locData.longitude);
+                    }}
                   />
 
                   {/* Section 2: Login Credentials */}

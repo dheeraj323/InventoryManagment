@@ -59,6 +59,12 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           <Text style={styles.vendorName} numberOfLines={1}>
             {order.shopName} · {order.vendorName}
           </Text>
+          {Boolean(order.locationUrl || (order.latitude && order.longitude)) && (
+            <View style={styles.mapPinBadge}>
+              <Ionicons name="location" size={11} color={colors.brandGreen} />
+              <Text style={styles.mapPinText}>Map</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -157,6 +163,21 @@ const styles = StyleSheet.create({
     ...typography.captionBold,
     color: colors.textPrimary,
     flex: 1,
+  },
+  mapPinBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: '#DEF7EC',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 4,
+  },
+  mapPinText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.brandGreen,
   },
   itemsSummary: {
     ...typography.caption,

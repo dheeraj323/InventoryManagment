@@ -148,8 +148,18 @@ export const orderService = {
         }
       }
 
+      const vendor = vendorSnap.exists() ? (vendorSnap.data() as Vendor) : null;
+      const finalAddress = orderData.address || vendor?.address || '';
+      const finalLocationUrl = orderData.locationUrl || vendor?.locationUrl || undefined;
+      const finalLat = orderData.latitude !== undefined ? orderData.latitude : vendor?.latitude;
+      const finalLng = orderData.longitude !== undefined ? orderData.longitude : vendor?.longitude;
+
       const newOrder: Order = {
         ...orderData,
+        address: finalAddress,
+        locationUrl: finalLocationUrl,
+        latitude: finalLat,
+        longitude: finalLng,
         id: newOrderRef.id,
         orderId: newOrderRef.id,
         orderNumber,

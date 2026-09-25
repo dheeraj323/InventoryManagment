@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,8 +18,10 @@ import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
 import { EmptyState } from '../../components/common/EmptyState';
+import { GoogleMapsLocationPicker } from '../../components/common/GoogleMapsLocationPicker';
 import { Order, PaymentMethod } from '../../types';
 import { formatDate } from '../../utils/dateFormatter';
+import { openGoogleMapsView } from '../../utils/locationUtils';
 import { colors, typography, spacing } from '../../theme';
 
 export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -38,6 +40,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     shopName: 'Apex Supermarket',
     phone: '+91 99887 76655',
     address: 'Shop #12, Central Market, Sector 14, City',
+    locationUrl: '',
     area: 'Sector 14',
     currentBalance: 3450,
     payLaterEligible: true,
@@ -53,6 +56,41 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const [selectedPaymentMode, setSelectedPaymentMode] = useState<PaymentMethod>(
     vendor.preferredPaymentMode || 'PAY_LATER'
   );
+  const [deliveryAddress, setDeliveryAddress] = useState(
+    vendor.address || currentUser?.address || 'Shop Address'
+  );
+  const [locationUrl, setLocationUrl] = useState(
+    vendor.locationUrl || currentUser?.locationUrl || ''
+  );
+  const [latitude, setLatitude] = useState<number | undefined>(
+    vendor.latitude !== undefined ? vendor.latitude : currentUser?.latitude
+  );
+  const [longitude, setLongitude] = useState<number | undefined>(
+    vendor.longitude !== undefined ? vendor.longitude : currentUser?.longitude
+  );
+  const [showLocationEditor, setShowLocationEditor] = useState(false);
+
+  // Synchronize state when vendor or currentUser profile is loaded or updated
+  useEffect(() => {
+    const currentActualAddress = vendor.address || currentUser?.address || '';
+    const currentActualLocationUrl = vendor.locationUrl || currentUser?.locationUrl || '';
+    const currentActualLat = vendor.latitude !== undefined ? vendor.latitude : currentUser?.latitude;
+    const currentActualLng = vendor.longitude !== undefined ? vendor.longitude : currentUser?.longitude;
+
+    if (currentActualAddress && (!deliveryAddress || deliveryAddress === 'Shop Address')) {
+      setDeliveryAddress(currentActualAddress);
+    }
+    if (currentActualLocationUrl && !locationUrl) {
+      setLocationUrl(currentActualLocationUrl);
+    }
+    if (currentActualLat !== undefined && latitude === undefined) {
+      setLatitude(currentActualLat);
+    }
+    if (currentActualLng !== undefined && longitude === undefined) {
+      setLongitude(currentActualLng);
+    }
+  }, [vendor.address, vendor.locationUrl, vendor.latitude, vendor.longitude, currentUser?.address, currentUser?.locationUrl, currentUser?.latitude, currentUser?.longitude]);
+
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   // Warn (not block) when PAY_LATER order exceeds vendor credit limit
@@ -81,12 +119,20 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     }
 
     try {
+      const finalAddress = deliveryAddress.trim() || vendor.address || currentUser?.address || '';
+      const finalLocationUrl = locationUrl.trim() || vendor.locationUrl || currentUser?.locationUrl || undefined;
+      const finalLat = latitude !== undefined ? latitude : vendor.latitude !== undefined ? vendor.latitude : currentUser?.latitude;
+      const finalLng = longitude !== undefined ? longitude : vendor.longitude !== undefined ? vendor.longitude : currentUser?.longitude;
+
       const newOrder = await createOrder({
         vendorId: vendor.id,
         vendorName: vendor.name,
         shopName: vendor.shopName,
         phone: vendor.phone,
-        address: vendor.address || '',
+        address: finalAddress,
+        locationUrl: finalLocationUrl,
+        latitude: finalLat,
+        longitude: finalLng,
         items: [...items],
         subtotal,
         tax,
@@ -186,6 +232,30 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               <Text style={styles.infoVal}>{PAYMENT_METHOD_LABELS[placedOrder.preferredPaymentMode] || placedOrder.preferredPaymentMode}</Text>
             </View>
 
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Delivery Address</Text>
+              <Text style={styles.infoVal} numberOfLines={1}>{placedOrder.address}</Text>
+            </View>
+
+            {(placedOrder.locationUrl || (placedOrder.latitude && placedOrder.longitude)) ? (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Google Maps Pin</Text>
+                <TouchableOpacity
+                  onPress={() => openGoogleMapsView({
+                    latitude: placedOrder.latitude,
+                    longitude: placedOrder.longitude,
+                    locationUrl: placedOrder.locationUrl,
+                    address: placedOrder.address,
+                    shopName: placedOrder.shopName,
+                  })}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                >
+                  <Ionicons name="location" size={14} color={colors.brandGreen} />
+                  <Text style={[styles.infoVal, { color: colors.primary, fontWeight: '600' }]}>View Pin</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
             <View style={styles.divider} />
 
             <View style={styles.totalRow}>
@@ -284,6 +354,79 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </Text>
             </View>
           ))}
+        </Card>
+
+        {/* Delivery Address & Google Maps Location Card */}
+        <Card style={styles.card} outlined elevation="sm">
+          <View style={styles.orderSummaryHeader}>
+            <Text style={styles.cardTitle}>DELIVERY LOCATION & MAP PIN</Text>
+            <TouchableOpacity
+              onPress={() => setShowLocationEditor(!showLocationEditor)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.editCartLink}>
+                {showLocationEditor ? 'Done Editing' : 'Change / Pin on Map'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.locationSummaryBox}>
+            <View style={styles.locationHeaderRow}>
+              <Ionicons name="location-sharp" size={20} color={colors.accent} style={{ marginTop: 2 }} />
+              <View style={{ flex: 1, marginLeft: spacing.xs }}>
+                <Text style={styles.deliveryShopName}>{vendor.shopName}</Text>
+                <Text style={styles.deliveryAddressText}>{deliveryAddress}</Text>
+              </View>
+            </View>
+
+            {(latitude && longitude) || locationUrl ? (
+              <View style={styles.mapPinBadgeRow}>
+                <View style={styles.mapPinBadge}>
+                  <Ionicons name="checkmark-circle" size={13} color={colors.brandGreen} />
+                  <Text style={styles.mapPinBadgeText}>Google Maps Pin Linked</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => openGoogleMapsView({
+                    latitude,
+                    longitude,
+                    locationUrl,
+                    address: deliveryAddress,
+                    shopName: vendor.shopName,
+                  })}
+                  style={styles.testPinLink}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="eye-outline" size={13} color={colors.primary} />
+                  <Text style={styles.testPinLinkText}>Preview Pin</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.mapPinBadgeWarn}>
+                <Ionicons name="alert-circle-outline" size={14} color="#D97706" />
+                <Text style={styles.mapPinBadgeWarnText}>
+                  No Google Maps pin attached. Tap &quot;Change / Pin on Map&quot; to set your exact location for the delivery executive.
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {showLocationEditor && (
+            <View style={{ marginTop: spacing.sm }}>
+              <GoogleMapsLocationPicker
+                locationUrl={locationUrl}
+                latitude={latitude}
+                longitude={longitude}
+                address={deliveryAddress}
+                shopName={vendor.shopName}
+                editable={true}
+                onChangeLocation={(locData) => {
+                  setLocationUrl(locData.locationUrl);
+                  setLatitude(locData.latitude);
+                  setLongitude(locData.longitude);
+                }}
+              />
+            </View>
+          )}
         </Card>
 
         {/* Payment Preferences Section */}
@@ -681,6 +824,70 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
     fontSize: 12,
+  },
+  locationSummaryBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: spacing.borderRadiusMd,
+    padding: spacing.sm,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: spacing.xs,
+  },
+  locationHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.xs,
+  },
+  mapPinBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    marginTop: 4,
+  },
+  mapPinBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#DEF7EC',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  mapPinBadgeText: {
+    ...typography.captionBold,
+    color: colors.brandGreen,
+    fontSize: 11,
+  },
+  testPinLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  testPinLinkText: {
+    ...typography.captionBold,
+    color: colors.primary,
+    fontSize: 11,
+  },
+  mapPinBadgeWarn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  mapPinBadgeWarnText: {
+    ...typography.caption,
+    color: '#92400E',
+    fontSize: 11,
+    flex: 1,
   },
   successFooterContainer: {
     paddingHorizontal: spacing.screenPadding,

@@ -18,6 +18,7 @@ import { StatusTracker } from '../../components/orders/StatusTracker';
 import { OrderItemRow } from '../../components/orders/OrderItemRow';
 import { PAYMENT_METHOD_LABELS } from '../../constants/rules';
 import { formatDateTime } from '../../utils/dateFormatter';
+import { openGoogleMapsView } from '../../utils/locationUtils';
 import { colors, typography, spacing } from '../../theme';
 
 export const VendorOrderDetailScreen: React.FC<{ route: any; navigation: any }> = ({
@@ -71,6 +72,41 @@ export const VendorOrderDetailScreen: React.FC<{ route: any; navigation: any }> 
             <StatusBadge status={order.status} />
           </View>
           <StatusTracker status={order.status} />
+        </Card>
+
+        {/* Delivery Destination & Google Maps Pin */}
+        <Card style={styles.card} outlined elevation="sm">
+          <Text style={styles.cardTitle}>DELIVERY DESTINATION</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 2 }}>
+            <Ionicons name="location-sharp" size={20} color={colors.accent} style={{ marginTop: 2 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ ...typography.bodyBold, color: colors.textPrimary }}>{order.shopName}</Text>
+              <Text style={{ ...typography.caption, color: colors.textSecondary, marginTop: 2, lineHeight: 18 }}>
+                {order.address || 'No street address specified'}
+              </Text>
+              {(order.locationUrl || (order.latitude !== undefined && order.longitude !== undefined)) && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 6, borderTopWidth: 1, borderTopColor: colors.divider }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#DEF7EC', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                    <Ionicons name="checkmark-circle" size={13} color={colors.brandGreen} />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colors.brandGreen }}>Google Maps Pin Attached</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => openGoogleMapsView({
+                      latitude: order.latitude,
+                      longitude: order.longitude,
+                      locationUrl: order.locationUrl,
+                      address: order.address,
+                      shopName: order.shopName,
+                    })}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4 }}
+                  >
+                    <Ionicons name="eye-outline" size={13} color={colors.primary} />
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>View Pin</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
         </Card>
 
         {/* Delivery Executive Info — Only visible to vendor after delivery staff has been assigned */}

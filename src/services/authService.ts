@@ -626,7 +626,16 @@ export const authService = {
   // ── 9. Update User Profile ──────────────────────────────────────────────────
   updateUserProfile: async (
     uid: string,
-    updates: { name?: string; phone?: string; area?: string; address?: string; businessName?: string }
+    updates: {
+      name?: string;
+      phone?: string;
+      area?: string;
+      address?: string;
+      businessName?: string;
+      locationUrl?: string;
+      latitude?: number;
+      longitude?: number;
+    }
   ): Promise<void> => {
     const userRef = doc(db, 'users', uid);
     await updateDoc(userRef, {

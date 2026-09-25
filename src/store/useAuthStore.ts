@@ -35,6 +35,9 @@ interface AuthState {
     area?: string;
     address?: string;
     businessName?: string;
+    locationUrl?: string;
+    latitude?: number;
+    longitude?: number;
   }) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -207,6 +210,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     area?: string;
     address?: string;
     businessName?: string;
+    locationUrl?: string;
+    latitude?: number;
+    longitude?: number;
   }) => {
     const { currentUser } = get();
     if (!currentUser?.uid) return;
