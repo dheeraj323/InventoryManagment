@@ -12,9 +12,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useCashStore } from '../../store/useCashStore';
 import { Header } from '../../components/common/Header';
-import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
-import { OrderCard } from '../../components/orders/OrderCard';
 import { colors, typography, spacing } from '../../theme';
 
 export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -153,42 +151,6 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
             }}
           />
         </View>
-
-        {/* 4. Assigned Delivery Route List */}
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={styles.sectionTitle}>Assigned Route</Text>
-            <View style={styles.countBadge}>
-              <Text style={styles.countBadgeText}>{assignedOrders.length}</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('TodayDeliveries', { filter: 'ALL', timestamp: Date.now() })}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={styles.seeAllText}>View All</Text>
-          </TouchableOpacity>
-        </View>
-
-        {assignedOrders.length === 0 ? (
-          <Card variant="flat" style={styles.emptyCard}>
-            <Ionicons name="cube-outline" size={32} color={colors.textMuted} />
-            <Text style={styles.emptyTitle}>No Deliveries Assigned</Text>
-            <Text style={styles.emptyText}>You currently have no delivery route assigned today.</Text>
-          </Card>
-        ) : (
-          assignedOrders.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              showVendorName
-              showDeliverAction
-              onPress={() =>
-                navigation.navigate('DeliveryDetail', { orderId: order.id })
-              }
-            />
-          ))
-        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -326,54 +288,6 @@ const styles = StyleSheet.create({
   primaryCtaBtn: {
     backgroundColor: colors.navy,
     borderRadius: spacing.borderRadiusXl,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  sectionTitle: {
-    ...typography.h3,
-    color: colors.textPrimary,
-  },
-  countBadge: {
-    backgroundColor: colors.surfaceSubtle,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.divider,
-  },
-  countBadgeText: {
-    ...typography.captionBold,
-    color: colors.textSecondary,
-    fontSize: 11,
-  },
-  seeAllText: {
-    ...typography.captionBold,
-    color: colors.accent,
-  },
-  emptyCard: {
-    padding: spacing.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyTitle: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    marginTop: spacing.sm,
-  },
-  emptyText: {
-    ...typography.caption,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: 4,
   },
 });
 
