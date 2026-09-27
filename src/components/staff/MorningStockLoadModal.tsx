@@ -20,6 +20,7 @@ import { Card } from '../common/Card';
 import { QuantitySelector } from '../catalog/QuantitySelector';
 import { QuantityModal } from '../catalog/QuantityModal';
 import { colors, typography, spacing } from '../../theme';
+import { isFutureDate } from '../../utils/dateFormatter';
 
 interface MorningStockLoadModalProps {
   visible: boolean;
@@ -46,7 +47,7 @@ export const MorningStockLoadModal: React.FC<MorningStockLoadModalProps> = ({
     currentQty: number;
   } | null>(null);
 
-  // Compute pre-ordered quantities for this staff member from assigned unfulfilled orders
+  // Compute pre-ordered quantities for this staff member from assigned unfulfilled orders (including orders approved yesterday before midnight)
   const preOrderedMap = useMemo(() => {
     const map: Record<string, { qty: number; productName: string; unit: string; price: number }> = {};
     const unfulfilledOrders = orders.filter(
@@ -54,7 +55,8 @@ export const MorningStockLoadModal: React.FC<MorningStockLoadModalProps> = ({
         o.assignedStaffId === staffId &&
         o.status !== 'CANCELLED' &&
         o.status !== 'DELIVERED' &&
-        o.status !== 'PARTIALLY_DELIVERED'
+        o.status !== 'PARTIALLY_DELIVERED' &&
+        !isFutureDate(o.requestedDeliveryDate || o.deliveryDate)
     );
 
     unfulfilledOrders.forEach((order) => {
@@ -85,7 +87,8 @@ export const MorningStockLoadModal: React.FC<MorningStockLoadModalProps> = ({
           o.assignedStaffId === staffId &&
           o.status !== 'CANCELLED' &&
           o.status !== 'DELIVERED' &&
-          o.status !== 'PARTIALLY_DELIVERED'
+          o.status !== 'PARTIALLY_DELIVERED' &&
+          !isFutureDate(o.requestedDeliveryDate || o.deliveryDate)
       );
       unfulfilledOrders.forEach((order) => {
         (order.items || []).forEach((item) => {

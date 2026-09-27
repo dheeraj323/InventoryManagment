@@ -277,7 +277,7 @@ export const DirectDeliveryScreen: React.FC<{ navigation: any; route?: any }> = 
 
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <Header
         title="Direct Spot Delivery"
         subtitle="Deliver extra van stock on the spot"

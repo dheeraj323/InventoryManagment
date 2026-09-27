@@ -117,7 +117,7 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
 
   if (!order || order.status === 'PENDING' || order.status === 'CANCELLED') {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <Header title="Delivery Record" showBack onBackPress={() => navigation.goBack()} />
         <View style={styles.emptyContainer}>
           <Text style={styles.errorText}>
@@ -207,7 +207,7 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
       : formatDate(order.orderDate);
 
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         <Header
           title={`Order #${order.orderNumber}`}
           subtitle={`Delivered to ${order.shopName}`}
@@ -314,7 +314,7 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
 
   // ── Render Active Delivery Workflow ──────────────────────────────────
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <Header
         title={`Deliver Order #${order.orderNumber}`}
         subtitle={order.shopName}

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Order } from '../../types';
+import { isFutureDate } from '../../utils/dateFormatter';
 import { colors, typography, spacing, shadows } from '../../theme';
 
 export interface LoadPlanItem {
@@ -55,7 +56,8 @@ export const StaffLoadPlanModal: React.FC<StaffLoadPlanModalProps> = ({
         o.assignedStaffId === staffId &&
         o.status !== 'CANCELLED' &&
         o.status !== 'DELIVERED' &&
-        o.status !== 'PARTIALLY_DELIVERED'
+        o.status !== 'PARTIALLY_DELIVERED' &&
+        !isFutureDate(o.requestedDeliveryDate || o.deliveryDate)
     );
 
     const map: Record<string, LoadPlanItem> = {};

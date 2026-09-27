@@ -109,7 +109,7 @@ export const StaffProfileScreen: React.FC = () => {
   const displayEmail = currentUser?.email || 'Not specified';
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <Header
         title="Profile"
         rightAction={

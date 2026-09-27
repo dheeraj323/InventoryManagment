@@ -121,7 +121,7 @@ export const CashSettlementScreen: React.FC<{ navigation: any }> = ({ navigation
   });
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <Header
         title="Cash Handover"
         subtitle={`Staff: ${staff.name}`}

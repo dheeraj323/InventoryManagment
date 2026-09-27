@@ -20,6 +20,7 @@ import {
   StaffVehicleStockModal,
   StaffLoadPlanModal,
 } from '../../components/staff';
+import { isToday, isFutureDate, isOrderDeliveredToday } from '../../utils/dateFormatter';
 import { colors, typography, spacing, shadows } from '../../theme';
 
 export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -49,9 +50,8 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
     }
   }, [staff.id]);
 
-  // Get assigned orders (excluding pending approval orders)
+  // Get assigned orders (scoped to today's active route + today's completed deliveries)
   const staffAssigned = getOrdersByStaff(staff.id);
-  const assignedOrders = staffAssigned;
   const isDeliveryCompleted = (status: string) =>
     status === 'DELIVERED' || status === 'PARTIALLY_DELIVERED';
   const isDeliveryPending = (status: string) =>
@@ -60,12 +60,31 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
     status !== 'CANCELLED' &&
     status !== 'PENDING';
 
-  const completedDeliveries = assignedOrders.filter((o) => isDeliveryCompleted(o.status));
-  const pendingDeliveries = assignedOrders.filter((o) => isDeliveryPending(o.status));
-  const approvedPendingOrders = assignedOrders.filter(
-    (o) => o.status === 'APPROVED' || o.status === 'PENDING'
+  // Only count deliveries completed TODAY
+  const completedDeliveries = staffAssigned.filter(
+    (o) => isDeliveryCompleted(o.status) && isOrderDeliveredToday(o)
   );
-  const outForDeliveryOrders = assignedOrders.filter((o) => o.status === 'OUT_FOR_DELIVERY');
+  // Pending deliveries: includes orders approved before midnight or today, excluding future-scheduled orders
+  const pendingDeliveries = staffAssigned.filter(
+    (o) => isDeliveryPending(o.status) && !isFutureDate(o.requestedDeliveryDate || o.deliveryDate)
+  );
+  const approvedPendingOrders = staffAssigned.filter(
+    (o) =>
+      (o.status === 'APPROVED' || o.status === 'PENDING') &&
+      !isFutureDate(o.requestedDeliveryDate || o.deliveryDate)
+  );
+  const outForDeliveryOrders = staffAssigned.filter((o) => o.status === 'OUT_FOR_DELIVERY');
+
+  // Today's total route orders = pending deliveries + today's completed deliveries
+  const todayAssignedOrders = staffAssigned.filter((o) => {
+    if (o.status === 'CANCELLED') return false;
+    if (isFutureDate(o.requestedDeliveryDate || o.deliveryDate)) return false;
+    if (isDeliveryCompleted(o.status)) {
+      return isOrderDeliveredToday(o);
+    }
+    return true;
+  });
+  const assignedOrders = todayAssignedOrders;
 
   const pendingSettlement = settlements.find(
     (s) => s.staffId === staff.id && s.status === 'PENDING_VERIFICATION'
@@ -121,7 +140,8 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
         o.assignedStaffId === staff.id &&
         o.status !== 'CANCELLED' &&
         o.status !== 'DELIVERED' &&
-        o.status !== 'PARTIALLY_DELIVERED'
+        o.status !== 'PARTIALLY_DELIVERED' &&
+        !isFutureDate(o.requestedDeliveryDate || o.deliveryDate)
     );
 
     const map: Record<string, { productId: string; productName: string; unit: string; totalQty: number; orderCount: number }> = {};
@@ -153,7 +173,7 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
   }, [orders, staff.id]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <Header
         title="Delivery Operations"
         subtitle={`Staff: ${staff.name}`}
@@ -577,8 +597,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    padding: spacing.screenPadding,
-    paddingBottom: 40,
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: spacing.sm,
+    paddingBottom: 28,
   },
   cashCard: {
     backgroundColor: colors.navy,

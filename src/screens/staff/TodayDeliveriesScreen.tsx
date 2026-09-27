@@ -14,6 +14,7 @@ import { OrderCard } from '../../components/orders/OrderCard';
 import { Header } from '../../components/common/Header';
 import { EmptyState } from '../../components/common/EmptyState';
 import { OrderStatus } from '../../types';
+import { isToday, isFutureDate, isOrderDeliveredToday } from '../../utils/dateFormatter';
 import { colors, typography, spacing } from '../../theme';
 
 export const TodayDeliveriesScreen: React.FC<{ navigation: any; route?: any }> = ({
@@ -34,7 +35,7 @@ export const TodayDeliveriesScreen: React.FC<{ navigation: any; route?: any }> =
   }, [route?.params?.filter, route?.params?.timestamp]);
 
   const effectiveStaffId = activeStaffId || currentUser?.staffId || currentUser?.uid || currentUser?.id || '';
-  const assignedOrders = getOrdersByStaff(effectiveStaffId);
+  const allStaffOrders = getOrdersByStaff(effectiveStaffId);
 
   const isDeliveryCompleted = (status: OrderStatus) =>
     status === 'DELIVERED' || status === 'PARTIALLY_DELIVERED';
@@ -44,8 +45,25 @@ export const TodayDeliveriesScreen: React.FC<{ navigation: any; route?: any }> =
     status !== 'CANCELLED' &&
     status !== 'PENDING';
 
-  const pendingOrders = assignedOrders.filter((o) => isDeliveryPending(o.status));
-  const completedOrders = assignedOrders.filter((o) => isDeliveryCompleted(o.status));
+  // Active uncompleted deliveries on route (approved yesterday before midnight or today, excluding future scheduled)
+  const pendingOrders = allStaffOrders.filter(
+    (o) => isDeliveryPending(o.status) && !isFutureDate(o.requestedDeliveryDate || o.deliveryDate)
+  );
+  // Only deliveries completed TODAY
+  const completedOrders = allStaffOrders.filter(
+    (o) => isDeliveryCompleted(o.status) && isOrderDeliveredToday(o)
+  );
+
+  // Today's total route orders = pending deliveries + today's completed deliveries
+  const todayAssignedOrders = allStaffOrders.filter((o) => {
+    if (o.status === 'CANCELLED') return false;
+    if (isFutureDate(o.requestedDeliveryDate || o.deliveryDate)) return false;
+    if (isDeliveryCompleted(o.status)) {
+      return isOrderDeliveredToday(o);
+    }
+    return true;
+  });
+  const assignedOrders = todayAssignedOrders;
 
   const filteredOrders =
     selectedFilter === 'PENDING'
@@ -71,7 +89,7 @@ export const TodayDeliveriesScreen: React.FC<{ navigation: any; route?: any }> =
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <Header
         title="Today's Deliveries"
         subtitle={getSubtitle()}
