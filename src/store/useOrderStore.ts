@@ -263,11 +263,21 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       ? 'DELIVERED'
       : 'PARTIALLY_DELIVERED';
 
-    const safePaidAmount = Math.max(0, paidAmount);
+    const rawAdvance =
+      order.advanceAdjusted ||
+      (order.preferredPaymentMode === 'ADVANCE' || actualPaymentMode === 'ADVANCE'
+        ? (order.totalAmount || newTotalAmount)
+        : 0);
+    const advanceAdjusted = Math.min(newTotalAmount, rawAdvance);
+    const finalBillAmount = Math.max(0, newTotalAmount - advanceAdjusted);
+    const isAdvanceCovered = advanceAdjusted >= newTotalAmount;
+
+    const effectiveActualPaymentMode: PaymentMethod = isAdvanceCovered ? 'ADVANCE' : actualPaymentMode;
+    const safePaidAmount = isAdvanceCovered ? 0 : Math.max(0, paidAmount);
 
     const vendor = useVendorStore.getState().getVendorById(order.vendorId);
     const currentVendorBalance = vendor ? vendor.currentBalance || 0 : 0;
-    const newBalanceDue = Math.max(0, newTotalAmount - safePaidAmount);
+    const newBalanceDue = Math.max(0, finalBillAmount - safePaidAmount);
 
     set({
       orders: get().orders.map((o) =>
@@ -278,8 +288,10 @@ export const useOrderStore = create<OrderState>((set, get) => ({
               subtotal: newSubtotal,
               tax: newTax,
               totalAmount: newTotalAmount,
+              advanceAdjusted,
+              finalBillAmount,
               status: finalStatus,
-              actualPaymentMode,
+              actualPaymentMode: effectiveActualPaymentMode,
               paidAmount: safePaidAmount,
               balanceDue: newBalanceDue,
               deliveredAt: new Date().toISOString(),
@@ -291,11 +303,18 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
     // Optimistically update vendor balance
     if (vendor) {
-      const updatedVendorBalance = Math.max(0, currentVendorBalance + newTotalAmount - safePaidAmount);
+      const updatedVendorBalance = Math.round((currentVendorBalance + newTotalAmount - safePaidAmount) * 100) / 100;
+      const currentOutstanding = Math.max(0, updatedVendorBalance);
+      const advanceBalance = Math.max(0, -updatedVendorBalance);
       useVendorStore.setState({
         vendors: useVendorStore.getState().vendors.map((v) =>
           v.id === order.vendorId || v.vendorId === order.vendorId
-            ? { ...v, currentBalance: updatedVendorBalance, currentOutstanding: updatedVendorBalance }
+            ? {
+                ...v,
+                currentBalance: updatedVendorBalance,
+                currentOutstanding,
+                advanceBalance,
+              }
             : v
         ),
       });
@@ -303,7 +322,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
     // Optimistically record ledger entry
     const debitNote =
-      finalStatus === 'PARTIALLY_DELIVERED'
+      effectiveActualPaymentMode === 'ADVANCE'
+        ? `Invoice for Order ${order.orderNumber} (Settled via Advance)`
+        : advanceAdjusted > 0
+        ? `Invoice for Order ${order.orderNumber} (₹${advanceAdjusted.toLocaleString('en-IN')} advance deducted)`
+        : finalStatus === 'PARTIALLY_DELIVERED'
         ? `Invoice for Order ${order.orderNumber} (Partial delivery)`
         : `Invoice for Order ${order.orderNumber}`;
 
@@ -320,7 +343,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       transactionType: 'DEBIT',
       direction: 'debit',
       amount: newTotalAmount,
-      runningBalance: currentVendorBalance + newTotalAmount,
+      runningBalance: Math.round((currentVendorBalance + newTotalAmount) * 100) / 100,
       referenceId: invoiceNumber,
       referenceNo: invoiceNumber,
       orderId: order.id,
@@ -354,15 +377,15 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         transactionType: 'CREDIT',
         direction: 'credit',
         amount: safePaidAmount,
-        runningBalance: currentVendorBalance + newTotalAmount - safePaidAmount,
+        runningBalance: Math.round((currentVendorBalance + newTotalAmount - safePaidAmount) * 100) / 100,
         referenceId: `RCPT-${Date.now().toString().slice(-6)}`,
         referenceNo: `RCPT-${Date.now().toString().slice(-6)}`,
         orderId: order.id,
         invoiceId: orderId,
         sourceType: 'PAYMENT',
-        paymentMethod: actualPaymentMode,
+        paymentMethod: effectiveActualPaymentMode,
         date: new Date().toISOString(),
-        note: `${actualPaymentMode} payment collected at delivery for ${order.orderNumber}`,
+        note: `${effectiveActualPaymentMode} payment collected at delivery for ${order.orderNumber}`,
         createdBy: order.assignedStaffName || 'Staff',
         createdRole: 'STAFF',
       };
@@ -385,8 +408,8 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       await orderService.recordDelivery(
         orderId,
         updatedItems,
-        actualPaymentMode,
-        paidAmount,
+        effectiveActualPaymentMode,
+        safePaidAmount,
         notes
       );
     } catch (err) {

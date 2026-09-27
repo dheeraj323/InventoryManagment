@@ -33,18 +33,30 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
   const order = getOrderById(orderId);
   const vendor = order ? getVendorById(order.vendorId) : null;
   const totalOrderValue = calculatedTotal || order?.totalAmount || 0;
-  const advanceAdjusted = order?.advanceAdjusted || 0;
-  const remainingPayable = Math.max(0, totalOrderValue - advanceAdjusted);
+  const rawAdvance =
+    order?.advanceAdjusted ||
+    (order?.preferredPaymentMode === 'ADVANCE' ? totalOrderValue : 0);
+  const effectiveAdvanceAdjusted = Math.min(totalOrderValue, rawAdvance);
+  const remainingPayable = Math.max(0, totalOrderValue - effectiveAdvanceAdjusted);
+  const isFullyCoveredByAdvance =
+    (order?.preferredPaymentMode === 'ADVANCE' || effectiveAdvanceAdjusted > 0) &&
+    remainingPayable === 0;
+  const isPartiallyCoveredByAdvance =
+    effectiveAdvanceAdjusted > 0 && remainingPayable > 0;
 
-  const [actualMethod, setActualMethod] = useState<PaymentMethod>(
-    order?.preferredPaymentMode || 'CASH'
-  );
+  const [actualMethod, setActualMethod] = useState<PaymentMethod>(() => {
+    if (isFullyCoveredByAdvance) return 'ADVANCE';
+    if (order?.preferredPaymentMode === 'ADVANCE') return 'CASH';
+    return order?.preferredPaymentMode || 'CASH';
+  });
 
-  const [amountCollectedStr, setAmountCollectedStr] = useState<string>(
-    order?.preferredPaymentMode === 'PAY_LATER' || order?.preferredPaymentMode === 'ADVANCE'
-      ? '0'
-      : remainingPayable.toString()
-  );
+  const [amountCollectedStr, setAmountCollectedStr] = useState<string>(() => {
+    if (isFullyCoveredByAdvance) return '0';
+    if (order?.preferredPaymentMode === 'PAY_LATER' || order?.preferredPaymentMode === 'PENDING') {
+      return '0';
+    }
+    return remainingPayable.toString();
+  });
 
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -63,10 +75,19 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
 
   const handleConfirmDeliveryAndPayment = async () => {
     setErrorMsg('');
-    const collectedNum = parseFloat(amountCollectedStr);
+    const collectedNum = isFullyCoveredByAdvance ? 0 : parseFloat(amountCollectedStr);
     if (isNaN(collectedNum) || collectedNum < 0) {
       setErrorMsg('Please enter a valid collected amount (0 or positive).');
       return;
+    }
+
+    if (!isFullyCoveredByAdvance && (actualMethod === 'CASH' || actualMethod === 'ONLINE')) {
+      if (collectedNum > remainingPayable + 0.01) {
+        setErrorMsg(
+          `Collected amount (₹${collectedNum.toLocaleString('en-IN')}) cannot exceed the remaining payable balance of ₹${remainingPayable.toLocaleString('en-IN')}.`
+        );
+        return;
+      }
     }
 
     setLoading(true);
@@ -79,8 +100,8 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
       await recordDelivery(
         order.id,
         updatedItems || order.items,
-        actualMethod,
-        collectedNum,
+        isFullyCoveredByAdvance ? 'ADVANCE' : actualMethod,
+        isFullyCoveredByAdvance ? 0 : collectedNum,
         notes
       );
 
@@ -114,75 +135,135 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          {/* Preferred vs Actual Payment Warning */}
-          <View style={styles.noticeBanner}>
-            <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
-            <Text style={styles.noticeText}>
-              Vendor Preferred: {PAYMENT_METHOD_LABELS[order.preferredPaymentMode] || order.preferredPaymentMode}. Record the actual payment method received at shop counter.
-            </Text>
-          </View>
-
-          {advanceAdjusted > 0 && (
-            <View style={[styles.noticeBanner, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
-              <Ionicons name="wallet-outline" size={18} color={colors.brandGreen} />
-              <View style={{ flex: 1, marginLeft: 6 }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.brandGreen }}>
-                  Advance Applied: ₹{advanceAdjusted.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          {/* Notice Banner */}
+          {isFullyCoveredByAdvance ? (
+            <View style={[styles.noticeBanner, styles.advanceBannerGreen]}>
+              <Ionicons name="wallet" size={20} color={colors.brandGreen} />
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={[styles.noticeTitle, { color: colors.brandGreen }]}>
+                  100% Pre-Paid via Advance Deposit (₹{effectiveAdvanceAdjusted.toLocaleString('en-IN')})
                 </Text>
-                <Text style={{ fontSize: 11, color: '#166534', marginTop: 1 }}>
-                  Order Total: ₹{totalOrderValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })} · Remaining Bill: ₹{remainingPayable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                <Text style={[styles.noticeSub, { color: '#166534' }]}>
+                  The entire bill of ₹{totalOrderValue.toLocaleString('en-IN')} is fully covered by vendor advance deposit. Do NOT collect cash or online payment from vendor.
                 </Text>
               </View>
             </View>
+          ) : isPartiallyCoveredByAdvance ? (
+            <View style={[styles.noticeBanner, styles.advanceBannerAmber]}>
+              <Ionicons name="wallet-outline" size={20} color="#0284C7" />
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={[styles.noticeTitle, { color: '#0369A1' }]}>
+                  Partial Advance Applied: ₹{effectiveAdvanceAdjusted.toLocaleString('en-IN')}
+                </Text>
+                <Text style={[styles.noticeSub, { color: '#0369A1' }]}>
+                  Total Bill: ₹{totalOrderValue.toLocaleString('en-IN')} · Advance Deducted: -₹{effectiveAdvanceAdjusted.toLocaleString('en-IN')} · Collect Remaining: ₹{remainingPayable.toLocaleString('en-IN')}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.noticeBanner}>
+              <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
+              <Text style={styles.noticeText}>
+                Vendor Preferred: {PAYMENT_METHOD_LABELS[order.preferredPaymentMode] || order.preferredPaymentMode}. Record the actual payment method received at shop counter.
+              </Text>
+            </View>
           )}
 
-          {/* Payment Method Selector */}
-          <Card style={styles.card} outlined elevation="sm">
-            <Text style={styles.cardTitle}>ACTUAL PAYMENT METHOD RECEIVED</Text>
+          {/* Payment Method Section */}
+          {isFullyCoveredByAdvance ? (
+            <Card style={styles.card} outlined elevation="sm">
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.cardTitle}>ACTUAL PAYMENT METHOD (LOCKED)</Text>
+                <View style={styles.lockedPill}>
+                  <Ionicons name="lock-closed" size={11} color={colors.brandGreen} />
+                  <Text style={styles.lockedPillText}>Auto-Locked</Text>
+                </View>
+              </View>
 
-            {(['CASH', 'ONLINE', 'PAY_LATER', 'PARTIALLY_PAID', 'PENDING'] as PaymentMethod[]).map(
-              (method) => {
-                const isSelected = actualMethod === method;
-                return (
-                  <TouchableOpacity
-                    key={method}
-                    style={[
-                      styles.methodOption,
-                      isSelected ? styles.methodOptionSelected : null,
-                    ]}
-                    onPress={() => {
-                      setActualMethod(method);
-                      if (method === 'PAY_LATER' || method === 'PENDING') {
-                        setAmountCollectedStr('0');
-                      } else if (method === 'CASH' || method === 'ONLINE') {
-                        setAmountCollectedStr(remainingPayable.toString());
-                      }
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.radioCircle}>
-                      {isSelected && <View style={styles.radioDot} />}
-                    </View>
-                    <Text style={styles.methodName}>{PAYMENT_METHOD_LABELS[method]}</Text>
-                  </TouchableOpacity>
-                );
-              }
+              <View style={styles.lockedMethodBox}>
+                <View style={styles.lockedIconWrap}>
+                  <Ionicons name="wallet" size={20} color={colors.brandGreen} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.lockedMethodName}>Advance Deposit (Pre-Paid)</Text>
+                  <Text style={styles.lockedMethodSub}>
+                    Payment option is locked to ADVANCE so ledger entries are not double-credited.
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          ) : (
+            <Card style={styles.card} outlined elevation="sm">
+              <Text style={styles.cardTitle}>
+                {isPartiallyCoveredByAdvance
+                  ? `ACTUAL PAYMENT METHOD FOR REMAINING ₹${remainingPayable.toLocaleString('en-IN')}`
+                  : 'ACTUAL PAYMENT METHOD RECEIVED'}
+              </Text>
+
+              {(['CASH', 'ONLINE', 'PAY_LATER', 'PARTIALLY_PAID', 'PENDING'] as PaymentMethod[]).map(
+                (method) => {
+                  const isSelected = actualMethod === method;
+                  return (
+                    <TouchableOpacity
+                      key={method}
+                      style={[
+                        styles.methodOption,
+                        isSelected ? styles.methodOptionSelected : null,
+                      ]}
+                      onPress={() => {
+                        setActualMethod(method);
+                        if (method === 'PAY_LATER' || method === 'PENDING') {
+                          setAmountCollectedStr('0');
+                        } else if (method === 'CASH' || method === 'ONLINE') {
+                          setAmountCollectedStr(remainingPayable.toString());
+                        }
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.radioCircle}>
+                        {isSelected && <View style={styles.radioDot} />}
+                      </View>
+                      <Text style={styles.methodName}>{PAYMENT_METHOD_LABELS[method]}</Text>
+                    </TouchableOpacity>
+                  );
+                }
+              )}
+            </Card>
+          )}
+
+          {/* Amount Collected Section */}
+          <Card style={styles.card} outlined elevation="sm">
+            <Text style={styles.cardTitle}>
+              {isFullyCoveredByAdvance ? 'COLLECTION RECORD' : 'COLLECTED AMOUNT RECORD'}
+            </Text>
+
+            {isFullyCoveredByAdvance ? (
+              <View style={styles.zeroCollectionBox}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={styles.zeroCollectionLabel}>Amount Collected at Shop:</Text>
+                  <Text style={styles.zeroCollectionValue}>₹0.00</Text>
+                </View>
+                <Text style={styles.zeroCollectionNote}>
+                  Bill of ₹{totalOrderValue.toLocaleString('en-IN')} is already settled by advance deposit.
+                </Text>
+              </View>
+            ) : (
+              <Input
+                label={
+                  isPartiallyCoveredByAdvance
+                    ? `Actual Cash/Online Collected for Remaining Balance (₹ max ${remainingPayable})`
+                    : 'Actual Cash/Online Amount Collected (₹)'
+                }
+                value={amountCollectedStr}
+                onChangeText={setAmountCollectedStr}
+                keyboardType="numeric"
+                prefix="₹"
+              />
             )}
-          </Card>
 
-          {/* Amount Collected Input */}
-          <Card style={styles.card} outlined elevation="sm">
-            <Text style={styles.cardTitle}>COLLECTED AMOUNT RECORD</Text>
             <Input
-              label="Actual Cash/Online Amount Collected (₹)"
-              value={amountCollectedStr}
-              onChangeText={setAmountCollectedStr}
-              keyboardType="numeric"
-              prefix="₹"
-            />
-            <Input
-              label="Proof / Transaction Ref / Delivery Notes"
-              placeholder="e.g. Handed cash to Suresh or UPI Txn ID"
+              label="Proof / Handover Notes / Delivery Remarks"
+              placeholder="e.g. Delivered to Suresh (Shop Owner)"
               value={notes}
               onChangeText={setNotes}
               multiline
@@ -201,11 +282,15 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
         {/* Confirm Delivery Button */}
         <View style={styles.footerContainer}>
           <Button
-            title="Confirm Delivery & Record Payment"
+            title={
+              isFullyCoveredByAdvance
+                ? 'Confirm Delivery (Settled via Advance)'
+                : 'Confirm Delivery & Record Payment'
+            }
             onPress={handleConfirmDeliveryAndPayment}
             loading={loading}
             size="lg"
-            style={styles.submitBtn}
+            style={[styles.submitBtn, isFullyCoveredByAdvance && styles.advanceSubmitBtn]}
           />
         </View>
       </KeyboardAvoidingView>
@@ -238,6 +323,26 @@ const styles = StyleSheet.create({
     borderRadius: spacing.borderRadiusMd,
     marginBottom: spacing.md,
   },
+  advanceBannerGreen: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  advanceBannerAmber: {
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  noticeTitle: {
+    ...typography.captionBold,
+    fontSize: 12,
+  },
+  noticeSub: {
+    ...typography.caption,
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 15,
+  },
   noticeText: {
     ...typography.captionBold,
     color: colors.accent,
@@ -247,12 +352,83 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: spacing.md,
   },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
   cardTitle: {
     ...typography.captionBold,
     color: colors.textMuted,
     fontSize: 10,
     letterSpacing: 0.5,
+  },
+  lockedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#DEF7EC',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#BCF0DA',
+  },
+  lockedPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.brandGreen,
+  },
+  lockedMethodBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.md,
+    borderRadius: spacing.borderRadiusSm,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  lockedIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lockedMethodName: {
+    ...typography.bodyBold,
+    color: colors.brandGreen,
+    fontSize: 14,
+  },
+  lockedMethodSub: {
+    ...typography.caption,
+    color: '#166534',
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 14,
+  },
+  zeroCollectionBox: {
+    backgroundColor: colors.surfaceSubtle,
+    padding: spacing.md,
+    borderRadius: spacing.borderRadiusSm,
     marginBottom: spacing.md,
+  },
+  zeroCollectionLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+  },
+  zeroCollectionValue: {
+    ...typography.bodyBold,
+    color: colors.brandGreen,
+    fontSize: 16,
+  },
+  zeroCollectionNote: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 11,
+    marginTop: 4,
   },
   methodOption: {
     flexDirection: 'row',
@@ -310,5 +486,8 @@ const styles = StyleSheet.create({
   submitBtn: {
     backgroundColor: colors.navy,
     borderRadius: spacing.borderRadiusXl,
+  },
+  advanceSubmitBtn: {
+    backgroundColor: colors.brandGreen,
   },
 });

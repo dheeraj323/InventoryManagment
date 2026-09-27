@@ -9,6 +9,8 @@ interface BillSummaryCardProps {
   tax: number;
   payableTotal: number;
   hasPartialDelivery: boolean;
+  advanceAdjusted?: number;
+  isAdvanceCovered?: boolean;
 }
 
 export const BillSummaryCard: React.FC<BillSummaryCardProps> = ({
@@ -17,7 +19,11 @@ export const BillSummaryCard: React.FC<BillSummaryCardProps> = ({
   tax,
   payableTotal,
   hasPartialDelivery,
+  advanceAdjusted = 0,
+  isAdvanceCovered = false,
 }) => {
+  const calculatedTotal = deliveredSubtotal + tax;
+
   return (
     <Card variant="flat" style={styles.card}>
       <Text style={styles.sectionHeaderTitle}>RECALCULATED BILL SUMMARY</Text>
@@ -45,18 +51,42 @@ export const BillSummaryCard: React.FC<BillSummaryCardProps> = ({
         </View>
       )}
 
+      {advanceAdjusted > 0 && (
+        <View style={styles.summaryRow}>
+          <Text style={[styles.summaryLabel, { color: colors.brandGreen }]}>
+            Advance Deducted (Pre-paid)
+          </Text>
+          <Text style={[styles.summaryVal, { color: colors.brandGreen }]}>
+            - ₹{advanceAdjusted.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </Text>
+        </View>
+      )}
+
       <View style={styles.divider} />
 
       <View style={styles.summaryRow}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.totalLabel}>
-            {hasPartialDelivery ? 'Partially Delivered Total' : 'Final Payable Total'}
+            {isAdvanceCovered
+              ? 'Final Bill Amount (Settled)'
+              : hasPartialDelivery
+              ? 'Partially Delivered Payable'
+              : 'Final Payable at Delivery'}
           </Text>
-          {hasPartialDelivery ? (
+          {isAdvanceCovered ? (
+            <Text style={[styles.partialSubtext, { color: colors.brandGreen }]}>
+              ✓ 100% Pre-paid via Advance Deposit
+            </Text>
+          ) : hasPartialDelivery ? (
             <Text style={styles.partialSubtext}>Adjusted for delivered quantity</Text>
           ) : null}
         </View>
-        <Text style={styles.totalVal}>
+        <Text
+          style={[
+            styles.totalVal,
+            isAdvanceCovered ? { color: colors.brandGreen } : null,
+          ]}
+        >
           ₹{payableTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
         </Text>
       </View>

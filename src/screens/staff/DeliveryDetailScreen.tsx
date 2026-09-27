@@ -183,6 +183,15 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
     });
   }, [items, vanStockMap]);
 
+  const rawAdvance =
+    order?.advanceAdjusted ||
+    (order?.preferredPaymentMode === 'ADVANCE' ? (order?.totalAmount || 0) : 0);
+  const effectiveAdvanceAdjusted = Math.min(calculatedTotal, rawAdvance);
+  const remainingPayable = Math.max(0, calculatedTotal - effectiveAdvanceAdjusted);
+  const isFullyPaidByAdvance =
+    (order?.preferredPaymentMode === 'ADVANCE' || effectiveAdvanceAdjusted > 0) &&
+    remainingPayable === 0;
+
   const handleProceedToPayment = () => {
     const totalDeliveredQty = items.reduce((sum, it) => sum + (it.deliveredQty || 0), 0);
     if (totalDeliveredQty === 0) {
@@ -205,6 +214,12 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
     const formattedDeliveredAt = order.deliveredAt
       ? formatDateTime(order.deliveredAt)
       : formatDate(order.orderDate);
+
+    const completedAdvanceAdjusted = order.advanceAdjusted || 0;
+    const completedFinalBill =
+      order.finalBillAmount !== undefined
+        ? order.finalBillAmount
+        : Math.max(0, order.totalAmount - completedAdvanceAdjusted);
 
     return (
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -260,7 +275,9 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Payment Mode</Text>
               <Text style={styles.summaryVal}>
-                {order.actualPaymentMode
+                {order.actualPaymentMode === 'ADVANCE'
+                  ? 'Advance (Pre-paid)'
+                  : order.actualPaymentMode
                   ? PAYMENT_METHOD_LABELS[order.actualPaymentMode]
                   : PAYMENT_METHOD_LABELS[order.preferredPaymentMode]}
               </Text>
@@ -282,8 +299,6 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
               </View>
             )}
 
-            <View style={styles.divider} />
-
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>Total Invoice Amount</Text>
               <Text style={styles.totalVal}>
@@ -291,8 +306,21 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
               </Text>
             </View>
 
+            {completedAdvanceAdjusted > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: colors.brandGreen, fontWeight: '700' }]}>
+                  Advance Deducted
+                </Text>
+                <Text style={[styles.summaryVal, { color: colors.brandGreen, fontWeight: '700' }]}>
+                  - ₹{completedAdvanceAdjusted.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.divider} />
+
             <View style={styles.summaryRow}>
-              <Text style={styles.paidLabel}>Amount Collected</Text>
+              <Text style={styles.paidLabel}>Amount Collected at Delivery</Text>
               <Text style={styles.paidVal}>
                 ₹{(order.paidAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </Text>
@@ -363,6 +391,41 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
           </View>
         )}
 
+        {/* Advance Pre-Paid Notice Banner */}
+        {effectiveAdvanceAdjusted > 0 && (
+          <View
+            style={[
+              styles.advanceNoticeCard,
+              isFullyPaidByAdvance
+                ? styles.advanceNoticeCardGreen
+                : styles.advanceNoticeCardAmber,
+            ]}
+          >
+            <Ionicons
+              name="wallet-outline"
+              size={20}
+              color={isFullyPaidByAdvance ? colors.brandGreen : colors.accent}
+            />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text
+                style={[
+                  styles.advanceNoticeTitle,
+                  { color: isFullyPaidByAdvance ? colors.brandGreen : colors.accent },
+                ]}
+              >
+                {isFullyPaidByAdvance
+                  ? `⚡ FULLY PRE-PAID VIA ADVANCE (₹${effectiveAdvanceAdjusted.toLocaleString('en-IN')})`
+                  : `⚡ PARTIAL ADVANCE APPLIED: ₹${effectiveAdvanceAdjusted.toLocaleString('en-IN')}`}
+              </Text>
+              <Text style={styles.advanceNoticeSub}>
+                {isFullyPaidByAdvance
+                  ? 'Entire bill amount is covered by advance deposit. Do NOT collect cash or online payment.'
+                  : `Advance adjusted from vendor deposit. Collect remaining balance of ₹${remainingPayable.toLocaleString('en-IN')} at shop counter.`}
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* 1. Vendor Address & Phone Action */}
         <DeliveryAddressCard
           shopName={order.shopName}
@@ -401,14 +464,17 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
           originalTotal={order.totalAmount}
           deliveredSubtotal={calculatedSubtotal}
           tax={calculatedTax}
-          payableTotal={calculatedTotal}
+          payableTotal={remainingPayable}
           hasPartialDelivery={hasPartialDelivery}
+          advanceAdjusted={effectiveAdvanceAdjusted}
+          isAdvanceCovered={isFullyPaidByAdvance}
         />
       </ScrollView>
 
-      {/* 4. Deep Navy Fixed Bottom CTA */}
+      {/* 4. Deep Navy / Green Fixed Bottom CTA */}
       <PaymentCollectionButton
-        amount={calculatedTotal}
+        amount={remainingPayable}
+        isFullyPaidByAdvance={isFullyPaidByAdvance}
         onPress={handleProceedToPayment}
       />
 
@@ -614,6 +680,33 @@ const styles = StyleSheet.create({
   vanStockAlertDesc: {
     ...typography.caption,
     color: '#B45309',
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  advanceNoticeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: spacing.borderRadiusMd,
+    padding: spacing.md,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+  },
+  advanceNoticeCardGreen: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  advanceNoticeCardAmber: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  advanceNoticeTitle: {
+    ...typography.captionBold,
+    fontSize: 12,
+  },
+  advanceNoticeSub: {
+    ...typography.caption,
+    color: colors.textSecondary,
     fontSize: 11,
     marginTop: 2,
     lineHeight: 15,

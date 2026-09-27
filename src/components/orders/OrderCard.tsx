@@ -35,9 +35,17 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const displayActionLabel =
     actionLabel || (isPendingDelivery ? 'Deliver Now' : 'View Details');
 
+  const hasFullAdvance =
+    order.preferredPaymentMode === 'ADVANCE' ||
+    (order.advanceAdjusted !== undefined && order.advanceAdjusted >= order.totalAmount);
+  const hasPartialAdvance =
+    !hasFullAdvance &&
+    order.advanceAdjusted !== undefined &&
+    order.advanceAdjusted > 0;
+
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.75}>
-      {/* Top row: order number / date + status */}
+      {/* Top row: order number / date + status + advance badge */}
       <View style={styles.headerRow}>
         {showOrderId ? (
           <View style={styles.orderIdBlock}>
@@ -50,7 +58,21 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             <Text style={styles.dateText}>{formattedDate}</Text>
           </View>
         )}
-        <StatusBadge status={order.status} size="sm" />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {hasFullAdvance && (
+            <View style={styles.advanceBadgeGreen}>
+              <Ionicons name="wallet-outline" size={11} color={colors.brandGreen} />
+              <Text style={styles.advanceBadgeGreenText}>Advance Paid</Text>
+            </View>
+          )}
+          {hasPartialAdvance && (
+            <View style={styles.advanceBadgeAmber}>
+              <Ionicons name="wallet-outline" size={11} color="#0284C7" />
+              <Text style={styles.advanceBadgeAmberText}>Partial Advance</Text>
+            </View>
+          )}
+          <StatusBadge status={order.status} size="sm" />
+        </View>
       </View>
 
       {showVendorName && (
@@ -85,13 +107,37 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       {/* Footer: total + action pill */}
       <View style={styles.footerRow}>
         <View style={styles.totalBlock}>
-          <Text style={styles.totalLabel}>ORDER TOTAL</Text>
-          <Text style={styles.totalAmount}>
-            ₹{order.totalAmount.toLocaleString('en-IN', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+          <Text style={styles.totalLabel}>
+            {hasFullAdvance
+              ? 'ORDER TOTAL (PRE-PAID)'
+              : hasPartialAdvance
+              ? 'REMAINING DUE AT DELIVERY'
+              : 'ORDER TOTAL'}
           </Text>
+          <Text
+            style={[
+              styles.totalAmount,
+              hasFullAdvance ? { color: colors.brandGreen } : null,
+            ]}
+          >
+            ₹{hasPartialAdvance
+              ? Math.max(0, order.totalAmount - (order.advanceAdjusted || 0)).toLocaleString('en-IN', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })
+              : order.totalAmount.toLocaleString('en-IN', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+          </Text>
+          {hasFullAdvance && (
+            <Text style={styles.advanceSubtext}>Settled via advance deposit</Text>
+          )}
+          {hasPartialAdvance && (
+            <Text style={styles.advanceSubtext}>
+              Total: ₹{order.totalAmount.toLocaleString('en-IN')} (₹{order.advanceAdjusted?.toLocaleString('en-IN')} advance deducted)
+            </Text>
+          )}
         </View>
         <View style={[styles.viewPill, isPendingDelivery && styles.deliverNowPill]}>
           <Text style={[styles.viewText, isPendingDelivery && styles.deliverNowText]}>
@@ -242,5 +288,42 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#0369A1',
+  },
+  advanceBadgeGreen: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#DEF7EC',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#BCF0DA',
+  },
+  advanceBadgeGreenText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.brandGreen,
+  },
+  advanceBadgeAmber: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  advanceBadgeAmberText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  advanceSubtext: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    marginTop: 1,
   },
 });

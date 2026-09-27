@@ -192,7 +192,17 @@ export const financialTransactionService = {
         ? 'PARTIALLY_DELIVERED'
         : 'DELIVERED';
 
-      const safePaidAmount = Math.max(0, paidAmount);
+      const rawAdvance =
+        existingOrder.advanceAdjusted ||
+        (existingOrder.preferredPaymentMode === 'ADVANCE' || actualPaymentMode === 'ADVANCE'
+          ? (existingOrder.totalAmount || newTotalAmount)
+          : 0);
+      const advanceAdjusted = Math.min(newTotalAmount, rawAdvance);
+      const finalBillAmount = Math.max(0, newTotalAmount - advanceAdjusted);
+      const isAdvanceCovered = advanceAdjusted >= newTotalAmount;
+
+      const effectiveActualPaymentMode: PaymentMethod = isAdvanceCovered ? 'ADVANCE' : actualPaymentMode;
+      const safePaidAmount = isAdvanceCovered ? 0 : Math.max(0, paidAmount);
 
       const nowStr = new Date().toISOString();
       const nowTimestamp = Date.now();
@@ -202,7 +212,7 @@ export const financialTransactionService = {
       const vendor = vendorExists ? (vendorSnap.data() as Vendor) : null;
       const currentVendorBalance = vendor ? vendor.currentBalance || 0 : 0;
 
-      const newBalanceDue = Math.max(0, newTotalAmount - safePaidAmount);
+      const newBalanceDue = Math.max(0, finalBillAmount - safePaidAmount);
 
       // After this delivery, vendor balance is updated by the invoice total minus cash collected
       const updatedVendorBalance = Math.round((currentVendorBalance + newTotalAmount - safePaidAmount) * 100) / 100;
@@ -245,8 +255,10 @@ export const financialTransactionService = {
           subtotal: newSubtotal,
           tax: newTax,
           totalAmount: newTotalAmount,
+          advanceAdjusted,
+          finalBillAmount,
           status: finalStatus,
-          actualPaymentMode,
+          actualPaymentMode: effectiveActualPaymentMode,
           paidAmount: safePaidAmount,
           balanceDue: newBalanceDue,
           deliveredAt: nowStr,
@@ -295,7 +307,11 @@ export const financialTransactionService = {
       // 4. Write DEBIT ledger entry (invoice charge)
       //    runningBalance after DEBIT = prevBalance + invoiceTotal
       const debitNote =
-        finalStatus === 'PARTIALLY_DELIVERED'
+        effectiveActualPaymentMode === 'ADVANCE'
+          ? `Invoice for Order ${existingOrder.orderNumber} (Settled via Advance)`
+          : advanceAdjusted > 0
+          ? `Invoice for Order ${existingOrder.orderNumber} (₹${advanceAdjusted.toLocaleString('en-IN')} advance deducted)`
+          : finalStatus === 'PARTIALLY_DELIVERED'
           ? `Invoice for Order ${existingOrder.orderNumber} (Partial delivery)`
           : `Invoice for Order ${existingOrder.orderNumber}`;
 
@@ -353,8 +369,8 @@ export const financialTransactionService = {
           sourceType: 'PAYMENT',
           idempotencyKey: `${orderId}:CREDIT`,
           date: nowStr,
-          note: `${actualPaymentMode} payment collected at delivery for ${existingOrder.orderNumber}`,
-          paymentMethod: actualPaymentMode,
+          note: `${effectiveActualPaymentMode} payment collected at delivery for ${existingOrder.orderNumber}`,
+          paymentMethod: effectiveActualPaymentMode,
           createdBy: staffName,
           createdRole: 'STAFF',
           createdAt: nowStr,
@@ -367,11 +383,6 @@ export const financialTransactionService = {
       }
 
       // 6. Create Invoice document (persisted record for invoice-level queries)
-      const advanceAdjusted = existingOrder.advanceAdjusted || 0;
-      const finalBillAmount = existingOrder.finalBillAmount !== undefined
-        ? existingOrder.finalBillAmount
-        : Math.max(0, newTotalAmount - advanceAdjusted);
-
       const invoice: Invoice = {
         id: orderId,
         invoiceNumber,
