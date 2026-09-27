@@ -346,4 +346,23 @@ export const orderService = {
       notes
     );
   },
+
+  recordDirectSpotDelivery: async (params: {
+    vendorId: string;
+    staffId: string;
+    staffName: string;
+    staffPhone?: string;
+    items: {
+      productId: string;
+      productName: string;
+      unit: string;
+      unitPrice: number;
+      quantity: number;
+    }[];
+    paymentMode: PaymentMethod;
+    paidAmount: number;
+    notes?: string;
+  }): Promise<Order> => {
+    return await financialTransactionService.recordDirectSpotDelivery(params);
+  },
 };

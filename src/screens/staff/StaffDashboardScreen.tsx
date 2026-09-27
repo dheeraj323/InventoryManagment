@@ -258,16 +258,29 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
           <View style={styles.stockActionRow}>
             {/* Morning Load Button - Shows default "Load Morning Stock" when not active or after stock is settled */}
             {!hasActiveUnsettledSession ? (
-              <TouchableOpacity
-                style={[styles.stockActionBtn, styles.stockActionBtnPrimary]}
-                onPress={() => setIsLoadModalOpen(true)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="sunny-outline" size={16} color={colors.textInverse} />
-                <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextPrimary]}>
-                  Load Morning Stock
-                </Text>
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity
+                  style={[styles.stockActionBtn, styles.stockActionBtnPrimary]}
+                  onPress={() => setIsLoadModalOpen(true)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="sunny-outline" size={16} color={colors.textInverse} />
+                  <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextPrimary]}>
+                    Load Stock
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.stockActionBtn, styles.stockActionBtnSecondary]}
+                  onPress={() => navigation.navigate('DirectDelivery')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="flash-outline" size={16} color={colors.primary} />
+                  <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextSecondary]}>
+                    Spot Delivery
+                  </Text>
+                </TouchableOpacity>
+              </>
             ) : !isOutForDelivery ? (
               <>
                 {/* 1. Load Extra Button */}
@@ -282,7 +295,19 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
                   </Text>
                 </TouchableOpacity>
 
-                {/* 2. Out for Delivery Button */}
+                {/* 2. Spot Delivery */}
+                <TouchableOpacity
+                  style={[styles.stockActionBtn, styles.stockActionBtnSecondary]}
+                  onPress={() => navigation.navigate('DirectDelivery')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="flash-outline" size={16} color={colors.accent} />
+                  <Text style={[styles.stockActionBtnText, { color: colors.accent, fontWeight: '700' }]}>
+                    Spot Sale
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 3. Out for Delivery Button */}
                 <TouchableOpacity
                   style={[styles.stockActionBtn, styles.stockActionBtnPrimary]}
                   onPress={handleStartDeliveryTrip}
@@ -291,22 +316,36 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
                 >
                   <Ionicons name="bicycle" size={16} color={colors.textInverse} />
                   <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextPrimary]}>
-                    {isDispatchingAll ? 'Starting Trip...' : 'Out for Delivery'}
+                    {isDispatchingAll ? 'Starting...' : 'Out for Trip'}
                   </Text>
                 </TouchableOpacity>
               </>
             ) : (
-              /* After Out for Delivery chosen: Return Stock ONLY */
-              <TouchableOpacity
-                style={[styles.stockActionBtn, styles.stockActionBtnEvening]}
-                onPress={() => setIsReturnModalOpen(true)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="moon-outline" size={16} color={colors.textInverse} />
-                <Text style={[styles.stockActionBtnText, { color: colors.textInverse }]}>
-                  Return Stock
-                </Text>
-              </TouchableOpacity>
+              <>
+                {/* Spot Delivery on Route */}
+                <TouchableOpacity
+                  style={[styles.stockActionBtn, styles.stockActionBtnPrimary, { backgroundColor: colors.accent }]}
+                  onPress={() => navigation.navigate('DirectDelivery')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="flash" size={16} color={colors.textInverse} />
+                  <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextPrimary]}>
+                    + Spot Delivery
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Return Stock Button */}
+                <TouchableOpacity
+                  style={[styles.stockActionBtn, styles.stockActionBtnEvening]}
+                  onPress={() => setIsReturnModalOpen(true)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="moon-outline" size={16} color={colors.textInverse} />
+                  <Text style={[styles.stockActionBtnText, { color: colors.textInverse }]}>
+                    Return Stock
+                  </Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
 

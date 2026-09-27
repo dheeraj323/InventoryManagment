@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { useOrderStore } from '../../store/useOrderStore';
 import { OrderCard } from '../../components/orders/OrderCard';
 import { Header } from '../../components/common/Header';
@@ -16,28 +17,69 @@ import { colors, typography, spacing } from '../../theme';
 
 export const AdminOrdersScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
   const { orders } = useOrderStore();
-  const initial = route?.params?.initialFilter || route?.params?.filter || route?.params?.status || 'ALL';
-  const [selectedFilter, setSelectedFilter] = useState<string>(initial);
 
+  const getInitialFilter = () => {
+    const explicit = route?.params?.initialFilter || route?.params?.filter || route?.params?.status;
+    if (explicit) return explicit;
+    const hasPending = orders.some((o) => o.status === 'PENDING');
+    return hasPending ? 'PENDING' : 'ALL';
+  };
+
+  const [selectedFilter, setSelectedFilter] = useState<string>(getInitialFilter);
+
+  // When explicit route params are provided or updated
   useEffect(() => {
-    const nextFilter = route?.params?.initialFilter || route?.params?.filter || route?.params?.status;
-    if (nextFilter) {
-      setSelectedFilter(nextFilter);
+    const explicit = route?.params?.initialFilter || route?.params?.filter || route?.params?.status;
+    if (explicit) {
+      setSelectedFilter(explicit);
     }
   }, [route?.params?.initialFilter, route?.params?.filter, route?.params?.status]);
 
-  const filters = ['ALL', 'PENDING', 'APPROVED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'];
+  // When screen gains focus (e.g. tapping Orders tab), if there are pending orders and no explicit filter was passed, auto-select PENDING
+  useFocusEffect(
+    useCallback(() => {
+      const explicit = route?.params?.initialFilter || route?.params?.filter || route?.params?.status;
+      if (!explicit) {
+        const hasPending = orders.some((o) => o.status === 'PENDING');
+        if (hasPending) {
+          setSelectedFilter('PENDING');
+        }
+      }
+    }, [orders, route?.params?.initialFilter, route?.params?.filter, route?.params?.status])
+  );
+
+  const pendingCount = orders.filter((o) => o.status === 'PENDING').length;
+  const approvedCount = orders.filter((o) => o.status === 'APPROVED').length;
+  const outForDeliveryCount = orders.filter((o) => o.status === 'OUT_FOR_DELIVERY').length;
+  const deliveredCount = orders.filter((o) => o.status === 'DELIVERED').length;
+  const cancelledCount = orders.filter((o) => o.status === 'CANCELLED').length;
+
+  const filters = [
+    { key: 'ALL', label: 'All', count: orders.length },
+    { key: 'PENDING', label: 'Pending', count: pendingCount },
+    { key: 'APPROVED', label: 'Approved', count: approvedCount },
+    { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', count: outForDeliveryCount },
+    { key: 'DELIVERED', label: 'Delivered', count: deliveredCount },
+    { key: 'CANCELLED', label: 'Cancelled', count: cancelledCount },
+  ];
 
   const filteredOrders = orders.filter((order) => {
     if (selectedFilter === 'ALL') return true;
     return order.status === selectedFilter;
   });
 
+  const getSubtitle = () => {
+    if (selectedFilter === 'PENDING') {
+      return `${pendingCount} Pending ${pendingCount === 1 ? 'Order' : 'Orders'} Awaiting Action`;
+    }
+    return `${orders.length} Total Orders Recorded`;
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <Header
         title="Admin Order Management"
-        subtitle={`${orders.length} Total Orders Recorded`}
+        subtitle={getSubtitle()}
         showBack={navigation.canGoBack()}
         onBackPress={() => {
           if (navigation.canGoBack()) navigation.goBack();
@@ -51,12 +93,12 @@ export const AdminOrdersScreen: React.FC<{ navigation: any; route?: any }> = ({ 
           contentContainerStyle={styles.filterRow}
         >
           {filters.map((filter) => {
-            const isActive = selectedFilter === filter;
+            const isActive = selectedFilter === filter.key;
             return (
               <TouchableOpacity
-                key={filter}
+                key={filter.key}
                 style={[styles.filterChip, isActive ? styles.filterChipActive : null]}
-                onPress={() => setSelectedFilter(filter)}
+                onPress={() => setSelectedFilter(filter.key)}
                 activeOpacity={0.8}
               >
                 <Text
@@ -65,7 +107,7 @@ export const AdminOrdersScreen: React.FC<{ navigation: any; route?: any }> = ({ 
                     isActive ? styles.filterChipTextActive : null,
                   ]}
                 >
-                  {filter.replace(/_/g, ' ')}
+                  {filter.label} ({filter.count})
                 </Text>
               </TouchableOpacity>
             );
@@ -89,8 +131,16 @@ export const AdminOrdersScreen: React.FC<{ navigation: any; route?: any }> = ({ 
         ListEmptyComponent={
           <EmptyState
             iconName="receipt-outline"
-            title="No Orders Found"
-            description="There are no orders matching the selected status filter."
+            title={
+              selectedFilter === 'PENDING'
+                ? 'No Pending Orders'
+                : 'No Orders Found'
+            }
+            description={
+              selectedFilter === 'PENDING'
+                ? 'Great job! There are no pending orders awaiting approval.'
+                : 'There are no orders matching the selected status filter.'
+            }
           />
         }
       />

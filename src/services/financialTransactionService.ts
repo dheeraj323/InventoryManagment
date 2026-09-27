@@ -449,4 +449,307 @@ export const financialTransactionService = {
       console.warn('[financialTransactionService] Could not update staff vehicle stock session:', stockErr);
     }
   },
+
+  /**
+   * Atomically creates and finalizes a Direct Spot Delivery when vendor did not place an order in advance.
+   *
+   * Writes:
+   * 1. Creates Order doc in 'orders' (status: DELIVERED, deliveryFinalized: true)
+   * 2. Writes DEBIT ledger entry (invoice charge for delivered products)
+   * 3. Writes CREDIT ledger entry (if payment collected at delivery)
+   * 4. Updates vendor currentBalance, currentOutstanding, advanceBalance, lastOrderDate, lastPaymentDate
+   * 5. Creates Invoice doc in 'invoices'
+   * 6. Writes AuditLog doc in 'auditLogs'
+   * 7. Updates staff on-hand vehicle stock session (recordDeliveredUnits)
+   */
+  recordDirectSpotDelivery: async (params: {
+    vendorId: string;
+    staffId: string;
+    staffName: string;
+    staffPhone?: string;
+    items: {
+      productId: string;
+      productName: string;
+      unit: string;
+      unitPrice: number;
+      quantity: number;
+    }[];
+    paymentMode: PaymentMethod;
+    paidAmount: number;
+    notes?: string;
+  }): Promise<Order> => {
+    const {
+      vendorId,
+      staffId,
+      staffName,
+      staffPhone,
+      items,
+      paymentMode,
+      paidAmount,
+      notes,
+    } = params;
+
+    if (!items || items.length === 0) {
+      throw new Error('Please select at least one product to deliver.');
+    }
+
+    const orderDocRef = doc(collection(db, ORDERS_COLLECTION));
+    const orderId = orderDocRef.id;
+    const nowStr = new Date().toISOString();
+    const nowTimestamp = Date.now();
+    const orderNumber = `ORD-2026-${nowTimestamp.toString().slice(-4)}`;
+    const invoiceNumber = `INV-${orderNumber}`;
+    const receiptNumber = `RCPT-${nowTimestamp.toString().slice(-6)}`;
+
+    let createdOrder: Order | null = null;
+
+    await runTransaction(db, async (transaction) => {
+      // ── PHASE 1: READS ──
+      const vendorRef = doc(db, VENDORS_COLLECTION, vendorId);
+      const vendorSnap = await transaction.get(vendorRef);
+      if (!vendorSnap.exists()) {
+        throw new Error(`Vendor with ID ${vendorId} not found.`);
+      }
+      const vendor = vendorSnap.data() as Vendor;
+
+      // ── PHASE 2: CALCULATIONS ──
+      const subtotal = items.reduce(
+        (sum, it) => sum + (it.quantity || 0) * (it.unitPrice || 0),
+        0
+      );
+      const TAX_RATE = BUSINESS_RULES.TAX_RATE || 0;
+      const tax = subtotal * TAX_RATE;
+      const totalAmount = subtotal + tax;
+
+      const safePaidAmount = Math.max(0, paidAmount);
+      const balanceDue = Math.max(0, totalAmount - safePaidAmount);
+
+      const currentVendorBalance = vendor.currentBalance || 0;
+      const updatedVendorBalance =
+        Math.round((currentVendorBalance + totalAmount - safePaidAmount) * 100) / 100;
+      const currentOutstanding = Math.max(0, updatedVendorBalance);
+      const advanceBalance = Math.max(0, -updatedVendorBalance);
+
+      const debitEntryId = `${orderId}_debit`;
+      const creditEntryId = `${orderId}_credit`;
+      const debitEntryRef = doc(db, LEDGER_COLLECTION, debitEntryId);
+      const creditEntryRef = doc(db, LEDGER_COLLECTION, creditEntryId);
+      const invoiceRef = doc(db, INVOICES_COLLECTION, orderId);
+      const auditRef = doc(collection(db, AUDIT_LOGS_COLLECTION));
+
+      const invoiceStatus: InvoiceStatus =
+        balanceDue === 0
+          ? 'PAID'
+          : safePaidAmount > 0
+          ? 'PARTIALLY_PAID'
+          : 'FINALIZED';
+
+      const orderLineItems: OrderItem[] = items.map((it, idx) => ({
+        id: `item-${idx}-${Date.now()}`,
+        productId: it.productId,
+        productName: it.productName,
+        unit: it.unit,
+        unitPrice: it.unitPrice,
+        orderedQty: it.quantity,
+        deliveredQty: it.quantity,
+        missingDamagedQty: 0,
+        damagedQty: 0,
+        totalAmount: it.quantity * it.unitPrice,
+      }));
+
+      createdOrder = {
+        id: orderId,
+        orderId,
+        orderNumber,
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        shopName: vendor.shopName || vendor.name,
+        phone: vendor.phone || '',
+        address: vendor.address || '',
+        locationUrl: vendor.locationUrl,
+        latitude: vendor.latitude,
+        longitude: vendor.longitude,
+        routeId: vendor.routeId,
+        routeName: vendor.routeName || vendor.area,
+        assignedStaffId: staffId,
+        assignedStaffName: staffName,
+        assignedStaffPhone: staffPhone || '',
+        items: orderLineItems,
+        subtotal,
+        tax,
+        discount: 0,
+        totalAmount,
+        advanceAdjusted: 0,
+        finalBillAmount: totalAmount,
+        status: 'DELIVERED',
+        preferredPaymentMode: paymentMode,
+        actualPaymentMode: paymentMode,
+        paidAmount: safePaidAmount,
+        balanceDue,
+        orderDate: nowStr,
+        deliveryDate: nowStr,
+        dispatchedAt: nowStr,
+        deliveredAt: nowStr,
+        deliveryFinalized: true,
+        invoiceId: orderId,
+        notes: notes || 'Direct Spot Delivery by Staff',
+        createdAt: nowStr,
+        updatedAt: nowStr,
+      };
+
+      // ── PHASE 3: WRITES ──
+      // 1. Order document
+      transaction.set(
+        orderDocRef,
+        cleanFirestoreData({
+          ...createdOrder,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+      );
+
+      // 2. Vendor document balance update
+      transaction.update(
+        vendorRef,
+        cleanFirestoreData({
+          currentBalance: updatedVendorBalance,
+          currentOutstanding,
+          advanceBalance,
+          lastOrderDate: nowStr,
+          ...(safePaidAmount > 0 ? { lastPaymentDate: nowStr } : {}),
+          updatedAt: serverTimestamp(),
+        })
+      );
+
+      // 3. DEBIT ledger entry (Invoice)
+      const debitEntry: LedgerEntry = {
+        id: debitEntryId,
+        entryId: debitEntryId,
+        accountType: 'vendor',
+        accountId: vendor.id,
+        partyId: vendor.id,
+        partyName: vendor.shopName || vendor.name,
+        partyType: 'VENDOR',
+        type: 'DEBIT',
+        transactionType: 'DEBIT',
+        direction: 'debit',
+        amount: totalAmount,
+        runningBalance: Math.round((currentVendorBalance + totalAmount) * 100) / 100,
+        referenceId: invoiceNumber,
+        referenceNo: invoiceNumber,
+        orderId,
+        invoiceId: orderId,
+        sourceType: 'INVOICE',
+        idempotencyKey: `${orderId}:DEBIT`,
+        date: nowStr,
+        note: `Direct spot delivery invoice for ${orderNumber}`,
+        createdBy: staffName,
+        createdRole: 'STAFF',
+        createdAt: nowStr,
+      };
+      transaction.set(
+        debitEntryRef,
+        cleanFirestoreData({ ...debitEntry, createdAt: serverTimestamp() })
+      );
+
+      // 4. CREDIT ledger entry (Payment received, if any)
+      if (safePaidAmount > 0) {
+        const creditEntry: LedgerEntry = {
+          id: creditEntryId,
+          entryId: creditEntryId,
+          accountType: 'vendor',
+          accountId: vendor.id,
+          partyId: vendor.id,
+          partyName: vendor.shopName || vendor.name,
+          partyType: 'VENDOR',
+          type: 'CREDIT',
+          transactionType: 'CREDIT',
+          direction: 'credit',
+          amount: safePaidAmount,
+          runningBalance: Math.round((currentVendorBalance + totalAmount - safePaidAmount) * 100) / 100,
+          referenceId: receiptNumber,
+          referenceNo: receiptNumber,
+          orderId,
+          invoiceId: orderId,
+          sourceType: 'PAYMENT',
+          idempotencyKey: `${orderId}:CREDIT`,
+          date: nowStr,
+          note: `${paymentMode} payment collected for direct spot delivery ${orderNumber}`,
+          paymentMethod: paymentMode,
+          createdBy: staffName,
+          createdRole: 'STAFF',
+          createdAt: nowStr,
+        };
+        transaction.set(
+          creditEntryRef,
+          cleanFirestoreData({ ...creditEntry, createdAt: serverTimestamp() })
+        );
+      }
+
+      // 5. Invoice document
+      const invoice: Invoice = {
+        id: orderId,
+        invoiceNumber,
+        orderId,
+        vendorId: vendor.id,
+        vendorName: vendor.name,
+        shopName: vendor.shopName || vendor.name,
+        status: invoiceStatus,
+        lineItems: orderLineItems,
+        subtotal,
+        taxAmount: tax,
+        discountAmount: 0,
+        totalAmount,
+        paidAmount: safePaidAmount,
+        balanceDue,
+        invoiceDate: nowStr,
+        deliveryFinalized: true,
+        createdBy: staffName,
+        createdAt: nowStr,
+        updatedAt: nowStr,
+      };
+      transaction.set(
+        invoiceRef,
+        cleanFirestoreData({
+          ...invoice,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        })
+      );
+
+      // 6. Audit Log
+      transaction.set(auditRef, {
+        id: auditRef.id,
+        action: 'DIRECT_SPOT_DELIVERY_RECORDED',
+        performedBy: staffName,
+        userRole: 'STAFF',
+        entityType: 'ORDER',
+        entityId: orderId,
+        timestamp: nowStr,
+        reason: `Direct spot delivery to ${vendor.shopName || vendor.name} recorded by ${staffName}`,
+        details:
+          `Invoice ${invoiceNumber} created. ` +
+          `Status: DELIVERED. ` +
+          `Total: ₹${totalAmount.toFixed(2)}, ` +
+          `Paid: ₹${safePaidAmount.toFixed(2)}, ` +
+          `Balance Due: ₹${balanceDue.toFixed(2)}`,
+        createdAt: serverTimestamp(),
+      });
+    });
+
+    // Update staff daily vehicle stock session
+    if (staffId && items.length > 0) {
+      try {
+        const deliveredPayload = items.map((it) => ({
+          productId: it.productId,
+          deliveredQty: it.quantity || 0,
+        }));
+        await staffStockService.recordDeliveredUnits(staffId, deliveredPayload);
+      } catch (stockErr) {
+        console.warn('[financialTransactionService] Could not update staff vehicle stock session:', stockErr);
+      }
+    }
+
+    return createdOrder!;
+  },
 };

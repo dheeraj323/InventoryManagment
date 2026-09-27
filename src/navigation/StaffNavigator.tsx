@@ -8,6 +8,7 @@ import { DeliveryDetailScreen } from '../screens/staff/DeliveryDetailScreen';
 import { ActualPaymentScreen } from '../screens/staff/ActualPaymentScreen';
 import { CashSettlementScreen } from '../screens/staff/CashSettlementScreen';
 import { StaffProfileScreen } from '../screens/staff/StaffProfileScreen';
+import { DirectDeliveryScreen } from '../screens/staff/DirectDeliveryScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, typography } from '../theme';
 
@@ -18,6 +19,7 @@ const Tab = createBottomTabNavigator();
 const StaffHomeStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="StaffDashboard" component={StaffDashboardScreen} />
+    <Stack.Screen name="DirectDelivery" component={DirectDeliveryScreen} />
     <Stack.Screen name="TodayDeliveries" component={TodayDeliveriesScreen} />
     <Stack.Screen name="DeliveryDetail" component={DeliveryDetailScreen} />
     <Stack.Screen name="ActualPayment" component={ActualPaymentScreen} />
@@ -33,6 +35,7 @@ const StaffDeliveriesStack = () => (
       component={TodayDeliveriesScreen}
       initialParams={{ filter: 'PENDING' }}
     />
+    <Stack.Screen name="DirectDelivery" component={DirectDeliveryScreen} />
     <Stack.Screen name="DeliveryDetail" component={DeliveryDetailScreen} />
     <Stack.Screen name="ActualPayment" component={ActualPaymentScreen} />
   </Stack.Navigator>

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useOrderStore } from '../../store/useOrderStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { OrderCard } from '../../components/orders/OrderCard';
@@ -78,6 +79,16 @@ export const TodayDeliveriesScreen: React.FC<{ navigation: any; route?: any }> =
         onBackPress={() => {
           if (navigation.canGoBack()) navigation.goBack();
         }}
+        rightAction={
+          <TouchableOpacity
+            style={styles.spotDeliveryHeaderBtn}
+            onPress={() => navigation.navigate('DirectDelivery')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="flash" size={14} color={colors.textInverse} />
+            <Text style={styles.spotDeliveryHeaderBtnText}>+ Spot Sale</Text>
+          </TouchableOpacity>
+        }
       />
 
       {/* Filter Tabs */}
@@ -182,5 +193,19 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: spacing.screenPadding,
+  },
+  spotDeliveryHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.accent,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: spacing.borderRadiusFull,
+    gap: 4,
+  },
+  spotDeliveryHeaderBtnText: {
+    ...typography.captionBold,
+    color: colors.textInverse,
+    fontSize: 11,
   },
 });

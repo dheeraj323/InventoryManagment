@@ -28,6 +28,22 @@ interface OrderState {
     paidAmount: number,
     notes?: string
   ) => Promise<void>;
+  recordDirectSpotDelivery: (params: {
+    vendorId: string;
+    staffId: string;
+    staffName: string;
+    staffPhone?: string;
+    items: {
+      productId: string;
+      productName: string;
+      unit: string;
+      unitPrice: number;
+      quantity: number;
+    }[];
+    paymentMode: PaymentMethod;
+    paidAmount: number;
+    notes?: string;
+  }) => Promise<Order>;
   getOrdersByVendor: (vendorId: string) => Order[];
   getOrdersByStaff: (staffId: string) => Order[];
   getOrderById: (orderId: string) => Order | undefined;
@@ -375,6 +391,189 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       );
     } catch (err) {
       console.error(`Error recording delivery in Firestore for order ${orderId}:`, err);
+    }
+  },
+
+  recordDirectSpotDelivery: async (params) => {
+    const {
+      vendorId,
+      staffId,
+      staffName,
+      staffPhone,
+      items,
+      paymentMode,
+      paidAmount,
+      notes,
+    } = params;
+
+    const vendor = useVendorStore.getState().getVendorById(vendorId);
+    const subtotal = items.reduce(
+      (sum, it) => sum + (it.quantity || 0) * (it.unitPrice || 0),
+      0
+    );
+    const TAX_RATE = BUSINESS_RULES.TAX_RATE || 0;
+    const tax = subtotal * TAX_RATE;
+    const totalAmount = subtotal + tax;
+    const safePaidAmount = Math.max(0, paidAmount);
+    const balanceDue = Math.max(0, totalAmount - safePaidAmount);
+    const currentVendorBalance = vendor ? vendor.currentBalance || 0 : 0;
+    const updatedVendorBalance =
+      Math.round((currentVendorBalance + totalAmount - safePaidAmount) * 100) / 100;
+    const nowStr = new Date().toISOString();
+    const tempOrderId = `spot-${Date.now()}`;
+    const orderNumber = `ORD-2026-${Date.now().toString().slice(-4)}`;
+    const invoiceNumber = `INV-${orderNumber}`;
+
+    // Optimistic Order
+    const optimisticOrder: Order = {
+      id: tempOrderId,
+      orderId: tempOrderId,
+      orderNumber,
+      vendorId,
+      vendorName: vendor?.name || 'Vendor',
+      shopName: vendor?.shopName || vendor?.name || 'Vendor Shop',
+      phone: vendor?.phone || '',
+      address: vendor?.address || '',
+      locationUrl: vendor?.locationUrl,
+      latitude: vendor?.latitude,
+      longitude: vendor?.longitude,
+      routeId: vendor?.routeId,
+      routeName: vendor?.routeName || vendor?.area,
+      assignedStaffId: staffId,
+      assignedStaffName: staffName,
+      assignedStaffPhone: staffPhone || '',
+      items: items.map((it, idx) => ({
+        id: `item-${idx}-${Date.now()}`,
+        productId: it.productId,
+        productName: it.productName,
+        unit: it.unit,
+        unitPrice: it.unitPrice,
+        orderedQty: it.quantity,
+        deliveredQty: it.quantity,
+        missingDamagedQty: 0,
+        damagedQty: 0,
+        totalAmount: it.quantity * it.unitPrice,
+      })),
+      subtotal,
+      tax,
+      discount: 0,
+      totalAmount,
+      advanceAdjusted: 0,
+      finalBillAmount: totalAmount,
+      status: 'DELIVERED',
+      preferredPaymentMode: paymentMode,
+      actualPaymentMode: paymentMode,
+      paidAmount: safePaidAmount,
+      balanceDue,
+      orderDate: nowStr,
+      deliveryDate: nowStr,
+      dispatchedAt: nowStr,
+      deliveredAt: nowStr,
+      deliveryFinalized: true,
+      invoiceId: tempOrderId,
+      notes: notes || 'Direct Spot Delivery by Staff',
+      createdAt: nowStr,
+      updatedAt: nowStr,
+    };
+
+    // 1. Optimistic Order Store
+    set({ orders: [optimisticOrder, ...get().orders] });
+
+    // 2. Optimistic Vendor Balance
+    if (vendor) {
+      useVendorStore.setState({
+        vendors: useVendorStore.getState().vendors.map((v) =>
+          v.id === vendorId || v.vendorId === vendorId
+            ? {
+                ...v,
+                currentBalance: updatedVendorBalance,
+                currentOutstanding: Math.max(0, updatedVendorBalance),
+                advanceBalance: Math.max(0, -updatedVendorBalance),
+                lastOrderDate: nowStr,
+                ...(safePaidAmount > 0 ? { lastPaymentDate: nowStr } : {}),
+              }
+            : v
+        ),
+      });
+    }
+
+    // 3. Optimistic Ledger Entries
+    const debitEntry: LedgerEntry = {
+      id: `${tempOrderId}_debit`,
+      entryId: `${tempOrderId}_debit`,
+      accountType: 'vendor',
+      accountId: vendorId,
+      partyId: vendorId,
+      partyName: vendor?.shopName || vendor?.name || 'Vendor',
+      partyType: 'VENDOR',
+      type: 'DEBIT',
+      transactionType: 'DEBIT',
+      direction: 'debit',
+      amount: totalAmount,
+      runningBalance: Math.round((currentVendorBalance + totalAmount) * 100) / 100,
+      referenceId: invoiceNumber,
+      referenceNo: invoiceNumber,
+      orderId: tempOrderId,
+      invoiceId: tempOrderId,
+      sourceType: 'INVOICE',
+      date: nowStr,
+      note: `Direct spot delivery invoice for ${orderNumber}`,
+      createdBy: staffName,
+      createdRole: 'STAFF',
+    };
+
+    const newLedgerEntries: LedgerEntry[] = [debitEntry];
+    if (safePaidAmount > 0) {
+      const creditEntry: LedgerEntry = {
+        id: `${tempOrderId}_credit`,
+        entryId: `${tempOrderId}_credit`,
+        accountType: 'vendor',
+        accountId: vendorId,
+        partyId: vendorId,
+        partyName: vendor?.shopName || vendor?.name || 'Vendor',
+        partyType: 'VENDOR',
+        type: 'CREDIT',
+        transactionType: 'CREDIT',
+        direction: 'credit',
+        amount: safePaidAmount,
+        runningBalance: Math.round((currentVendorBalance + totalAmount - safePaidAmount) * 100) / 100,
+        referenceId: `RCPT-${Date.now().toString().slice(-6)}`,
+        referenceNo: `RCPT-${Date.now().toString().slice(-6)}`,
+        orderId: tempOrderId,
+        invoiceId: tempOrderId,
+        sourceType: 'PAYMENT',
+        paymentMethod: paymentMode,
+        date: nowStr,
+        note: `${paymentMode} payment collected for direct spot delivery ${orderNumber}`,
+        createdBy: staffName,
+        createdRole: 'STAFF',
+      };
+      newLedgerEntries.unshift(creditEntry);
+    }
+    useLedgerStore.setState({
+      entries: [...newLedgerEntries, ...useLedgerStore.getState().entries],
+    });
+
+    // 4. Optimistic Staff Vehicle Stock Session Update
+    if (staffId && items.length > 0) {
+      const deliveredPayload = items.map((it) => ({
+        productId: it.productId,
+        deliveredQty: it.quantity || 0,
+      }));
+      useStaffStockStore.getState().recordDeliveredUnits(staffId, deliveredPayload);
+    }
+
+    // Call service to write to Firestore
+    try {
+      const actualOrder = await orderService.recordDirectSpotDelivery(params);
+      // Replace optimistic order with Firestore order
+      set({
+        orders: get().orders.map((o) => (o.id === tempOrderId ? actualOrder : o)),
+      });
+      return actualOrder;
+    } catch (err) {
+      console.error('Error recording direct spot delivery in Firestore:', err);
+      return optimisticOrder;
     }
   },
 
