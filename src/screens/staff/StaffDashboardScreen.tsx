@@ -159,34 +159,37 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
           )}
         </View>
 
-        {/* 2. Daily Delivery Vehicle Stock Tracker Card */}
+        {/* 2. Vehicle Stock Tracker Card */}
         <View style={styles.stockCard}>
-          {/* Header row */}
+          {/* Header Row */}
           <View style={styles.stockHeaderRow}>
             <View style={styles.stockTitleWrap}>
-              <View
-                style={[
-                  styles.stockIconCircle,
-                  hasActiveUnsettledSession
-                    ? { backgroundColor: colors.accentLight }
-                    : { backgroundColor: '#FEF3C7' },
-                ]}
-              >
-                <Ionicons
-                  name={hasActiveUnsettledSession ? 'bicycle' : 'cube-outline'}
-                  size={16}
-                  color={hasActiveUnsettledSession ? colors.accent : '#D97706'}
-                />
+              <View style={styles.stockIconCircle}>
+                <Ionicons name="cube-outline" size={17} color={colors.primary} />
               </View>
               <View>
-                <Text style={styles.stockCardTitle}>VEHICLE STOCK TRACKER</Text>
-                <Text style={styles.stockCardSubtitle}>
-                  {hasActiveUnsettledSession
-                    ? isOutForDelivery
-                      ? 'Out for delivery • Live transit tracking'
-                      : 'Morning stock loaded • Ready for trip'
-                    : 'Morning stock loading required'}
-                </Text>
+                <Text style={styles.stockCardTitle}>Vehicle Stock</Text>
+                <View style={styles.sessionStatusPill}>
+                  <View
+                    style={[
+                      styles.statusDot,
+                      {
+                        backgroundColor: hasActiveUnsettledSession
+                          ? isOutForDelivery
+                            ? '#0284C7'
+                            : colors.brandGreen
+                          : '#94A3B8',
+                      },
+                    ]}
+                  />
+                  <Text style={styles.sessionStatusText}>
+                    {hasActiveUnsettledSession
+                      ? isOutForDelivery
+                        ? 'Trip in Progress'
+                        : 'Morning Stock Loaded'
+                      : 'Stock Not Loaded'}
+                  </Text>
+                </View>
               </View>
             </View>
 
@@ -196,67 +199,43 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
                 onPress={() => setIsViewStockModalOpen(true)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.viewInventoryBtnText}>View Van</Text>
+                <Text style={styles.viewInventoryBtnText}>Van Stock</Text>
                 <Ionicons name="chevron-forward" size={12} color={colors.primary} />
               </TouchableOpacity>
             )}
           </View>
 
-          {/* Metric Tiles - Resets to 0 when settled or not loaded */}
-          <View style={styles.stockMetricGrid}>
-            <View style={styles.stockMetricTile}>
+          {/* Unified Stat Metric Bar */}
+          <View style={styles.stockMetricContainer}>
+            <View style={styles.stockMetricColumn}>
               <Text style={styles.stockMetricLabel}>LOADED</Text>
               <Text style={styles.stockMetricVal}>{totalLoaded}</Text>
-              <Text style={styles.stockMetricSub}>Morning take</Text>
+              <Text style={styles.stockMetricSub}>morning units</Text>
             </View>
 
-            <View style={[styles.stockMetricTile, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
-              <Text style={[styles.stockMetricLabel, { color: '#B45309' }]}>ON WAY</Text>
-              <Text style={[styles.stockMetricVal, { color: '#D97706' }]}>
-                {totalOutForDelivery}
-              </Text>
-              <Text style={styles.stockMetricSub}>Out delivery</Text>
-            </View>
+            <View style={styles.metricDivider} />
 
-            <View style={styles.stockMetricTile}>
+            <View style={styles.stockMetricColumn}>
               <Text style={styles.stockMetricLabel}>DELIVERED</Text>
               <Text style={[styles.stockMetricVal, { color: colors.brandGreen }]}>
                 {totalDelivered}
               </Text>
-              <Text style={styles.stockMetricSub}>Fulfilled</Text>
+              <Text style={styles.stockMetricSub}>fulfilled</Text>
             </View>
 
-            <View
-              style={[
-                styles.stockMetricTile,
-                { backgroundColor: '#EFF6FF' },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.stockMetricLabel,
-                  { color: colors.accent },
-                ]}
-              >
-                IN VAN
-              </Text>
-              <Text
-                style={[
-                  styles.stockMetricVal,
-                  { color: colors.accent },
-                ]}
-              >
+            <View style={styles.metricDivider} />
+
+            <View style={styles.stockMetricColumn}>
+              <Text style={styles.stockMetricLabel}>IN VAN</Text>
+              <Text style={[styles.stockMetricVal, { color: colors.primary }]}>
                 {totalInVehicle}
               </Text>
-              <Text style={styles.stockMetricSub}>
-                Live bal
-              </Text>
+              <Text style={styles.stockMetricSub}>on-hand</Text>
             </View>
           </View>
 
-          {/* Action Triggers */}
+          {/* Action Row */}
           <View style={styles.stockActionRow}>
-            {/* Morning Load Button - Shows default "Load Morning Stock" when not active or after stock is settled */}
             {!hasActiveUnsettledSession ? (
               <>
                 <TouchableOpacity
@@ -266,7 +245,7 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
                 >
                   <Ionicons name="sunny-outline" size={16} color={colors.textInverse} />
                   <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextPrimary]}>
-                    Load Stock
+                    Load Morning Stock
                   </Text>
                 </TouchableOpacity>
 
@@ -277,7 +256,7 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
                 >
                   <Ionicons name="flash-outline" size={16} color={colors.primary} />
                   <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextSecondary]}>
-                    Spot Delivery
+                    Spot Sale
                   </Text>
                 </TouchableOpacity>
               </>
@@ -307,7 +286,7 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
                   </Text>
                 </TouchableOpacity>
 
-                {/* 3. Out for Delivery Button */}
+                {/* 3. Start Trip Button */}
                 <TouchableOpacity
                   style={[styles.stockActionBtn, styles.stockActionBtnPrimary]}
                   onPress={handleStartDeliveryTrip}
@@ -316,7 +295,7 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
                 >
                   <Ionicons name="bicycle" size={16} color={colors.textInverse} />
                   <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextPrimary]}>
-                    {isDispatchingAll ? 'Starting...' : 'Out for Trip'}
+                    {isDispatchingAll ? 'Starting...' : 'Start Trip'}
                   </Text>
                 </TouchableOpacity>
               </>
@@ -330,7 +309,7 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
                 >
                   <Ionicons name="flash" size={16} color={colors.textInverse} />
                   <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextPrimary]}>
-                    + Spot Delivery
+                    Spot Delivery
                   </Text>
                 </TouchableOpacity>
 
@@ -348,18 +327,6 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
               </>
             )}
           </View>
-
-          {/* Out for Delivery Status Banner */}
-          {hasActiveUnsettledSession && isOutForDelivery && (
-            <View style={styles.tripActiveBanner}>
-              <Ionicons name="bicycle" size={16} color="#0284C7" />
-              <Text style={styles.tripActiveBannerText}>
-                {outForDeliveryOrders.length > 0
-                  ? `All ${outForDeliveryOrders.length} assigned ${outForDeliveryOrders.length === 1 ? 'order is' : 'orders are'} Out for Delivery (On Way)`
-                  : 'All deliveries completed. Return remaining stock when finished.'}
-              </Text>
-            </View>
-          )}
         </View>
 
         {/* 3. Today's Delivery Progress Metric Bar */}
@@ -539,8 +506,8 @@ const styles = StyleSheet.create({
   stockCard: {
     backgroundColor: colors.surface,
     borderRadius: spacing.borderRadiusLg,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
     ...shadows.sm,
@@ -549,79 +516,98 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   stockTitleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   stockIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stockCardTitle: {
-    ...typography.captionBold,
+    ...typography.bodyBold,
     color: colors.textPrimary,
-    fontSize: 12,
-    letterSpacing: 0.5,
+    fontSize: 14,
   },
-  stockCardSubtitle: {
+  sessionStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  sessionStatusText: {
     ...typography.caption,
     color: colors.textSecondary,
     fontSize: 11,
-    marginTop: 1,
   },
   viewInventoryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.surfaceSubtle,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: spacing.borderRadiusSm,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 2,
+    gap: 3,
   },
   viewInventoryBtnText: {
     ...typography.captionBold,
     color: colors.primary,
     fontSize: 11,
   },
-  stockMetricGrid: {
+  stockMetricContainer: {
     flexDirection: 'row',
-    gap: spacing.xs + 2,
-    marginBottom: spacing.sm,
-  },
-  stockMetricTile: {
-    flex: 1,
+    alignItems: 'center',
     backgroundColor: colors.surfaceSubtle,
     borderRadius: spacing.borderRadiusMd,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: spacing.sm,
+    marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.divider,
+  },
+  stockMetricColumn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metricDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: colors.divider,
   },
   stockMetricLabel: {
     ...typography.label,
     color: colors.textMuted,
     fontSize: 9,
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
   },
   stockMetricVal: {
-    ...typography.bodyBold,
+    ...typography.h3,
     color: colors.textPrimary,
-    fontSize: 16,
-    marginVertical: 1,
+    fontSize: 17,
+    marginTop: 1,
   },
   stockMetricSub: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: colors.textMuted,
     fontSize: 9,
+    marginTop: 1,
   },
   stockActionRow: {
     flexDirection: 'row',
@@ -645,7 +631,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   stockActionBtnEvening: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.navy,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   stockActionBtnDisabled: {
     backgroundColor: '#DCFCE7',
@@ -708,51 +696,5 @@ const styles = StyleSheet.create({
   primaryCtaBtn: {
     backgroundColor: colors.navy,
     borderRadius: spacing.borderRadiusXl,
-  },
-  dispatchTripCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0284C7',
-    padding: spacing.md,
-    borderRadius: spacing.borderRadiusMd,
-    marginTop: spacing.md,
-    ...shadows.sm,
-  },
-  dispatchTripIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dispatchTripTitle: {
-    ...typography.bodyBold,
-    color: colors.textInverse,
-    fontSize: 13,
-  },
-  dispatchTripSub: {
-    ...typography.caption,
-    color: '#E0F2FE',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  tripActiveBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0F9FF',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderRadius: spacing.borderRadiusMd,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-    marginTop: spacing.md,
-    gap: 8,
-  },
-  tripActiveBannerText: {
-    ...typography.captionBold,
-    color: '#0369A1',
-    fontSize: 12,
-    flex: 1,
   },
 });
