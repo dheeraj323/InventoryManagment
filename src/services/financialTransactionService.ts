@@ -192,18 +192,6 @@ export const financialTransactionService = {
         ? 'PARTIALLY_DELIVERED'
         : 'DELIVERED';
 
-      const rawAdvance =
-        existingOrder.advanceAdjusted ||
-        (existingOrder.preferredPaymentMode === 'ADVANCE' || actualPaymentMode === 'ADVANCE'
-          ? (existingOrder.totalAmount || newTotalAmount)
-          : 0);
-      const advanceAdjusted = Math.min(newTotalAmount, rawAdvance);
-      const finalBillAmount = Math.max(0, newTotalAmount - advanceAdjusted);
-      const isAdvanceCovered = advanceAdjusted >= newTotalAmount;
-
-      const effectiveActualPaymentMode: PaymentMethod = isAdvanceCovered ? 'ADVANCE' : actualPaymentMode;
-      const safePaidAmount = isAdvanceCovered ? 0 : Math.max(0, paidAmount);
-
       const nowStr = new Date().toISOString();
       const nowTimestamp = Date.now();
 
@@ -211,6 +199,26 @@ export const financialTransactionService = {
       const vendorExists = vendorSnap.exists();
       const vendor = vendorExists ? (vendorSnap.data() as Vendor) : null;
       const currentVendorBalance = vendor ? vendor.currentBalance || 0 : 0;
+      const vendorAdvanceAvailable =
+        vendor?.advanceBalance && vendor.advanceBalance > 0
+          ? vendor.advanceBalance
+          : currentVendorBalance < 0
+          ? Math.abs(currentVendorBalance)
+          : 0;
+
+      const totalAvailableAdvance = Math.max(
+        existingOrder.advanceAdjusted || 0,
+        vendorAdvanceAvailable,
+        existingOrder.preferredPaymentMode === 'ADVANCE' || actualPaymentMode === 'ADVANCE'
+          ? (existingOrder.totalAmount || newTotalAmount)
+          : 0
+      );
+      const advanceAdjusted = Math.min(newTotalAmount, totalAvailableAdvance);
+      const finalBillAmount = Math.max(0, newTotalAmount - advanceAdjusted);
+      const isAdvanceCovered = advanceAdjusted >= newTotalAmount;
+
+      const effectiveActualPaymentMode: PaymentMethod = isAdvanceCovered ? 'ADVANCE' : actualPaymentMode;
+      const safePaidAmount = isAdvanceCovered ? 0 : Math.max(0, paidAmount);
 
       const newBalanceDue = Math.max(0, finalBillAmount - safePaidAmount);
 

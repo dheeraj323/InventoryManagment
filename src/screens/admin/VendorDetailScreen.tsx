@@ -66,7 +66,7 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
     updateVendorPassword,
     updateVendorProfile,
   } = useVendorStore();
-  const { getLedgerForParty, getVendorAccountSummary } =
+  const { getLedgerForParty, getVendorAccountSummary, subscribeLedger } =
     useLedgerStore();
   const { orders } = useOrderStore();
   const { currentUser } = useAuthStore();
@@ -123,15 +123,17 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
   const [selectedTransaction, setSelectedTransaction] = useState<LedgerEntry | null>(null);
   const [orderFilter, setOrderFilter] = useState<'ALL' | OrderStatus>('ALL');
 
-  // Fetch Payments for this vendor
+  // Fetch Payments and Ledger for this vendor in real-time
   useEffect(() => {
     if (vendorId) {
       const unsubPayments = paymentService.subscribeVendorPayments(vendorId, (pmts) => {
         setPayments(pmts);
       });
+      const unsubLedger = subscribeLedger(vendorId);
 
       return () => {
         unsubPayments();
+        unsubLedger();
       };
     }
   }, [vendorId]);

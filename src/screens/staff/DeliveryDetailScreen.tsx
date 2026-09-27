@@ -34,18 +34,16 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
   navigation,
 }) => {
   const { orderId } = route.params || {};
-  const { getOrderById, updateOrderStatus } = useOrderStore();
+  const { getOrderById } = useOrderStore();
   const { getVendorById } = useVendorStore();
   const { activeStaffId, currentUser } = useAuthStore();
-  const { todaySession, subscribeTodaySession, syncOutForDeliveryStock } = useStaffStockStore();
+  const { todaySession, subscribeTodaySession } = useStaffStockStore();
 
   const order = getOrderById(orderId);
   const vendor = order ? getVendorById(order.vendorId) : undefined;
 
   const effectiveStaffId =
     order?.assignedStaffId || activeStaffId || currentUser?.staffId || currentUser?.id || '';
-
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   useEffect(() => {
     if (effectiveStaffId) {
@@ -98,22 +96,6 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
       });
     });
   }, [vanStockMap, order?.id]);
-
-  const handleMarkOutForDelivery = async () => {
-    if (!order || isUpdatingStatus) return;
-    setIsUpdatingStatus(true);
-    try {
-      await updateOrderStatus(order.id, 'OUT_FOR_DELIVERY');
-      const allOrders = useOrderStore.getState().orders;
-      if (effectiveStaffId) {
-        await syncOutForDeliveryStock(effectiveStaffId, allOrders);
-      }
-    } catch (err) {
-      console.warn('Error setting order out for delivery:', err);
-    } finally {
-      setIsUpdatingStatus(false);
-    }
-  };
 
   if (!order || order.status === 'PENDING' || order.status === 'CANCELLED') {
     return (
@@ -183,10 +165,19 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
     });
   }, [items, vanStockMap]);
 
-  const rawAdvance =
-    order?.advanceAdjusted ||
-    (order?.preferredPaymentMode === 'ADVANCE' ? (order?.totalAmount || 0) : 0);
-  const effectiveAdvanceAdjusted = Math.min(calculatedTotal, rawAdvance);
+  const vendorAdvanceAvailable =
+    vendor?.advanceBalance && vendor.advanceBalance > 0
+      ? vendor.advanceBalance
+      : vendor?.currentBalance && vendor.currentBalance < 0
+      ? Math.abs(vendor.currentBalance)
+      : 0;
+
+  const totalAvailableAdvance = Math.max(
+    order?.advanceAdjusted || 0,
+    vendorAdvanceAvailable,
+    order?.preferredPaymentMode === 'ADVANCE' ? (order?.totalAmount || calculatedTotal) : 0
+  );
+  const effectiveAdvanceAdjusted = Math.min(calculatedTotal, totalAvailableAdvance);
   const remainingPayable = Math.max(0, calculatedTotal - effectiveAdvanceAdjusted);
   const isFullyPaidByAdvance =
     (order?.preferredPaymentMode === 'ADVANCE' || effectiveAdvanceAdjusted > 0) &&
@@ -351,46 +342,6 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Out for Delivery Status / Action Banner */}
-        {order.status !== 'OUT_FOR_DELIVERY' ? (
-          <View style={styles.dispatchActionCard}>
-            <View style={styles.dispatchActionLeft}>
-              <View style={styles.dispatchIconWrap}>
-                <Ionicons name="bicycle" size={18} color={colors.accent} />
-              </View>
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={styles.dispatchActionTitle}>Start Delivery Trip</Text>
-                <Text style={styles.dispatchActionSubtitle}>
-                  Mark as Out for Delivery to update On-Way vehicle stock tracker.
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.dispatchBtn}
-              onPress={handleMarkOutForDelivery}
-              disabled={isUpdatingStatus}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="bicycle-outline" size={14} color={colors.textInverse} />
-              <Text style={styles.dispatchBtnText}>
-                {isUpdatingStatus ? 'Updating...' : 'Out for Delivery'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.onWayBadgeBanner}>
-            <View style={styles.onWayIconWrap}>
-              <Ionicons name="bicycle" size={18} color="#0284C7" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.onWayBadgeTitle}>OUT FOR DELIVERY (ON THE WAY)</Text>
-              <Text style={styles.onWayBadgeSub}>
-                Stock tracked as active in-transit delivery on vehicle record.
-              </Text>
-            </View>
-          </View>
-        )}
-
         {/* Advance Pre-Paid Notice Banner */}
         {effectiveAdvanceAdjusted > 0 && (
           <View
@@ -414,8 +365,8 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
                 ]}
               >
                 {isFullyPaidByAdvance
-                  ? `⚡ FULLY PRE-PAID VIA ADVANCE (₹${effectiveAdvanceAdjusted.toLocaleString('en-IN')})`
-                  : `⚡ PARTIAL ADVANCE APPLIED: ₹${effectiveAdvanceAdjusted.toLocaleString('en-IN')}`}
+                  ? `FULLY PRE-PAID VIA ADVANCE (₹${effectiveAdvanceAdjusted.toLocaleString('en-IN')})`
+                  : `PARTIAL ADVANCE APPLIED: ₹${effectiveAdvanceAdjusted.toLocaleString('en-IN')}`}
               </Text>
               <Text style={styles.advanceNoticeSub}>
                 {isFullyPaidByAdvance
@@ -585,83 +536,7 @@ const styles = StyleSheet.create({
     ...typography.bodyBold,
     color: colors.debit,
   },
-  dispatchActionCard: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: spacing.borderRadiusMd,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    marginBottom: spacing.md,
-  },
-  dispatchActionLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  dispatchIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#DBEAFE',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dispatchActionTitle: {
-    ...typography.bodyBold,
-    color: '#1E40AF',
-    fontSize: 13,
-  },
-  dispatchActionSubtitle: {
-    ...typography.caption,
-    color: '#3B82F6',
-    fontSize: 11,
-    marginTop: 1,
-  },
-  dispatchBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accent,
-    paddingVertical: 9,
-    paddingHorizontal: spacing.md,
-    borderRadius: spacing.borderRadiusSm,
-    gap: 6,
-  },
-  dispatchBtnText: {
-    ...typography.captionBold,
-    color: colors.textInverse,
-    fontSize: 12,
-  },
-  onWayBadgeBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0F9FF',
-    borderRadius: spacing.borderRadiusMd,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-    marginBottom: spacing.md,
-  },
-  onWayIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#E0F2FE',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  onWayBadgeTitle: {
-    ...typography.captionBold,
-    color: '#0369A1',
-    fontSize: 11,
-    letterSpacing: 0.5,
-  },
-  onWayBadgeSub: {
-    ...typography.caption,
-    color: '#0284C7',
-    fontSize: 10,
-    marginTop: 1,
-  },
+
   vanStockAlertCard: {
     flexDirection: 'row',
     alignItems: 'center',

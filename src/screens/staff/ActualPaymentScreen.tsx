@@ -33,10 +33,19 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
   const order = getOrderById(orderId);
   const vendor = order ? getVendorById(order.vendorId) : null;
   const totalOrderValue = calculatedTotal || order?.totalAmount || 0;
-  const rawAdvance =
-    order?.advanceAdjusted ||
-    (order?.preferredPaymentMode === 'ADVANCE' ? totalOrderValue : 0);
-  const effectiveAdvanceAdjusted = Math.min(totalOrderValue, rawAdvance);
+  const vendorAdvanceAvailable =
+    vendor?.advanceBalance && vendor.advanceBalance > 0
+      ? vendor.advanceBalance
+      : vendor?.currentBalance && vendor.currentBalance < 0
+      ? Math.abs(vendor.currentBalance)
+      : 0;
+
+  const totalAvailableAdvance = Math.max(
+    order?.advanceAdjusted || 0,
+    vendorAdvanceAvailable,
+    order?.preferredPaymentMode === 'ADVANCE' ? (order?.totalAmount || totalOrderValue) : 0
+  );
+  const effectiveAdvanceAdjusted = Math.min(totalOrderValue, totalAvailableAdvance);
   const remainingPayable = Math.max(0, totalOrderValue - effectiveAdvanceAdjusted);
   const isFullyCoveredByAdvance =
     (order?.preferredPaymentMode === 'ADVANCE' || effectiveAdvanceAdjusted > 0) &&

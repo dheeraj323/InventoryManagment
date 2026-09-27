@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   FlatList,
   TouchableOpacity,
   ScrollView,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLedgerStore } from '../../store/useLedgerStore';
@@ -31,9 +32,9 @@ const FILTERS: { key: FilterType; label: string }[] = [
 ];
 
 export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { getLedgerForParty, getVendorAccountSummary } = useLedgerStore();
+  const { getLedgerForParty, getVendorAccountSummary, subscribeLedger, fetchLedger } = useLedgerStore();
   const { activeVendorId, currentUser } = useAuthStore();
-  const { getVendorById } = useVendorStore();
+  const { getVendorById, fetchVendors } = useVendorStore();
 
   const effectiveVendorId = activeVendorId || currentUser?.vendorId || 'vendor-1';
   const vendor = getVendorById(effectiveVendorId) || {
@@ -47,6 +48,31 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
     creditLimit: 0,
     payLaterEligible: true,
     preferredPaymentMode: 'PAY_LATER' as const,
+  };
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (effectiveVendorId) {
+      const unsub = subscribeLedger(effectiveVendorId);
+      return () => {
+        if (unsub) unsub();
+      };
+    }
+  }, [effectiveVendorId]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        fetchLedger(effectiveVendorId),
+        fetchVendors(),
+      ]);
+    } catch (err) {
+      console.warn('Error refreshing ledger:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const entries = getLedgerForParty(effectiveVendorId);
@@ -82,6 +108,14 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
         ListHeaderComponent={
           <View style={styles.headerWrap}>
             {/* Summary card */}

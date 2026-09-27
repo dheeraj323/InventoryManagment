@@ -7,7 +7,7 @@ interface LedgerState {
   entries: LedgerEntry[];
   auditLogs: AuditLog[];
   isLoading: boolean;
-  fetchLedger: () => Promise<void>;
+  fetchLedger: (partyId?: string) => Promise<void>;
   subscribeLedger: (partyId?: string) => () => void;
   addEntry: (entry: Omit<LedgerEntry, 'id' | 'runningBalance'>) => Promise<void>;
   adjustLedgerManual: (
@@ -33,20 +33,35 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
   auditLogs: [],
   isLoading: false,
 
-  fetchLedger: async () => {
+  fetchLedger: async (partyId?: string) => {
     set({ isLoading: true });
     try {
-      const logs = await ledgerService.getAuditLogs();
-      set({ auditLogs: logs || [], isLoading: false });
+      if (partyId) {
+        const partyEntries = await ledgerService.getLedgerForParty(partyId);
+        const otherEntries = get().entries.filter(
+          (e) => e.partyId !== partyId && e.accountId !== partyId
+        );
+        set({ entries: [...partyEntries, ...otherEntries], isLoading: false });
+      } else {
+        const logs = await ledgerService.getAuditLogs();
+        set({ auditLogs: logs || [], isLoading: false });
+      }
     } catch (err) {
-      console.error('Error fetching audit logs:', err);
+      console.error('Error fetching ledger:', err);
       set({ isLoading: false });
     }
   },
 
   subscribeLedger: (partyId?: string) => {
     return ledgerService.subscribeLedger((firestoreEntries) => {
-      set({ entries: firestoreEntries || [] });
+      if (partyId) {
+        const otherEntries = get().entries.filter(
+          (e) => e.partyId !== partyId && e.accountId !== partyId
+        );
+        set({ entries: [...(firestoreEntries || []), ...otherEntries] });
+      } else {
+        set({ entries: firestoreEntries || [] });
+      }
     }, partyId);
   },
 

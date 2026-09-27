@@ -263,20 +263,29 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       ? 'DELIVERED'
       : 'PARTIALLY_DELIVERED';
 
-    const rawAdvance =
-      order.advanceAdjusted ||
-      (order.preferredPaymentMode === 'ADVANCE' || actualPaymentMode === 'ADVANCE'
+    const vendor = useVendorStore.getState().getVendorById(order.vendorId);
+    const currentVendorBalance = vendor ? vendor.currentBalance || 0 : 0;
+    const vendorAdvanceAvailable =
+      vendor?.advanceBalance && vendor.advanceBalance > 0
+        ? vendor.advanceBalance
+        : currentVendorBalance < 0
+        ? Math.abs(currentVendorBalance)
+        : 0;
+
+    const totalAvailableAdvance = Math.max(
+      order.advanceAdjusted || 0,
+      vendorAdvanceAvailable,
+      order.preferredPaymentMode === 'ADVANCE' || actualPaymentMode === 'ADVANCE'
         ? (order.totalAmount || newTotalAmount)
-        : 0);
-    const advanceAdjusted = Math.min(newTotalAmount, rawAdvance);
+        : 0
+    );
+    const advanceAdjusted = Math.min(newTotalAmount, totalAvailableAdvance);
     const finalBillAmount = Math.max(0, newTotalAmount - advanceAdjusted);
     const isAdvanceCovered = advanceAdjusted >= newTotalAmount;
 
     const effectiveActualPaymentMode: PaymentMethod = isAdvanceCovered ? 'ADVANCE' : actualPaymentMode;
     const safePaidAmount = isAdvanceCovered ? 0 : Math.max(0, paidAmount);
 
-    const vendor = useVendorStore.getState().getVendorById(order.vendorId);
-    const currentVendorBalance = vendor ? vendor.currentBalance || 0 : 0;
     const newBalanceDue = Math.max(0, finalBillAmount - safePaidAmount);
 
     set({

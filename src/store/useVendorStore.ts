@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import { Vendor, VendorStatus, PaymentMethod } from '../types';
+import { Vendor, VendorStatus, PaymentMethod, LedgerEntry } from '../types';
 import { vendorService } from '../services/vendorService';
 import { paymentService } from '../services/paymentService';
 import { authService } from '../services/authService';
+import { useLedgerStore } from './useLedgerStore';
 
 interface VendorState {
   vendors: Vendor[];
@@ -158,13 +159,18 @@ export const useVendorStore = create<VendorState>((set, get) => ({
 
   recordDirectPayment: async (params) => {
     const payment = await paymentService.recordDirectPayment(params);
-    // Optimistic balance update
+    const targetVendor = get().vendors.find(
+      (v) => v.id === params.vendorId || v.vendorId === params.vendorId
+    );
+    const prevBalance = targetVendor?.currentBalance || 0;
+    const updatedBal = Math.round((prevBalance - params.amount) * 100) / 100;
+    const currentOutstanding = Math.max(0, updatedBal);
+    const advanceBalance = Math.max(0, -updatedBal);
+
+    // Optimistic balance update in useVendorStore
     set({
       vendors: get().vendors.map((v) => {
         if (v.id === params.vendorId || v.vendorId === params.vendorId) {
-          const updatedBal = Math.round(((v.currentBalance || 0) - params.amount) * 100) / 100;
-          const currentOutstanding = Math.max(0, updatedBal);
-          const advanceBalance = Math.max(0, -updatedBal);
           return {
             ...v,
             currentBalance: updatedBal,
@@ -175,6 +181,48 @@ export const useVendorStore = create<VendorState>((set, get) => ({
         }
         return v;
       }),
+    });
+
+    // Optimistically record the CREDIT ledger entry in useLedgerStore
+    const isAdvancePayment = prevBalance <= 0 || params.amount > prevBalance;
+    const autoNote = isAdvancePayment
+      ? prevBalance <= 0
+        ? `Advance payment of ₹${params.amount.toLocaleString('en-IN')} received via ${params.paymentMode}`
+        : `Payment of ₹${params.amount.toLocaleString('en-IN')} (₹${prevBalance.toLocaleString('en-IN')} due settled + ₹${(params.amount - prevBalance).toLocaleString('en-IN')} advance balance)`
+      : `${params.paymentMode} payment received directly at HQ`;
+
+    const creditEntryId = payment.id || `led-${Date.now()}`;
+    const safeRef = params.referenceNumber?.trim() || payment.referenceNumber || `PAY-${Date.now().toString().slice(-6)}`;
+
+    const newCreditEntry: LedgerEntry = {
+      id: creditEntryId,
+      entryId: creditEntryId,
+      accountType: 'vendor',
+      accountId: params.vendorId,
+      partyId: params.vendorId,
+      partyName: targetVendor?.shopName || targetVendor?.name || 'Vendor',
+      partyType: 'VENDOR',
+      type: 'CREDIT',
+      transactionType: 'CREDIT',
+      direction: 'credit',
+      amount: params.amount,
+      runningBalance: updatedBal,
+      referenceId: safeRef,
+      referenceNo: safeRef,
+      sourceType: 'PAYMENT',
+      idempotencyKey: `${payment.id}:CREDIT`,
+      date: payment.paymentDate || new Date().toISOString(),
+      note: params.notes || payment.notes || autoNote,
+      paymentMethod: params.paymentMode,
+      createdBy: params.adminName || 'Admin',
+      createdRole: 'ADMIN',
+      createdAt: payment.paymentDate || new Date().toISOString(),
+    };
+
+    const currentEntries = useLedgerStore.getState().entries;
+    const filtered = currentEntries.filter((e) => e.id !== creditEntryId && e.id !== newCreditEntry.id);
+    useLedgerStore.setState({
+      entries: [newCreditEntry, ...filtered],
     });
   },
 

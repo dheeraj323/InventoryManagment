@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -21,13 +21,22 @@ import { colors, typography, spacing } from '../../theme';
 export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { activeRole, activeVendorId, currentUser } = useAuthStore();
   const { getOrdersByVendor } = useOrderStore();
-  const { getPartyRunningBalance, getVendorAccountSummary } = useLedgerStore();
+  const { getPartyRunningBalance, getVendorAccountSummary, subscribeLedger, fetchLedger } = useLedgerStore();
   const { getItemCount } = useCartStore();
-  const { getVendorById } = useVendorStore();
+  const { getVendorById, fetchVendors } = useVendorStore();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const effectiveVendorId = activeVendorId || currentUser?.vendorId || '';
+
+  useEffect(() => {
+    if (effectiveVendorId) {
+      const unsub = subscribeLedger(effectiveVendorId);
+      return () => {
+        if (unsub) unsub();
+      };
+    }
+  }, [effectiveVendorId]);
   const vendor = getVendorById(effectiveVendorId) || {
     id: effectiveVendorId,
     name: currentUser?.name || 'Retailer',
@@ -64,9 +73,16 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
+    try {
+      await Promise.all([
+        fetchLedger(effectiveVendorId),
+        fetchVendors(),
+      ]);
+    } catch (err) {
+      console.warn('Error refreshing dashboard:', err);
+    } finally {
       setIsRefreshing(false);
-    }, 600);
+    }
   };
 
   return (
