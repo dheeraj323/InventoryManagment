@@ -22,7 +22,7 @@ import { AddVendorModal } from '../../components/vendor/AddVendorModal';
 import { Vendor, VendorStatus } from '../../types';
 import { colors, typography, spacing } from '../../theme';
 
-type FilterKey = 'ALL' | 'WITH_DUES';
+type FilterKey = 'ALL' | 'WITH_DUES' | 'WITH_ADVANCE';
 
 export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { vendors, addVendor } = useVendorStore();
@@ -38,11 +38,13 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     return vendors.map((v) => {
       const summary = getVendorAccountSummary(v.id, v);
       const hasDues = summary.currentOutstanding > 0;
+      const hasAdvance = summary.advanceBalance > 0;
 
       return {
         vendor: v,
         summary,
         hasDues,
+        hasAdvance,
       };
     });
   }, [vendors, getVendorAccountSummary]);
@@ -50,19 +52,27 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   // Aggregate metrics
   const metrics = useMemo(() => {
     let totalReceivables = 0;
+    let totalAdvances = 0;
     let withDuesCount = 0;
+    let withAdvanceCount = 0;
 
     for (const item of vendorSummaries) {
       if (item.hasDues) {
         totalReceivables += item.summary.currentOutstanding;
         withDuesCount++;
       }
+      if (item.hasAdvance) {
+        totalAdvances += item.summary.advanceBalance;
+        withAdvanceCount++;
+      }
     }
 
     return {
       totalCount: vendors.length,
       totalReceivables,
+      totalAdvances,
       withDuesCount,
+      withAdvanceCount,
     };
   }, [vendorSummaries, vendors]);
 
@@ -88,6 +98,7 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
       // Filter Key Selection
       if (selectedFilter === 'WITH_DUES') return item.hasDues;
+      if (selectedFilter === 'WITH_ADVANCE') return item.hasAdvance;
 
       return true;
     });
@@ -127,6 +138,7 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const filterTabs = [
     { key: 'ALL' as FilterKey, label: 'All', count: metrics.totalCount, dotColor: undefined },
     { key: 'WITH_DUES' as FilterKey, label: 'With Dues', count: metrics.withDuesCount, dotColor: colors.warning },
+    { key: 'WITH_ADVANCE' as FilterKey, label: 'With Advance', count: metrics.withAdvanceCount, dotColor: colors.brandGreen },
   ];
 
   return (
@@ -302,15 +314,23 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
                 <View style={styles.balanceCol}>
                   <Text style={styles.balanceLabel}>
-                    {outstanding > 0 ? 'Balance Due' : 'Account Balance'}
+                    {outstanding > 0 ? 'Balance Due' : item.summary.advanceBalance > 0 ? 'Advance Balance' : 'Account Balance'}
                   </Text>
                   <Text
                     style={[
                       styles.balanceAmount,
-                      outstanding > 0 ? styles.balanceDue : styles.balanceSettled,
+                      outstanding > 0
+                        ? styles.balanceDue
+                        : item.summary.advanceBalance > 0
+                        ? { color: colors.brandGreen }
+                        : styles.balanceSettled,
                     ]}
                   >
-                    {outstanding > 0 ? `₹${fmt(outstanding)}` : 'Settled (₹0)'}
+                    {outstanding > 0
+                      ? `₹${fmt(outstanding)}`
+                      : item.summary.advanceBalance > 0
+                      ? `₹${fmt(item.summary.advanceBalance)}`
+                      : 'Settled (₹0)'}
                   </Text>
                 </View>
 

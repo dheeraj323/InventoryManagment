@@ -8,6 +8,7 @@ export const PAYMENT_METHOD_LABELS = {
   PAY_LATER: 'Pay Later',
   PARTIALLY_PAID: 'Partially Paid',
   PENDING: 'Payment Pending',
+  ADVANCE: 'Advance Balance',
 };
 
 export const ORDER_STATUS_CONFIG = {

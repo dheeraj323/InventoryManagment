@@ -62,7 +62,7 @@ export const ProductQuantityCard: React.FC<ProductQuantityCardProps> = ({
           const isMissing = item.deliveredQty < ordered;
           const missingQty = Math.max(0, ordered - item.deliveredQty);
           const extraQty = isExtra ? item.deliveredQty - ordered : 0;
-          const vanStock = vanStockMap ? vanStockMap[item.productId] : undefined;
+          const vanStock = vanStockMap !== undefined ? (vanStockMap[item.productId] ?? 0) : undefined;
 
           return (
             <View
@@ -82,10 +82,22 @@ export const ProductQuantityCard: React.FC<ProductQuantityCardProps> = ({
 
                 <View style={styles.badgeWrapRow}>
                   {vanStock !== undefined && (
-                    <View style={styles.vanStockBadge}>
-                      <Ionicons name="car-outline" size={11} color={colors.textSecondary} />
-                      <Text style={styles.vanStockBadgeText}>In Van: {vanStock}</Text>
-                    </View>
+                    vanStock === 0 ? (
+                      <View style={styles.noStockBadge}>
+                        <Ionicons name="alert-circle" size={11} color={colors.danger} />
+                        <Text style={styles.noStockBadgeText}>0 in Van • Not Loaded</Text>
+                      </View>
+                    ) : vanStock < ordered ? (
+                      <View style={styles.partialStockBadge}>
+                        <Ionicons name="car-outline" size={11} color="#D97706" />
+                        <Text style={styles.partialStockBadgeText}>In Van: {vanStock} (Partial)</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.vanStockBadge}>
+                        <Ionicons name="car-outline" size={11} color={colors.textSecondary} />
+                        <Text style={styles.vanStockBadgeText}>In Van: {vanStock}</Text>
+                      </View>
+                    )
                   )}
 
                   {isMissing ? (
@@ -251,6 +263,40 @@ const styles = StyleSheet.create({
   vanStockBadgeText: {
     ...typography.captionBold,
     color: colors.textSecondary,
+    fontSize: 10,
+  },
+  noStockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: spacing.borderRadiusSm,
+    alignSelf: 'flex-start',
+  },
+  noStockBadgeText: {
+    ...typography.captionBold,
+    color: colors.danger,
+    fontSize: 10,
+  },
+  partialStockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: spacing.borderRadiusSm,
+    alignSelf: 'flex-start',
+  },
+  partialStockBadgeText: {
+    ...typography.captionBold,
+    color: '#D97706',
     fontSize: 10,
   },
   extraBadgePill: {

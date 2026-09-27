@@ -21,7 +21,7 @@ import { colors, typography, spacing } from '../../theme';
 export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { activeRole, activeVendorId, currentUser } = useAuthStore();
   const { getOrdersByVendor } = useOrderStore();
-  const { getPartyRunningBalance } = useLedgerStore();
+  const { getPartyRunningBalance, getVendorAccountSummary } = useLedgerStore();
   const { getItemCount } = useCartStore();
   const { getVendorById } = useVendorStore();
 
@@ -40,13 +40,24 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
     preferredPaymentMode: 'CASH' as const,
   };
 
-  const runningBalance = getPartyRunningBalance(effectiveVendorId);
+  const accountSummary = getVendorAccountSummary(effectiveVendorId, vendor);
   const vendorOrders = getOrdersByVendor(effectiveVendorId);
   const cartCount = getItemCount();
 
-  const isDue = runningBalance > 0;
-  const balanceAccentColor = isDue ? colors.debit : colors.brandGreen;
-  const balanceAccentBg = isDue ? colors.statusCancelledBg : colors.statusDeliveredBg;
+  const isDue = accountSummary.currentOutstanding > 0;
+  const hasAdvance = !isDue && accountSummary.advanceBalance > 0;
+
+  const balanceAccentColor = isDue
+    ? colors.debit
+    : hasAdvance
+    ? colors.brandGreen
+    : colors.textSecondary;
+
+  const balanceAccentBg = isDue
+    ? colors.statusCancelledBg
+    : hasAdvance
+    ? '#DCFCE7'
+    : colors.surfaceSubtle;
 
   const fmt = (n: number) =>
     n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -95,7 +106,7 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
           />
         }
       >
-        {/* ── 1. Net Outstanding Balance Card ─────────────────────────── */}
+        {/* ── 1. Net Outstanding / Advance Balance Card ─────────────────────────── */}
         <Card
           style={[styles.balanceCard, { borderLeftColor: balanceAccentColor }]}
           outlined
@@ -105,7 +116,11 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
           <View style={styles.balanceHeader}>
             <View style={styles.balanceLabelCol}>
               <Text style={styles.balanceSectionLabel}>
-                {isDue ? 'NET OUTSTANDING BALANCE' : 'ACCOUNT BALANCE STATUS'}
+                {isDue
+                  ? 'NET OUTSTANDING BALANCE'
+                  : hasAdvance
+                  ? 'ADVANCE BALANCE AVAILABLE'
+                  : 'ACCOUNT BALANCE STATUS'}
               </Text>
               <Text style={styles.balanceShopName} numberOfLines={1}>
                 {vendor.shopName} · Official Khata
@@ -113,8 +128,8 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
             </View>
 
             <View style={[styles.balanceStatusChip, { backgroundColor: balanceAccentBg }]}>
-              <Text style={[styles.balanceStatusText, { color: balanceAccentColor }]}>
-                {isDue ? 'Pending Due' : 'All Dues Cleared'}
+              <Text style={[styles.balanceStatusText, { color: isDue ? colors.debit : hasAdvance ? '#15803D' : colors.textSecondary }]}>
+                {isDue ? 'Pending Due' : hasAdvance ? 'Advance Balance' : 'All Dues Cleared'}
               </Text>
             </View>
           </View>
@@ -122,10 +137,14 @@ export const VendorDashboardScreen: React.FC<{ navigation: any }> = ({ navigatio
           <View style={styles.amountRow}>
             <View>
               <Text style={[styles.heroAmount, { color: balanceAccentColor }]}>
-                ₹{fmt(Math.abs(runningBalance))}
+                ₹{fmt(isDue ? accountSummary.currentOutstanding : hasAdvance ? accountSummary.advanceBalance : 0)}
               </Text>
               <Text style={styles.amountSubtext}>
-                {isDue ? 'Total outstanding payable amount' : 'No overdue balance on your account'}
+                {isDue
+                  ? 'Total outstanding payable amount'
+                  : hasAdvance
+                  ? 'Auto-deducted against your next order'
+                  : 'No overdue balance on your account'}
               </Text>
             </View>
 

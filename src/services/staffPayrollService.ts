@@ -124,6 +124,38 @@ export const staffPayrollService = {
   },
 
   /**
+   * Real-time subscription to monthly attendance records for all staff in a given month (YYYY-MM)
+   */
+  subscribeMonthlyAttendance: (
+    month: string, // YYYY-MM
+    callback: (records: StaffAttendance[]) => void
+  ): Unsubscribe => {
+    const startDate = `${month}-01`;
+    const endDate = `${month}-31`;
+
+    const q = query(
+      collection(db, ATTENDANCE_COLLECTION),
+      where('date', '>=', startDate),
+      where('date', '<=', endDate)
+    );
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const records = snapshot.docs.map((d) => ({
+          ...d.data(),
+          id: d.id,
+        })) as StaffAttendance[];
+        callback(records);
+      },
+      (error) => {
+        console.error('Error subscribing to monthly attendance:', error);
+        callback([]);
+      }
+    );
+  },
+
+  /**
    * Mark attendance for a single staff member on a date
    */
   markAttendance: async (params: {

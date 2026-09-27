@@ -87,6 +87,7 @@ export const VendorLedgerScreen: React.FC<{ navigation: any }> = ({ navigation }
             {/* Summary card */}
             <LedgerSummaryCard
               currentOutstanding={accountSummary.currentOutstanding}
+              advanceBalance={accountSummary.advanceBalance}
               currentBalance={accountSummary.lastLedgerBalance}
               totalInvoiced={accountSummary.totalDebits}
               paymentsReceived={accountSummary.totalCredits}

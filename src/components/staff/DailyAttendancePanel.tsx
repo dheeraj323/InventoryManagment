@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,17 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Staff, AttendanceStatus, StaffAttendance } from '../../types';
-import { useStaffPayrollStore, getTodayDateString } from '../../store/useStaffPayrollStore';
+import {
+  useStaffPayrollStore,
+  getTodayDateString,
+  getCurrentMonthString,
+} from '../../store/useStaffPayrollStore';
 import { formatDate } from '../../utils/dateFormatter';
+import { StaffMonthlyAttendanceModal } from './StaffMonthlyAttendanceModal';
 import { colors, typography, spacing, shadows } from '../../theme';
 
 interface DailyAttendancePanelProps {
@@ -20,24 +26,47 @@ interface DailyAttendancePanelProps {
   onOpenStaffProfile?: (staff: Staff) => void;
 }
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+type AttendanceViewMode = 'DAILY' | 'MONTHLY';
+
 export const DailyAttendancePanel: React.FC<DailyAttendancePanelProps> = ({
   staffList,
   onOpenStaffProfile,
 }) => {
   const {
     selectedDate,
+    selectedMonth,
     dailyAttendanceMap,
+    monthlyAttendanceRecords,
     isAttendanceLoading,
+    isMonthlyAttendanceLoading,
     setSelectedDate,
+    setSelectedMonth,
+    subscribeMonthlyAttendance,
     markAttendance,
     batchMarkAttendance,
   } = useStaffPayrollStore();
 
+  const [viewMode, setViewMode] = useState<AttendanceViewMode>('DAILY');
   const [search, setSearch] = useState('');
   const [markingStaffId, setMarkingStaffId] = useState<string | null>(null);
 
+  // Modal for individual staff monthly breakdown
+  const [selectedStaffForMonthly, setSelectedStaffForMonthly] = useState<Staff | null>(null);
+
   const todayStr = getTodayDateString();
   const isToday = selectedDate === todayStr;
+  const currentMonthStr = getCurrentMonthString();
+  const isCurrentMonth = selectedMonth === currentMonthStr;
+
+  // Subscribe to monthly records on mount or month change
+  useEffect(() => {
+    subscribeMonthlyAttendance(selectedMonth);
+  }, [selectedMonth]);
 
   // Active staff filter
   const activeStaff = useMemo(() => {
@@ -56,8 +85,8 @@ export const DailyAttendancePanel: React.FC<DailyAttendancePanelProps> = ({
     );
   }, [activeStaff, search]);
 
-  // Attendance metrics for the selected date
-  const metrics = useMemo(() => {
+  // ─── DAILY METRICS ─────────────────────────────────────────────────────────
+  const dailyMetrics = useMemo(() => {
     let present = 0;
     let halfDay = 0;
     let absent = 0;
@@ -92,7 +121,99 @@ export const DailyAttendancePanel: React.FC<DailyAttendancePanelProps> = ({
     };
   }, [activeStaff, dailyAttendanceMap]);
 
-  // Date Navigator handlers
+  // ─── MONTHLY AGGREGATIONS ──────────────────────────────────────────────────
+  const [monthYear, monthNum] = (selectedMonth || getCurrentMonthString()).split('-');
+  const monthNameDisplay = useMemo(() => {
+    const mIdx = parseInt(monthNum, 10) - 1;
+    return `${MONTH_NAMES[mIdx] || monthNum} ${monthYear}`;
+  }, [monthYear, monthNum]);
+
+  const totalDaysInSelectedMonth = useMemo(() => {
+    const y = parseInt(monthYear, 10);
+    const m = parseInt(monthNum, 10);
+    return new Date(y, m, 0).getDate();
+  }, [monthYear, monthNum]);
+
+  // Per-staff monthly attendance counts mapping
+  const staffMonthlyStatsMap = useMemo(() => {
+    const map: Record<
+      string,
+      {
+        present: number;
+        halfDay: number;
+        absent: number;
+        leave: number;
+        recordedDays: number;
+        payableDays: number;
+        rate: number;
+      }
+    > = {};
+
+    activeStaff.forEach((s) => {
+      const key = s.staffId || s.id;
+      map[key] = {
+        present: 0,
+        halfDay: 0,
+        absent: 0,
+        leave: 0,
+        recordedDays: 0,
+        payableDays: 0,
+        rate: 0,
+      };
+    });
+
+    monthlyAttendanceRecords.forEach((rec) => {
+      const entry = map[rec.staffId];
+      if (entry) {
+        if (rec.status === 'PRESENT') entry.present++;
+        else if (rec.status === 'HALF_DAY') entry.halfDay++;
+        else if (rec.status === 'ABSENT') entry.absent++;
+        else if (rec.status === 'LEAVE') entry.leave++;
+      }
+    });
+
+    // Calculate rates and payable days
+    Object.keys(map).forEach((k) => {
+      const e = map[k];
+      e.recordedDays = e.present + e.halfDay + e.absent + e.leave;
+      e.payableDays = e.present + e.halfDay * 0.5;
+      e.rate = e.recordedDays > 0 ? Math.round((e.payableDays / e.recordedDays) * 100) : 0;
+    });
+
+    return map;
+  }, [activeStaff, monthlyAttendanceRecords]);
+
+  // Overall monthly total counters
+  const monthlyOverallMetrics = useMemo(() => {
+    let totalPresent = 0;
+    let totalHalfDay = 0;
+    let totalAbsent = 0;
+    let totalLeave = 0;
+    let totalPayable = 0;
+
+    Object.values(staffMonthlyStatsMap).forEach((stat) => {
+      totalPresent += stat.present;
+      totalHalfDay += stat.halfDay;
+      totalAbsent += stat.absent;
+      totalLeave += stat.leave;
+      totalPayable += stat.payableDays;
+    });
+
+    const totalRecorded = totalPresent + totalHalfDay + totalAbsent + totalLeave;
+    const avgRate = totalRecorded > 0 ? Math.round((totalPayable / totalRecorded) * 100) : 0;
+
+    return {
+      totalPresent,
+      totalHalfDay,
+      totalAbsent,
+      totalLeave,
+      totalPayable,
+      totalRecorded,
+      avgRate,
+    };
+  }, [staffMonthlyStatsMap]);
+
+  // ─── NAVIGATORS ────────────────────────────────────────────────────────────
   const handlePrevDay = () => {
     const d = new Date(selectedDate);
     d.setDate(d.getDate() - 1);
@@ -115,7 +236,35 @@ export const DailyAttendancePanel: React.FC<DailyAttendancePanelProps> = ({
     setSelectedDate(todayStr);
   };
 
-  // Status marking
+  const handlePrevMonth = () => {
+    const [y, m] = selectedMonth.split('-').map((x) => parseInt(x, 10));
+    let newY = y;
+    let newM = m - 1;
+    if (newM < 1) {
+      newM = 12;
+      newY -= 1;
+    }
+    const formattedM = String(newM).padStart(2, '0');
+    setSelectedMonth(`${newY}-${formattedM}`);
+  };
+
+  const handleNextMonth = () => {
+    const [y, m] = selectedMonth.split('-').map((x) => parseInt(x, 10));
+    let newY = y;
+    let newM = m + 1;
+    if (newM > 12) {
+      newM = 1;
+      newY += 1;
+    }
+    const formattedM = String(newM).padStart(2, '0');
+    setSelectedMonth(`${newY}-${formattedM}`);
+  };
+
+  const handleSetCurrentMonth = () => {
+    setSelectedMonth(getCurrentMonthString());
+  };
+
+  // ─── STATUS MARKING ────────────────────────────────────────────────────────
   const handleMarkStatus = async (staff: Staff, status: AttendanceStatus) => {
     const key = staff.staffId || staff.id;
     setMarkingStaffId(key);
@@ -133,7 +282,6 @@ export const DailyAttendancePanel: React.FC<DailyAttendancePanelProps> = ({
     }
   };
 
-  // Batch mark all active staff as present
   const handleBatchMarkPresent = () => {
     Alert.alert(
       'Mark All Present',
@@ -155,7 +303,8 @@ export const DailyAttendancePanel: React.FC<DailyAttendancePanelProps> = ({
     );
   };
 
-  const renderItem = ({ item }: { item: Staff }) => {
+  // ─── RENDER DAILY STAFF CARD ───────────────────────────────────────────────
+  const renderDailyItem = ({ item }: { item: Staff }) => {
     const staffKey = item.staffId || item.id;
     const attRecord: StaffAttendance | undefined = dailyAttendanceMap[staffKey];
     const currentStatus = attRecord?.status;
@@ -163,33 +312,35 @@ export const DailyAttendancePanel: React.FC<DailyAttendancePanelProps> = ({
 
     return (
       <View style={styles.staffCard}>
-        <TouchableOpacity
-          style={styles.cardInfoRow}
-          onPress={() => onOpenStaffProfile?.(item)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
-          </View>
-          <View style={styles.staffMeta}>
-            <Text style={styles.staffName} numberOfLines={1}>
-              {item.name}
-            </Text>
-            <View style={styles.routeRow}>
-              <Ionicons name="location-outline" size={11} color={colors.textMuted} />
-              <Text style={styles.routeText}>{item.assignedRouteName || item.activeArea || 'No Route'}</Text>
-              {attRecord?.checkInTime && (
-                <>
-                  <Text style={styles.dotSeparator}>•</Text>
-                  <Ionicons name="time-outline" size={11} color={colors.brandGreen} />
-                  <Text style={styles.timeText}>{attRecord.checkInTime}</Text>
-                </>
-              )}
+        <View style={styles.cardHeaderRow}>
+          <TouchableOpacity
+            style={styles.cardInfoRow}
+            onPress={() => onOpenStaffProfile?.(item)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
             </View>
-          </View>
+            <View style={styles.staffMeta}>
+              <Text style={styles.staffName} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <View style={styles.routeRow}>
+                <Ionicons name="location-outline" size={11} color={colors.textMuted} />
+                <Text style={styles.routeText}>{item.assignedRouteName || item.activeArea || 'No Route'}</Text>
+                {attRecord?.checkInTime && (
+                  <>
+                    <Text style={styles.dotSeparator}>•</Text>
+                    <Ionicons name="time-outline" size={11} color={colors.brandGreen} />
+                    <Text style={styles.timeText}>{attRecord.checkInTime}</Text>
+                  </>
+                )}
+              </View>
+            </View>
+          </TouchableOpacity>
 
-          {isBusy && <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: 8 }} />}
-        </TouchableOpacity>
+          {isBusy && <ActivityIndicator size="small" color={colors.primary} style={{ marginLeft: 6 }} />}
+        </View>
 
         {/* 4 Status Buttons */}
         <View style={styles.statusButtonsRow}>
@@ -273,143 +424,316 @@ export const DailyAttendancePanel: React.FC<DailyAttendancePanelProps> = ({
               Absent
             </Text>
           </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
 
-          {/* Leave */}
+  // ─── RENDER MONTHLY STAFF CARD ─────────────────────────────────────────────
+  const renderMonthlyItem = ({ item }: { item: Staff }) => {
+    const staffKey = item.staffId || item.id;
+    const stat = staffMonthlyStatsMap[staffKey] || {
+      present: 0,
+      halfDay: 0,
+      absent: 0,
+      leave: 0,
+      recordedDays: 0,
+      payableDays: 0,
+      rate: 0,
+    };
+
+    return (
+      <View style={styles.monthlyStaffCard}>
+        {/* Top Info */}
+        <View style={styles.monthlyCardHeader}>
           <TouchableOpacity
-            style={[
-              styles.statusBtn,
-              styles.leaveBtn,
-              currentStatus === 'LEAVE' && styles.leaveBtnActive,
-            ]}
-            onPress={() => handleMarkStatus(item, 'LEAVE')}
+            style={styles.cardInfoRow}
+            onPress={() => onOpenStaffProfile?.(item)}
             activeOpacity={0.7}
-            disabled={isBusy}
           >
-            <Ionicons
-              name={currentStatus === 'LEAVE' ? 'calendar' : 'calendar-outline'}
-              size={13}
-              color={currentStatus === 'LEAVE' ? colors.textInverse : colors.accent}
-            />
-            <Text
-              style={[
-                styles.statusBtnText,
-                styles.leaveBtnText,
-                currentStatus === 'LEAVE' && styles.statusBtnTextActive,
-              ]}
-            >
-              Leave
-            </Text>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+            </View>
+            <View style={styles.staffMeta}>
+              <Text style={styles.staffName} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <View style={styles.routeRow}>
+                <Ionicons name="location-outline" size={11} color={colors.textMuted} />
+                <Text style={styles.routeText}>{item.assignedRouteName || item.activeArea || 'No Route'}</Text>
+              </View>
+            </View>
           </TouchableOpacity>
         </View>
+
+        {/* ── Monthly Breakdown Counters ── */}
+        <View style={styles.monthlyCountsGrid}>
+          {/* Present */}
+          <View style={[styles.miniCountBox, { borderColor: '#86EFAC', backgroundColor: '#F0FDF4' }]}>
+            <Text style={[styles.miniCountNum, { color: colors.brandGreen }]}>{stat.present}</Text>
+            <Text style={styles.miniCountLabel}>Present</Text>
+          </View>
+
+          {/* Half Day */}
+          <View style={[styles.miniCountBox, { borderColor: '#FDE68A', backgroundColor: '#FFFBEB' }]}>
+            <Text style={[styles.miniCountNum, { color: '#D97706' }]}>{stat.halfDay}</Text>
+            <Text style={styles.miniCountLabel}>Half Day</Text>
+          </View>
+
+          {/* Absent */}
+          <View style={[styles.miniCountBox, { borderColor: '#FECACA', backgroundColor: '#FEF2F2' }]}>
+            <Text style={[styles.miniCountNum, { color: colors.danger }]}>{stat.absent}</Text>
+            <Text style={styles.miniCountLabel}>Absent</Text>
+          </View>
+        </View>
+
+        {/* Action Button: View Full Calendar / Log */}
+        <TouchableOpacity
+          style={styles.viewLogBtn}
+          onPress={() => setSelectedStaffForMonthly(item)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="calendar" size={13} color={colors.accent} />
+          <Text style={styles.viewLogBtnText}>
+            View {monthNameDisplay} Day-by-Day Log
+          </Text>
+          <Ionicons name="chevron-forward" size={13} color={colors.accent} />
+        </TouchableOpacity>
       </View>
     );
   };
 
   return (
     <View style={styles.container}>
-      {/* 1. Date Navigator Bar */}
-      <View style={styles.dateBar}>
-        <TouchableOpacity onPress={handlePrevDay} style={styles.dateNavBtn}>
-          <Ionicons name="chevron-back" size={20} color={colors.primary} />
-        </TouchableOpacity>
-
-        <View style={styles.dateCenter}>
-          <Text style={styles.dateTitle}>{formatDate(selectedDate)}</Text>
-          <Text style={styles.dateSub}>
-            {isToday ? 'Today' : new Date(selectedDate).toLocaleDateString('en-IN', { weekday: 'long' })}
-          </Text>
-        </View>
-
-        <TouchableOpacity onPress={handleNextDay} style={styles.dateNavBtn}>
-          <Ionicons name="chevron-forward" size={20} color={colors.primary} />
-        </TouchableOpacity>
-
-        {!isToday && (
-          <TouchableOpacity onPress={handleSetToday} style={styles.todayPill}>
-            <Text style={styles.todayPillText}>Today</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* 2. Daily KPI Counters */}
-      <View style={styles.kpiRow}>
-        <View style={[styles.kpiCard, styles.kpiPresent]}>
-          <Text style={styles.kpiNum}>{metrics.present}</Text>
-          <Text style={styles.kpiTitle}>Present</Text>
-        </View>
-
-        <View style={[styles.kpiCard, styles.kpiHalfDay]}>
-          <Text style={styles.kpiNum}>{metrics.halfDay}</Text>
-          <Text style={styles.kpiTitle}>Half Day</Text>
-        </View>
-
-        <View style={[styles.kpiCard, styles.kpiAbsent]}>
-          <Text style={styles.kpiNum}>{metrics.absent}</Text>
-          <Text style={styles.kpiTitle}>Absent</Text>
-        </View>
-
-        <View style={[styles.kpiCard, styles.kpiLeave]}>
-          <Text style={styles.kpiNum}>{metrics.leave}</Text>
-          <Text style={styles.kpiTitle}>Leave</Text>
-        </View>
-
-        <View style={[styles.kpiCard, styles.kpiUnmarked]}>
-          <Text style={styles.kpiNum}>{metrics.notMarked}</Text>
-          <Text style={styles.kpiTitle}>Pending</Text>
-        </View>
-      </View>
-
-      {/* 3. Search & Batch Action Bar */}
-      <View style={styles.actionBar}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={16} color={colors.textMuted} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Filter staff by name/area..."
-            placeholderTextColor={colors.textMuted}
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={14} color={colors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-
+      {/* ── Top View Mode Switcher: [Daily Log] | [Monthly Summary] ── */}
+      <View style={styles.modeSegmentWrap}>
         <TouchableOpacity
-          style={styles.batchBtn}
-          onPress={handleBatchMarkPresent}
+          style={[styles.modeSegmentBtn, viewMode === 'DAILY' && styles.modeSegmentBtnActive]}
+          onPress={() => setViewMode('DAILY')}
           activeOpacity={0.8}
         >
-          <Ionicons name="checkmark-done" size={15} color={colors.brandGreen} />
-          <Text style={styles.batchBtnText}>All Present</Text>
+          <Ionicons
+            name="calendar-clear-outline"
+            size={14}
+            color={viewMode === 'DAILY' ? colors.textInverse : colors.textSecondary}
+          />
+          <Text
+            style={[
+              styles.modeSegmentText,
+              viewMode === 'DAILY' && styles.modeSegmentTextActive,
+            ]}
+          >
+            Daily Log
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.modeSegmentBtn, viewMode === 'MONTHLY' && styles.modeSegmentBtnActive]}
+          onPress={() => setViewMode('MONTHLY')}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name="bar-chart-outline"
+            size={14}
+            color={viewMode === 'MONTHLY' ? colors.textInverse : colors.textSecondary}
+          />
+          <Text
+            style={[
+              styles.modeSegmentText,
+              viewMode === 'MONTHLY' && styles.modeSegmentTextActive,
+            ]}
+          >
+            Monthly Summary
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* 4. Staff Attendance Roster List */}
-      {isAttendanceLoading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Syncing attendance data...</Text>
-        </View>
-      ) : filteredStaff.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <Ionicons name="calendar-outline" size={40} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>No Active Staff Found</Text>
-          <Text style={styles.emptySubtitle}>
-            {search ? `No staff matching "${search}"` : 'No active delivery staff roster available.'}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredStaff}
-          keyExtractor={(item) => item.staffId || item.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
+      {/* ═══════════════════════════════════════════════════════════
+          MODE 1: DAILY VIEW
+      ═══════════════════════════════════════════════════════════ */}
+      {viewMode === 'DAILY' && (
+        <>
+          {/* 1. Date Navigator Bar */}
+          <View style={styles.dateBar}>
+            <TouchableOpacity onPress={handlePrevDay} style={styles.dateNavBtn}>
+              <Ionicons name="chevron-back" size={20} color={colors.primary} />
+            </TouchableOpacity>
+
+            <View style={styles.dateCenter}>
+              <Text style={styles.dateTitle}>{formatDate(selectedDate)}</Text>
+              <Text style={styles.dateSub}>
+                {isToday ? 'Today' : new Date(selectedDate).toLocaleDateString('en-IN', { weekday: 'long' })}
+              </Text>
+            </View>
+
+            <TouchableOpacity onPress={handleNextDay} style={styles.dateNavBtn}>
+              <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+            </TouchableOpacity>
+
+            {!isToday && (
+              <TouchableOpacity onPress={handleSetToday} style={styles.todayPill}>
+                <Text style={styles.todayPillText}>Today</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* 2. Daily KPI Counters */}
+          <View style={styles.kpiRow}>
+            <View style={[styles.kpiCard, styles.kpiPresent]}>
+              <Text style={styles.kpiNum}>{dailyMetrics.present}</Text>
+              <Text style={styles.kpiTitle}>Present</Text>
+            </View>
+
+            <View style={[styles.kpiCard, styles.kpiHalfDay]}>
+              <Text style={styles.kpiNum}>{dailyMetrics.halfDay}</Text>
+              <Text style={styles.kpiTitle}>Half Day</Text>
+            </View>
+
+            <View style={[styles.kpiCard, styles.kpiAbsent]}>
+              <Text style={styles.kpiNum}>{dailyMetrics.absent}</Text>
+              <Text style={styles.kpiTitle}>Absent</Text>
+            </View>
+
+            <View style={[styles.kpiCard, styles.kpiUnmarked]}>
+              <Text style={styles.kpiNum}>{dailyMetrics.notMarked}</Text>
+              <Text style={styles.kpiTitle}>Pending</Text>
+            </View>
+          </View>
+
+          {/* 3. Search & Batch Action Bar */}
+          <View style={styles.actionBar}>
+            <View style={styles.searchBox}>
+              <Ionicons name="search-outline" size={16} color={colors.textMuted} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Filter staff by name/area..."
+                placeholderTextColor={colors.textMuted}
+                value={search}
+                onChangeText={setSearch}
+              />
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => setSearch('')}>
+                  <Ionicons name="close-circle" size={14} color={colors.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={styles.batchBtn}
+              onPress={handleBatchMarkPresent}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="checkmark-done" size={15} color={colors.brandGreen} />
+              <Text style={styles.batchBtnText}>All Present</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 4. Staff Attendance Roster List */}
+          {isAttendanceLoading ? (
+            <View style={styles.centerContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.loadingText}>Syncing attendance data...</Text>
+            </View>
+          ) : filteredStaff.length === 0 ? (
+            <View style={styles.centerContainer}>
+              <Ionicons name="calendar-outline" size={40} color={colors.textMuted} />
+              <Text style={styles.emptyTitle}>No Active Staff Found</Text>
+              <Text style={styles.emptySubtitle}>
+                {search ? `No staff matching "${search}"` : 'No active delivery staff roster available.'}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredStaff}
+              keyExtractor={(item) => item.staffId || item.id}
+              renderItem={renderDailyItem}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
+        </>
       )}
+
+      {/* ═══════════════════════════════════════════════════════════
+          MODE 2: MONTHLY SUMMARY VIEW
+      ═══════════════════════════════════════════════════════════ */}
+      {viewMode === 'MONTHLY' && (
+        <>
+          {/* 1. Month Navigator Bar */}
+          <View style={styles.dateBar}>
+            <TouchableOpacity onPress={handlePrevMonth} style={styles.dateNavBtn}>
+              <Ionicons name="chevron-back" size={20} color={colors.primary} />
+            </TouchableOpacity>
+
+            <View style={styles.dateCenter}>
+              <Text style={styles.dateTitle}>{monthNameDisplay}</Text>
+              <Text style={styles.dateSub}>
+                {totalDaysInSelectedMonth} Total Days • {activeStaff.length} Staff Members
+              </Text>
+            </View>
+
+            <TouchableOpacity onPress={handleNextMonth} style={styles.dateNavBtn}>
+              <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+            </TouchableOpacity>
+
+            {!isCurrentMonth && (
+              <TouchableOpacity onPress={handleSetCurrentMonth} style={styles.todayPill}>
+                <Text style={styles.todayPillText}>This Month</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* 2. Monthly Team Totals KPI Cards */}
+          <View style={styles.kpiRow}>
+            <View style={[styles.kpiCard, styles.kpiPresent]}>
+              <Text style={styles.kpiNum}>{monthlyOverallMetrics.totalPresent}</Text>
+              <Text style={styles.kpiTitle}>Total Present</Text>
+            </View>
+
+            <View style={[styles.kpiCard, styles.kpiHalfDay]}>
+              <Text style={styles.kpiNum}>{monthlyOverallMetrics.totalHalfDay}</Text>
+              <Text style={styles.kpiTitle}>Half Days</Text>
+            </View>
+
+            <View style={[styles.kpiCard, styles.kpiAbsent]}>
+              <Text style={styles.kpiNum}>{monthlyOverallMetrics.totalAbsent}</Text>
+              <Text style={styles.kpiTitle}>Absents</Text>
+            </View>
+          </View>
+
+          {/* 3. Staff Monthly Cards List */}
+          {isMonthlyAttendanceLoading ? (
+            <View style={styles.centerContainer}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.loadingText}>Calculating monthly attendance summaries...</Text>
+            </View>
+          ) : activeStaff.length === 0 ? (
+            <View style={styles.centerContainer}>
+              <Ionicons name="calendar-outline" size={40} color={colors.textMuted} />
+              <Text style={styles.emptyTitle}>No Active Staff</Text>
+              <Text style={styles.emptySubtitle}>
+                No active staff members found in roster.
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={activeStaff}
+              keyExtractor={(item) => item.staffId || item.id}
+              renderItem={renderMonthlyItem}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            />
+          )}
+        </>
+      )}
+
+      {/* ── Modal for Staff Day-by-Day Monthly Log ── */}
+      <StaffMonthlyAttendanceModal
+        visible={!!selectedStaffForMonthly}
+        staff={selectedStaffForMonthly}
+        month={selectedMonth}
+        onClose={() => setSelectedStaffForMonthly(null)}
+      />
     </View>
   );
 };
@@ -417,6 +741,37 @@ export const DailyAttendancePanel: React.FC<DailyAttendancePanelProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  modeSegmentWrap: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: 10,
+    padding: 3,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modeSegmentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 6,
+  },
+  modeSegmentBtnActive: {
+    backgroundColor: colors.primary,
+    ...shadows.sm,
+  },
+  modeSegmentText: {
+    ...typography.captionBold,
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  modeSegmentTextActive: {
+    color: colors.textInverse,
   },
   dateBar: {
     flexDirection: 'row',
@@ -491,10 +846,6 @@ const styles = StyleSheet.create({
     borderColor: '#FECACA',
     backgroundColor: '#FEF2F2',
   },
-  kpiLeave: {
-    borderColor: '#BFDBFE',
-    backgroundColor: '#EFF6FF',
-  },
   kpiUnmarked: {
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -509,6 +860,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: colors.textSecondary,
     marginTop: 2,
+    textAlign: 'center',
   },
   actionBar: {
     flexDirection: 'row',
@@ -565,10 +917,16 @@ const styles = StyleSheet.create({
     padding: 12,
     ...shadows.sm,
   },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   cardInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flex: 1,
   },
   avatar: {
     width: 38,
@@ -653,14 +1011,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.danger,
     borderColor: colors.danger,
   },
-  leaveBtn: {
-    borderColor: '#BFDBFE',
-    backgroundColor: '#EFF6FF',
-  },
-  leaveBtnActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-  },
   statusBtnText: {
     ...typography.captionBold,
     fontSize: 10,
@@ -674,11 +1024,60 @@ const styles = StyleSheet.create({
   absentBtnText: {
     color: colors.danger,
   },
-  leaveBtnText: {
-    color: colors.accent,
-  },
   statusBtnTextActive: {
     color: colors.textInverse,
+  },
+  // ─── Monthly Card Specific Styles ───
+  monthlyStaffCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    ...shadows.sm,
+    gap: 10,
+  },
+  monthlyCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  monthlyCountsGrid: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  miniCountBox: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  miniCountNum: {
+    ...typography.h3,
+    fontSize: 13,
+  },
+  miniCountLabel: {
+    ...typography.captionBold,
+    fontSize: 9,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  viewLogBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingVertical: 7,
+    gap: 6,
+  },
+  viewLogBtnText: {
+    ...typography.captionBold,
+    fontSize: 11,
+    color: colors.primary,
   },
   centerContainer: {
     flex: 1,

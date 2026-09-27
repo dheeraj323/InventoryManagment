@@ -57,27 +57,19 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const liveDue = dueAmount !== undefined ? dueAmount : (vendor?.currentBalance || 0);
+  const liveDue = dueAmount !== undefined ? Math.max(0, dueAmount) : Math.max(0, vendor?.currentBalance || 0);
+  const currentAdvance = vendor?.advanceBalance || (vendor?.currentBalance && vendor.currentBalance < 0 ? Math.abs(vendor.currentBalance) : 0);
   const numAmount = parseFloat(amountStr) || 0;
-  const isOverpayment = liveDue > 0 && numAmount > liveDue;
-  const isZeroDue = liveDue <= 0;
+
+  const dueCleared = Math.min(numAmount, liveDue);
+  const advanceAdded = numAmount > liveDue ? numAmount - liveDue : 0;
+  const newAdvanceTotal = currentAdvance + advanceAdded;
+  const remainingDue = Math.max(0, liveDue - numAmount);
 
   const handleSave = async () => {
     if (!vendor) return;
     if (isNaN(numAmount) || numAmount <= 0) {
       setError('Please enter a valid payment amount greater than 0.');
-      return;
-    }
-
-    if (isZeroDue) {
-      setError(`Cannot record payment: ${vendor.shopName} has no pending dues (₹0.00).`);
-      return;
-    }
-
-    if (numAmount > liveDue) {
-      setError(
-        `Amount ₹${numAmount.toLocaleString('en-IN')} exceeds the pending due of ₹${liveDue.toLocaleString('en-IN')}. Advance payments are not permitted.`
-      );
       return;
     }
 
@@ -131,11 +123,13 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                       <Ionicons name="cash-outline" size={20} color={colors.brandGreen} />
                     </View>
                     <View>
-                      <Text style={styles.title}>Record Payment</Text>
+                      <Text style={styles.title}>Record Payment / Advance</Text>
                       <Text style={styles.subtitle}>
                         {vendor.shopName} · {liveDue > 0
                           ? `Due: ₹${liveDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-                          : 'No Dues Pending (₹0.00)'}
+                          : currentAdvance > 0
+                          ? `Advance: ₹${currentAdvance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+                          : 'Settled (₹0.00)'}
                       </Text>
                     </View>
                   </View>
@@ -154,27 +148,55 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                   contentContainerStyle={styles.scrollContent}
                   keyboardShouldPersistTaps="handled"
                 >
-                  {/* Zero Due Notice */}
-                  {isZeroDue && (
-                    <View style={styles.zeroDueBanner}>
-                      <Ionicons name="checkmark-circle-outline" size={20} color={colors.brandGreen} />
+                  {/* Current Account Status Notice */}
+                  {liveDue === 0 && currentAdvance > 0 && (
+                    <View style={[styles.zeroDueBanner, { backgroundColor: colors.accentLight }]}>
+                      <Ionicons name="wallet-outline" size={20} color={colors.accent} />
                       <View style={{ flex: 1, marginLeft: spacing.xs }}>
-                        <Text style={styles.zeroDueTitle}>All Dues Cleared (₹0.00)</Text>
+                        <Text style={[styles.zeroDueTitle, { color: colors.accent }]}>
+                          Available Advance: ₹{currentAdvance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </Text>
                         <Text style={styles.zeroDueSub}>
-                          This vendor has no outstanding balance. Advance payments or excess credit cannot be recorded.
+                          Any additional payment recorded will increase the vendor&apos;s advance balance for future orders.
                         </Text>
                       </View>
                     </View>
                   )}
 
-                  {/* Overpayment Real-time Warning */}
-                  {isOverpayment && (
-                    <View style={styles.overpaymentBanner}>
-                      <Ionicons name="warning" size={20} color="#B45309" />
-                      <View style={{ flex: 1, marginLeft: spacing.xs }}>
-                        <Text style={styles.overpaymentTitle}>⚠️ Overpayment Warning</Text>
-                        <Text style={styles.overpaymentSub}>
-                          The entered amount (₹{numAmount.toLocaleString('en-IN')}) exceeds the outstanding due of ₹{liveDue.toLocaleString('en-IN')}. Advance balance is not allowed. Maximum payable is ₹{liveDue.toLocaleString('en-IN')}.
+                  {/* Real-time Allocation Breakdown */}
+                  {numAmount > 0 && (
+                    <View style={styles.allocationCard}>
+                      <Text style={styles.allocationHeader}>PAYMENT ALLOCATION BREAKDOWN</Text>
+                      {liveDue > 0 && (
+                        <View style={styles.allocRow}>
+                          <Text style={styles.allocLabel}>Pending Due Cleared:</Text>
+                          <Text style={[styles.allocVal, { color: colors.debit }]}>
+                            ₹{dueCleared.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </Text>
+                        </View>
+                      )}
+                      {advanceAdded > 0 && (
+                        <View style={styles.allocRow}>
+                          <Text style={styles.allocLabel}>Added to Advance Balance:</Text>
+                          <Text style={[styles.allocVal, { color: colors.brandGreen, fontWeight: '700' }]}>
+                            +₹{advanceAdded.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.allocDivider} />
+                      <View style={styles.allocRow}>
+                        <Text style={styles.allocTotalLabel}>
+                          {remainingDue > 0 ? 'Remaining Due:' : 'New Advance Balance:'}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.allocTotalVal,
+                            { color: remainingDue > 0 ? colors.debit : colors.brandGreen },
+                          ]}
+                        >
+                          ₹{(remainingDue > 0 ? remainingDue : newAdvanceTotal).toLocaleString('en-IN', {
+                            minimumFractionDigits: 2,
+                          })}
                         </Text>
                       </View>
                     </View>
@@ -216,11 +238,10 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
 
                   <View style={styles.amountInputWrap}>
                     <Input
-                      label="Payment Amount (₹) *"
+                      label="Payment / Advance Amount (₹) *"
                       keyboardType="numeric"
                       prefix="₹"
                       value={amountStr}
-                      editable={!isZeroDue}
                       onChangeText={(v) => {
                         setAmountStr(v);
                         if (error) setError('');
@@ -246,14 +267,12 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                   <Input
                     label="Reference / Transaction Number (Optional)"
                     value={referenceNumber}
-                    editable={!isZeroDue}
                     onChangeText={setReferenceNumber}
                   />
 
                   <Input
                     label="Notes / Remarks (Optional)"
                     value={notes}
-                    editable={!isZeroDue}
                     onChangeText={setNotes}
                   />
                 </ScrollView>
@@ -268,12 +287,18 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
                     disabled={loading}
                   />
                   <Button
-                    title={isOverpayment ? 'Amount Exceeds Due' : `Record ₹${amountStr || '0'}`}
+                    title={
+                      numAmount > 0
+                        ? advanceAdded > 0 && liveDue === 0
+                          ? `Deposit Advance ₹${numAmount.toLocaleString('en-IN')}`
+                          : `Record ₹${numAmount.toLocaleString('en-IN')}`
+                        : 'Record Payment'
+                    }
                     variant="primary"
                     onPress={handleSave}
                     loading={loading}
-                    disabled={loading || isZeroDue || isOverpayment || numAmount <= 0}
-                    style={{ flex: 2, backgroundColor: isOverpayment ? colors.danger : colors.brandGreen }}
+                    disabled={loading || numAmount <= 0}
+                    style={{ flex: 2, backgroundColor: colors.brandGreen }}
                   />
                 </View>
               </View>
@@ -433,6 +458,50 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
     lineHeight: 16,
+  },
+  allocationCard: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: spacing.borderRadiusMd,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  allocationHeader: {
+    ...typography.captionBold,
+    fontSize: 10,
+    color: '#15803D',
+    letterSpacing: 0.5,
+    marginBottom: spacing.xs,
+  },
+  allocRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  allocLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 12,
+  },
+  allocVal: {
+    ...typography.bodyBold,
+    fontSize: 12,
+  },
+  allocDivider: {
+    height: 1,
+    backgroundColor: '#DCFCE7',
+    marginVertical: 6,
+  },
+  allocTotalLabel: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 12,
+  },
+  allocTotalVal: {
+    ...typography.h3,
+    fontSize: 15,
   },
   amountInputWrap: {
     marginBottom: spacing.xs,

@@ -23,13 +23,14 @@ import { colors, typography, spacing, shadows } from '../../theme';
 
 export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { currentUser, activeRole, activeStaffId } = useAuthStore();
-  const { getOrdersByStaff, orders } = useOrderStore();
+  const { getOrdersByStaff, orders, dispatchAllStaffOrders } = useOrderStore();
   const { settlements, getStaffCashInHand } = useCashStore();
   const { todaySession, subscribeTodaySession } = useStaffStockStore();
 
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
   const [isViewStockModalOpen, setIsViewStockModalOpen] = useState(false);
+  const [isDispatchingAll, setIsDispatchingAll] = useState(false);
 
   const staff = {
     id: activeStaffId || currentUser?.staffId || currentUser?.id || '',
@@ -59,6 +60,10 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
 
   const completedDeliveries = assignedOrders.filter((o) => isDeliveryCompleted(o.status));
   const pendingDeliveries = assignedOrders.filter((o) => isDeliveryPending(o.status));
+  const approvedPendingOrders = assignedOrders.filter(
+    (o) => o.status === 'APPROVED' || o.status === 'PENDING'
+  );
+  const outForDeliveryOrders = assignedOrders.filter((o) => o.status === 'OUT_FOR_DELIVERY');
 
   const pendingSettlement = settlements.find(
     (s) => s.staffId === staff.id && s.status === 'PENDING_VERIFICATION'
@@ -66,13 +71,45 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
 
   const isAllCompleted = assignedOrders.length > 0 && pendingDeliveries.length === 0;
 
+  const handleStartDeliveryTrip = async () => {
+    if (isDispatchingAll || !staff.id) return;
+    setIsDispatchingAll(true);
+    try {
+      await dispatchAllStaffOrders(staff.id);
+    } catch (err) {
+      console.warn('Error starting delivery trip:', err);
+    } finally {
+      setIsDispatchingAll(false);
+    }
+  };
+
   // Stock Session Metrics
   const hasActiveSession = !!todaySession;
   const isStockReturned = todaySession?.status === 'RETURNED' || todaySession?.status === 'DISCREPANCY';
-  const totalLoaded = todaySession?.totalLoadedUnits || 0;
-  const totalDelivered = todaySession?.totalDeliveredUnits || 0;
-  const totalInVehicle = todaySession
-    ? (todaySession.items || []).reduce((sum, it) => sum + (it.currentStock || 0), 0)
+  const hasActiveUnsettledSession = hasActiveSession && !isStockReturned;
+  const isOutForDelivery =
+    hasActiveUnsettledSession &&
+    (outForDeliveryOrders.length > 0 ||
+      (todaySession?.totalOutForDeliveryUnits || 0) > 0 ||
+      (completedDeliveries.length > 0 && approvedPendingOrders.length === 0));
+
+  const totalLoaded = hasActiveUnsettledSession
+    ? (todaySession?.items || []).reduce((sum, it) => sum + (it.loadedQty || 0), 0)
+    : 0;
+  const totalDelivered = hasActiveUnsettledSession
+    ? (todaySession?.items || []).reduce((sum, it) => sum + (it.deliveredQty || 0), 0)
+    : 0;
+  const totalOutForDelivery = hasActiveUnsettledSession
+    ? outForDeliveryOrders.reduce(
+        (sum, o) => sum + (o.items || []).reduce((s, it) => s + (it.orderedQty || 0), 0),
+        0
+      )
+    : 0;
+  const totalInVehicle = hasActiveUnsettledSession
+    ? (todaySession?.items || []).reduce(
+        (sum, it) => sum + Math.max(0, it.currentStock ?? (it.loadedQty - (it.deliveredQty || 0))),
+        0
+      )
     : 0;
 
   return (
@@ -130,44 +167,30 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
               <View
                 style={[
                   styles.stockIconCircle,
-                  isStockReturned
-                    ? { backgroundColor: '#DCFCE7' }
-                    : hasActiveSession
+                  hasActiveUnsettledSession
                     ? { backgroundColor: colors.accentLight }
                     : { backgroundColor: '#FEF3C7' },
                 ]}
               >
                 <Ionicons
-                  name={
-                    isStockReturned
-                      ? 'checkmark-circle'
-                      : hasActiveSession
-                      ? 'bicycle'
-                      : 'cube-outline'
-                  }
+                  name={hasActiveUnsettledSession ? 'bicycle' : 'cube-outline'}
                   size={16}
-                  color={
-                    isStockReturned
-                      ? colors.brandGreen
-                      : hasActiveSession
-                      ? colors.accent
-                      : '#D97706'
-                  }
+                  color={hasActiveUnsettledSession ? colors.accent : '#D97706'}
                 />
               </View>
               <View>
                 <Text style={styles.stockCardTitle}>VEHICLE STOCK TRACKER</Text>
                 <Text style={styles.stockCardSubtitle}>
-                  {isStockReturned
-                    ? 'Day-end leftover returned to warehouse'
-                    : hasActiveSession
-                    ? 'Active delivery inventory in vehicle'
+                  {hasActiveUnsettledSession
+                    ? isOutForDelivery
+                      ? 'Out for delivery • Live transit tracking'
+                      : 'Morning stock loaded • Ready for trip'
                     : 'Morning stock loading required'}
                 </Text>
               </View>
             </View>
 
-            {hasActiveSession && (
+            {hasActiveUnsettledSession && (
               <TouchableOpacity
                 style={styles.viewInventoryBtn}
                 onPress={() => setIsViewStockModalOpen(true)}
@@ -179,12 +202,20 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
             )}
           </View>
 
-          {/* Metric Tiles */}
+          {/* Metric Tiles - Resets to 0 when settled or not loaded */}
           <View style={styles.stockMetricGrid}>
             <View style={styles.stockMetricTile}>
               <Text style={styles.stockMetricLabel}>LOADED</Text>
               <Text style={styles.stockMetricVal}>{totalLoaded}</Text>
-              <Text style={styles.stockMetricSub}>Morning taken</Text>
+              <Text style={styles.stockMetricSub}>Morning take</Text>
+            </View>
+
+            <View style={[styles.stockMetricTile, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+              <Text style={[styles.stockMetricLabel, { color: '#B45309' }]}>ON WAY</Text>
+              <Text style={[styles.stockMetricVal, { color: '#D97706' }]}>
+                {totalOutForDelivery}
+              </Text>
+              <Text style={styles.stockMetricSub}>Out delivery</Text>
             </View>
 
             <View style={styles.stockMetricTile}>
@@ -192,96 +223,104 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
               <Text style={[styles.stockMetricVal, { color: colors.brandGreen }]}>
                 {totalDelivered}
               </Text>
-              <Text style={styles.stockMetricSub}>Given to shops</Text>
+              <Text style={styles.stockMetricSub}>Fulfilled</Text>
             </View>
 
             <View
               style={[
                 styles.stockMetricTile,
-                { backgroundColor: isStockReturned ? '#F0FDF4' : '#EFF6FF' },
+                { backgroundColor: '#EFF6FF' },
               ]}
             >
               <Text
                 style={[
                   styles.stockMetricLabel,
-                  { color: isStockReturned ? colors.brandGreen : colors.accent },
+                  { color: colors.accent },
                 ]}
               >
-                {isStockReturned ? 'RETURNED' : 'IN VAN NOW'}
+                IN VAN
               </Text>
               <Text
                 style={[
                   styles.stockMetricVal,
-                  { color: isStockReturned ? colors.brandGreen : colors.accent },
+                  { color: colors.accent },
                 ]}
               >
-                {isStockReturned ? todaySession?.totalReturnedUnits || 0 : totalInVehicle}
+                {totalInVehicle}
               </Text>
               <Text style={styles.stockMetricSub}>
-                {isStockReturned ? 'Restocked' : 'Live balance'}
+                Live bal
               </Text>
             </View>
           </View>
 
           {/* Action Triggers */}
           <View style={styles.stockActionRow}>
-            {/* Morning Load Button */}
-            <TouchableOpacity
-              style={[
-                styles.stockActionBtn,
-                !hasActiveSession ? styles.stockActionBtnPrimary : styles.stockActionBtnSecondary,
-              ]}
-              onPress={() => setIsLoadModalOpen(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="sunny-outline"
-                size={16}
-                color={!hasActiveSession ? colors.textInverse : colors.primary}
-              />
-              <Text
-                style={[
-                  styles.stockActionBtnText,
-                  !hasActiveSession
-                    ? styles.stockActionBtnTextPrimary
-                    : styles.stockActionBtnTextSecondary,
-                ]}
-              >
-                {hasActiveSession ? '+ Load More' : 'Load Morning Stock'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Evening Return Button */}
-            {hasActiveSession && (
+            {/* Morning Load Button - Shows default "Load Morning Stock" when not active or after stock is settled */}
+            {!hasActiveUnsettledSession ? (
               <TouchableOpacity
-                style={[
-                  styles.stockActionBtn,
-                  isStockReturned
-                    ? styles.stockActionBtnDisabled
-                    : styles.stockActionBtnEvening,
-                ]}
-                onPress={() => setIsReturnModalOpen(true)}
-                disabled={isStockReturned}
+                style={[styles.stockActionBtn, styles.stockActionBtnPrimary]}
+                onPress={() => setIsLoadModalOpen(true)}
                 activeOpacity={0.8}
               >
-                <Ionicons
-                  name={isStockReturned ? 'checkmark-done-circle' : 'moon-outline'}
-                  size={16}
-                  color={isStockReturned ? colors.brandGreen : colors.textInverse}
-                />
-                <Text
-                  style={[
-                    styles.stockActionBtnText,
-                    isStockReturned
-                      ? { color: colors.brandGreen }
-                      : { color: colors.textInverse },
-                  ]}
+                <Ionicons name="sunny-outline" size={16} color={colors.textInverse} />
+                <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextPrimary]}>
+                  Load Morning Stock
+                </Text>
+              </TouchableOpacity>
+            ) : !isOutForDelivery ? (
+              <>
+                {/* 1. Load Extra Button */}
+                <TouchableOpacity
+                  style={[styles.stockActionBtn, styles.stockActionBtnSecondary]}
+                  onPress={() => setIsLoadModalOpen(true)}
+                  activeOpacity={0.8}
                 >
-                  {isStockReturned ? 'Stock Settled' : 'Return Stock'}
+                  <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
+                  <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextSecondary]}>
+                    Load Extra
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 2. Out for Delivery Button */}
+                <TouchableOpacity
+                  style={[styles.stockActionBtn, styles.stockActionBtnPrimary]}
+                  onPress={handleStartDeliveryTrip}
+                  disabled={isDispatchingAll}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="bicycle" size={16} color={colors.textInverse} />
+                  <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextPrimary]}>
+                    {isDispatchingAll ? 'Starting Trip...' : 'Out for Delivery'}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              /* After Out for Delivery chosen: Return Stock ONLY */
+              <TouchableOpacity
+                style={[styles.stockActionBtn, styles.stockActionBtnEvening]}
+                onPress={() => setIsReturnModalOpen(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="moon-outline" size={16} color={colors.textInverse} />
+                <Text style={[styles.stockActionBtnText, { color: colors.textInverse }]}>
+                  Return Stock
                 </Text>
               </TouchableOpacity>
             )}
           </View>
+
+          {/* Out for Delivery Status Banner */}
+          {hasActiveUnsettledSession && isOutForDelivery && (
+            <View style={styles.tripActiveBanner}>
+              <Ionicons name="bicycle" size={16} color="#0284C7" />
+              <Text style={styles.tripActiveBannerText}>
+                {outForDeliveryOrders.length > 0
+                  ? `All ${outForDeliveryOrders.length} assigned ${outForDeliveryOrders.length === 1 ? 'order is' : 'orders are'} Out for Delivery (On Way)`
+                  : 'All deliveries completed. Return remaining stock when finished.'}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* 3. Today's Delivery Progress Metric Bar */}
@@ -322,8 +361,11 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
                 ? 'All Deliveries Completed'
                 : `Start Deliveries (${pendingDeliveries.length} Pending)`
             }
-            onPress={() => {
+            onPress={async () => {
               if (!isAllCompleted) {
+                if (approvedPendingOrders.length > 0 && staff.id) {
+                  dispatchAllStaffOrders(staff.id).catch(console.warn);
+                }
                 navigation.navigate('TodayDeliveries', { filter: 'PENDING', timestamp: Date.now() });
               }
             }}
@@ -627,5 +669,51 @@ const styles = StyleSheet.create({
   primaryCtaBtn: {
     backgroundColor: colors.navy,
     borderRadius: spacing.borderRadiusXl,
+  },
+  dispatchTripCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0284C7',
+    padding: spacing.md,
+    borderRadius: spacing.borderRadiusMd,
+    marginTop: spacing.md,
+    ...shadows.sm,
+  },
+  dispatchTripIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dispatchTripTitle: {
+    ...typography.bodyBold,
+    color: colors.textInverse,
+    fontSize: 13,
+  },
+  dispatchTripSub: {
+    ...typography.caption,
+    color: '#E0F2FE',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  tripActiveBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    borderRadius: spacing.borderRadiusMd,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    marginTop: spacing.md,
+    gap: 8,
+  },
+  tripActiveBannerText: {
+    ...typography.captionBold,
+    color: '#0369A1',
+    fontSize: 12,
+    flex: 1,
   },
 });

@@ -134,18 +134,17 @@ export const paymentService = {
       const vendorName = vendorData.name || 'Vendor';
       const shopName = vendorData.shopName || vendorName;
 
-      if (currentBalance <= 0) {
-        throw new Error(`Vendor ${shopName} has no pending dues (₹0.00). Advance payments are not permitted.`);
-      }
+      // New net balance after payment credit (can be negative if advance is paid)
+      const newBalance = Math.round((currentBalance - amount) * 100) / 100;
+      const currentOutstanding = Math.max(0, newBalance);
+      const advanceBalance = Math.max(0, -newBalance);
 
-      if (amount > currentBalance) {
-        throw new Error(
-          `Payment amount ₹${amount.toLocaleString('en-IN')} exceeds current outstanding due of ₹${currentBalance.toLocaleString('en-IN')}. Advance balance is not allowed.`
-        );
-      }
-
-      // New balance after payment credit
-      const newBalance = Math.max(0, currentBalance - amount);
+      const isAdvancePayment = currentBalance <= 0 || amount > currentBalance;
+      const autoNote = isAdvancePayment
+        ? currentBalance <= 0
+          ? `Advance payment of ₹${amount.toLocaleString('en-IN')} received via ${paymentMode}`
+          : `Payment of ₹${amount.toLocaleString('en-IN')} (₹${currentBalance.toLocaleString('en-IN')} due settled + ₹${(amount - currentBalance).toLocaleString('en-IN')} advance balance)`
+        : `${paymentMode} payment received directly at HQ`;
 
       // 2. CREATE PAYMENT DOCUMENT
       const newPayment: Payment = {
@@ -163,7 +162,7 @@ export const paymentService = {
         verificationStatus: 'VERIFIED',
         verifiedBy: adminName,
         verifiedAt: nowStr,
-        notes: notes?.trim() || 'Direct payment recorded by Admin',
+        notes: notes?.trim() || autoNote,
         createdAt: nowStr,
         updatedAt: nowStr,
       };
@@ -196,7 +195,7 @@ export const paymentService = {
         sourceType: 'PAYMENT',
         idempotencyKey: `${paymentId}:CREDIT`,
         date: nowStr,
-        note: notes?.trim() || `${paymentMode} payment received directly at HQ`,
+        note: notes?.trim() || autoNote,
         paymentMethod: paymentMode,
         createdBy: adminName,
         createdRole: 'ADMIN',
@@ -214,7 +213,8 @@ export const paymentService = {
       // 4. UPDATE VENDOR BALANCE
       transaction.update(vendorRef, {
         currentBalance: newBalance,
-        currentOutstanding: newBalance,
+        currentOutstanding,
+        advanceBalance,
         lastPaymentDate: nowStr,
         updatedAt: serverTimestamp(),
       });
@@ -228,8 +228,8 @@ export const paymentService = {
         entityType: 'VENDOR',
         entityId: vendorId,
         timestamp: nowStr,
-        reason: `Direct ${paymentMode} payment of ₹${amount.toFixed(2)} recorded for ${shopName}`,
-        details: `Ref: ${safeRef}. New Balance: ₹${newBalance.toFixed(2)}`,
+        reason: isAdvancePayment ? 'Advance payment recorded' : 'Direct payment recorded',
+        details: `Recorded ₹${amount.toFixed(2)} for ${shopName}. New Balance: ₹${newBalance.toFixed(2)} (Outstanding: ₹${currentOutstanding}, Advance: ₹${advanceBalance})`,
         createdAt: serverTimestamp(),
       });
 

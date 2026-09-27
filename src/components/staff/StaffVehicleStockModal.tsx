@@ -51,7 +51,21 @@ export const StaffVehicleStockModal: React.FC<StaffVehicleStockModalProps> = ({
   }
 
   const isReturned = session.status === 'RETURNED' || session.status === 'DISCREPANCY';
-  const totalInVehicle = session.items.reduce((sum, it) => sum + (it.currentStock || 0), 0);
+  const totalLoaded = isReturned
+    ? 0
+    : (session.items || []).reduce((sum, it) => sum + (it.loadedQty || 0), 0);
+  const totalDelivered = isReturned
+    ? 0
+    : (session.items || []).reduce((sum, it) => sum + (it.deliveredQty || 0), 0);
+  const totalInVehicle = isReturned
+    ? 0
+    : (session.items || []).reduce(
+        (sum, it) => sum + Math.max(0, it.currentStock ?? ((it.loadedQty || 0) - (it.deliveredQty || 0))),
+        0
+      );
+  const totalOutForDelivery = isReturned
+    ? 0
+    : (session.items || []).reduce((sum, it) => sum + (it.outForDeliveryQty || 0), 0);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -94,28 +108,36 @@ export const StaffVehicleStockModal: React.FC<StaffVehicleStockModalProps> = ({
               {/* Metric Highlights */}
               <View style={styles.metricGrid}>
                 <View style={styles.metricCard}>
-                  <Text style={styles.metricLabel}>TOTAL LOADED</Text>
-                  <Text style={styles.metricVal}>{session.totalLoadedUnits}</Text>
-                  <Text style={styles.metricSub}>Morning takeout</Text>
+                  <Text style={styles.metricLabel}>LOADED</Text>
+                  <Text style={styles.metricVal}>{totalLoaded}</Text>
+                  <Text style={styles.metricSub}>Morning take</Text>
+                </View>
+
+                <View style={[styles.metricCard, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+                  <Text style={[styles.metricLabel, { color: '#B45309' }]}>ON WAY</Text>
+                  <Text style={[styles.metricVal, { color: '#D97706' }]}>
+                    {totalOutForDelivery}
+                  </Text>
+                  <Text style={styles.metricSub}>Out for delivery</Text>
                 </View>
 
                 <View style={styles.metricCard}>
                   <Text style={styles.metricLabel}>DELIVERED</Text>
                   <Text style={[styles.metricVal, { color: colors.brandGreen }]}>
-                    {session.totalDeliveredUnits}
+                    {totalDelivered}
                   </Text>
                   <Text style={styles.metricSub}>Fulfilled</Text>
                 </View>
 
                 <View style={[styles.metricCard, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
                   <Text style={[styles.metricLabel, { color: colors.accent }]}>
-                    {isReturned ? 'RETURNED' : 'IN VEHICLE NOW'}
+                    {isReturned ? 'RETURNED' : 'IN VAN'}
                   </Text>
                   <Text style={[styles.metricVal, { color: colors.accent }]}>
-                    {isReturned ? session.totalReturnedUnits : totalInVehicle}
+                    {isReturned ? (session.totalReturnedUnits || 0) : totalInVehicle}
                   </Text>
                   <Text style={styles.metricSub}>
-                    {isReturned ? 'Warehouse restocked' : 'Live on-hand'}
+                    {isReturned ? 'Restocked' : 'Live balance'}
                   </Text>
                 </View>
               </View>
@@ -155,52 +177,66 @@ export const StaffVehicleStockModal: React.FC<StaffVehicleStockModalProps> = ({
                         </View>
                       </View>
 
-                        {/* Progress Metrics Row */}
-                        <View style={styles.itemProgressRow}>
-                          <View style={styles.progressStat}>
-                            <Text style={styles.statLabel}>Route Pre-order</Text>
-                            <Text style={[styles.statVal, { color: colors.brandGreen }]}>
-                              {item.preOrderedQty || 0}
-                            </Text>
-                          </View>
-                          <View style={styles.progressStat}>
-                            <Text style={styles.statLabel}>Extra Loaded</Text>
-                            <Text style={[styles.statVal, { color: colors.accent }]}>
-                              {item.extraLoadedQty || 0}
-                            </Text>
-                          </View>
-                          <View style={styles.progressStat}>
-                            <Text style={styles.statLabel}>Delivered</Text>
-                            <Text style={[styles.statVal, { color: colors.primary }]}>
-                              {item.deliveredQty}
-                            </Text>
-                          </View>
-                          {item.damagedQty !== undefined && item.damagedQty > 0 && (
-                            <View style={styles.progressStat}>
-                              <Text style={styles.statLabel}>Damaged</Text>
-                              <Text style={[styles.statVal, { color: colors.danger }]}>
-                                {item.damagedQty}
-                              </Text>
-                            </View>
-                          )}
-                          {item.missingQty !== undefined && item.missingQty > 0 && (
-                            <View style={styles.progressStat}>
-                              <Text style={styles.statLabel}>Missing</Text>
-                              <Text style={[styles.statVal, { color: '#B45309' }]}>
-                                {item.missingQty}
-                              </Text>
-                            </View>
-                          )}
-                          {item.returnedQty !== undefined && item.returnedQty > 0 && (
-                            <View style={styles.progressStat}>
-                              <Text style={styles.statLabel}>Restocked</Text>
-                              <Text style={[styles.statVal, { color: colors.brandGreen }]}>
-                                {item.returnedQty}
-                              </Text>
-                            </View>
-                          )}
+                      {/* Progress Metrics Row */}
+                      <View style={styles.itemProgressRow}>
+                        <View style={styles.progressStat}>
+                          <Text style={styles.statLabel}>Route Pre</Text>
+                          <Text style={[styles.statVal, { color: colors.brandGreen }]}>
+                            {item.preOrderedQty || 0}
+                          </Text>
                         </View>
+                        <View style={styles.progressStat}>
+                          <Text style={styles.statLabel}>Extra</Text>
+                          <Text style={[styles.statVal, { color: colors.accent }]}>
+                            {item.extraLoadedQty || 0}
+                          </Text>
+                        </View>
+                        <View style={styles.progressStat}>
+                          <Text style={[styles.statLabel, { color: '#B45309' }]}>On Way</Text>
+                          <Text
+                            style={[
+                              styles.statVal,
+                              {
+                                color: isReturned ? colors.textMuted : '#D97706',
+                                fontWeight: '700',
+                              },
+                            ]}
+                          >
+                            {isReturned ? 0 : item.outForDeliveryQty || 0}
+                          </Text>
+                        </View>
+                        <View style={styles.progressStat}>
+                          <Text style={styles.statLabel}>Delivered</Text>
+                          <Text style={[styles.statVal, { color: colors.primary }]}>
+                            {item.deliveredQty}
+                          </Text>
+                        </View>
+                        {item.damagedQty !== undefined && item.damagedQty > 0 && (
+                          <View style={styles.progressStat}>
+                            <Text style={styles.statLabel}>Damaged</Text>
+                            <Text style={[styles.statVal, { color: colors.danger }]}>
+                              {item.damagedQty}
+                            </Text>
+                          </View>
+                        )}
+                        {item.missingQty !== undefined && item.missingQty > 0 && (
+                          <View style={styles.progressStat}>
+                            <Text style={styles.statLabel}>Missing</Text>
+                            <Text style={[styles.statVal, { color: '#B45309' }]}>
+                              {item.missingQty}
+                            </Text>
+                          </View>
+                        )}
+                        {item.returnedQty !== undefined && item.returnedQty > 0 && (
+                          <View style={styles.progressStat}>
+                            <Text style={styles.statLabel}>Restocked</Text>
+                            <Text style={[styles.statVal, { color: colors.brandGreen }]}>
+                              {item.returnedQty}
+                            </Text>
+                          </View>
+                        )}
                       </View>
+                    </View>
                   );
                 }}
               />

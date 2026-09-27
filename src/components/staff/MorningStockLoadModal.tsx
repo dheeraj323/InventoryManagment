@@ -46,17 +46,18 @@ export const MorningStockLoadModal: React.FC<MorningStockLoadModalProps> = ({
     currentQty: number;
   } | null>(null);
 
-  // Compute pre-ordered quantities for this staff member from assigned orders
+  // Compute pre-ordered quantities for this staff member from assigned unfulfilled orders
   const preOrderedMap = useMemo(() => {
     const map: Record<string, { qty: number; productName: string; unit: string; price: number }> = {};
-    const assignedOrders = orders.filter(
+    const unfulfilledOrders = orders.filter(
       (o) =>
         o.assignedStaffId === staffId &&
         o.status !== 'CANCELLED' &&
-        o.status !== 'DELIVERED'
+        o.status !== 'DELIVERED' &&
+        o.status !== 'PARTIALLY_DELIVERED'
     );
 
-    assignedOrders.forEach((order) => {
+    unfulfilledOrders.forEach((order) => {
       (order.items || []).forEach((item) => {
         if (!map[item.productId]) {
           map[item.productId] = {
@@ -73,38 +74,37 @@ export const MorningStockLoadModal: React.FC<MorningStockLoadModalProps> = ({
     return map;
   }, [orders, staffId]);
 
-  // When modal opens, pre-fill total quantities with pre-ordered route quantities + existing extra stock
+  // When modal opens, pre-fill total quantities with unfulfilled route pre-orders + remaining on-hand stock
   useEffect(() => {
     if (visible) {
       const initialMap: Record<string, number> = {};
 
-      // 1. Pre-fill route pre-orders
-      const assignedOrders = orders.filter(
+      // 1. Pre-fill unfulfilled route pre-orders
+      const unfulfilledOrders = orders.filter(
         (o) =>
           o.assignedStaffId === staffId &&
           o.status !== 'CANCELLED' &&
-          o.status !== 'DELIVERED'
+          o.status !== 'DELIVERED' &&
+          o.status !== 'PARTIALLY_DELIVERED'
       );
-      assignedOrders.forEach((order) => {
+      unfulfilledOrders.forEach((order) => {
         (order.items || []).forEach((item) => {
           initialMap[item.productId] = (initialMap[item.productId] || 0) + item.orderedQty;
         });
       });
 
-      // 2. If active session already exists today, merge previous session's total loaded
-      if (todaySession && todaySession.items) {
+      // 2. If active unsettled session exists today, add current remaining un-delivered stock in vehicle
+      if (todaySession && todaySession.items && todaySession.status === 'ACTIVE') {
         todaySession.items.forEach((item) => {
-          initialMap[item.productId] =
-            item.loadedQty !== undefined
-              ? item.loadedQty
-              : (item.preOrderedQty || 0) + (item.extraLoadedQty || 0);
+          const remainingInVan = Math.max(0, item.currentStock ?? 0);
+          initialMap[item.productId] = (initialMap[item.productId] || 0) + remainingInVan;
         });
       }
 
       setTotalQuantities(initialMap);
       setSearchQuery('');
     }
-  }, [visible, staffId]);
+  }, [visible, staffId, orders, todaySession]);
 
   // Filtered products (search by name, sku, category)
   const filteredProducts = useMemo(() => {

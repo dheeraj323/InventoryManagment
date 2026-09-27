@@ -69,6 +69,7 @@ export interface Vendor {
   openingBalance?: number; // Bootstrap balance for migrated vendors; used when no ledger entries exist
   currentBalance: number; // Positive = Receivable (Vendor owes us), Negative = Advance paid
   currentOutstanding?: number;
+  advanceBalance?: number; // Advance money deposited / paid by vendor (available for future orders)
   overdueAmount?: number;
   lastOrderDate?: string;
   lastPaymentDate?: string;
@@ -158,7 +159,7 @@ export type OrderStatus =
   | 'PARTIALLY_DELIVERED'
   | 'CANCELLED';
 
-export type PaymentMethod = 'CASH' | 'ONLINE' | 'PAY_LATER' | 'PARTIALLY_PAID' | 'PENDING';
+export type PaymentMethod = 'CASH' | 'ONLINE' | 'PAY_LATER' | 'PARTIALLY_PAID' | 'PENDING' | 'ADVANCE';
 
 export interface OrderItem {
   id: string;
@@ -193,6 +194,8 @@ export interface Order {
   tax: number;
   discount: number;
   totalAmount: number;
+  advanceAdjusted?: number;       // Advance money deducted/adjusted against this order
+  finalBillAmount?: number;       // Final bill amount after advance deduction (totalAmount - advanceAdjusted)
   requestedDeliveryDate?: string;
   status: OrderStatus;
   preferredPaymentMode: PaymentMethod;
@@ -357,6 +360,8 @@ export interface Invoice {
   taxAmount: number;
   discountAmount: number;
   totalAmount: number;
+  advanceAdjusted?: number;
+  finalBillAmount?: number;
   paidAmount: number;
   balanceDue: number;
   invoiceDate: string;
@@ -583,6 +588,7 @@ export interface StaffStockItem {
   preOrderedQty: number; // Pre-booked quantities from assigned orders (already decremented at order placement)
   extraLoadedQty: number; // Extra quantities taken from warehouse stock (decremented on morning load)
   loadedQty: number;     // Total loaded in vehicle = preOrderedQty + extraLoadedQty
+  outForDeliveryQty?: number; // Active quantities currently Out for Delivery / On the Way
   deliveredQty: number;  // Total delivered to vendors
   returnedQty?: number;  // Evening returned quantity to inventory (ADDED back to stock)
   damagedQty?: number;   // Damaged / broken items (NOT added to stock)
@@ -602,6 +608,7 @@ export interface StaffDailyStockSession {
   totalPreOrderedUnits: number;
   totalExtraLoadedUnits: number;
   totalLoadedUnits: number;
+  totalOutForDeliveryUnits?: number; // Total units in 'OUT_FOR_DELIVERY' active shipments
   totalDeliveredUnits: number;
   totalReturnedUnits: number;
   totalDamagedUnits?: number;

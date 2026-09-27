@@ -59,7 +59,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
         : (vendor?.currentBalance ?? 0);
 
     const delta = entryData.type === 'DEBIT' ? entryData.amount : -entryData.amount;
-    const newRunningBalance = Math.max(0, Math.round((prevBalance + delta) * 100) / 100);
+    const newRunningBalance = Math.round((prevBalance + delta) * 100) / 100;
 
     const newEntry: LedgerEntry = {
       ...entryData,
@@ -184,8 +184,6 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
     // Opening balance logic:
     // If an explicit opening entry exists in the ledger, it is ALREADY included in totalDebits.
     // If not in the ledger, use vendorObj.openingBalance (if set).
-    // NEVER fall back to vendorObj.currentBalance when entries exist, because currentBalance
-    // already reflects totalDebits - totalCredits!
     const effectiveOpeningBalance = hasOpeningEntry
       ? 0
       : Math.max(0, vendorObj?.openingBalance ?? 0);
@@ -194,14 +192,19 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
       ? (openingEntry?.amount ?? vendorObj?.openingBalance ?? 0)
       : (vendorObj?.openingBalance ?? (entries.length === 0 ? (vendorObj?.currentBalance ?? 0) : 0));
 
-    // Outstanding Due = Effective Opening Balance + Total Debits − Total Credits
+    // Outstanding Due / Net Position = Effective Opening Balance + Total Debits − Total Credits
     const rawBalance =
       entries.length > 0
         ? effectiveOpeningBalance + totalDebits - totalCredits
-        : Math.max(0, vendorObj?.openingBalance ?? vendorObj?.currentBalance ?? 0);
+        : (vendorObj?.currentBalance !== undefined
+            ? vendorObj.currentBalance
+            : (vendorObj?.openingBalance ?? 0));
 
-    const currentOutstanding = Math.max(0, Math.round(rawBalance * 100) / 100);
-    const advanceBalance = 0; // Advance is not supported in the system
+    const roundedRaw = Math.round(rawBalance * 100) / 100;
+    const currentOutstanding = roundedRaw > 0 ? roundedRaw : 0;
+    const advanceBalance = roundedRaw < 0
+      ? Math.abs(roundedRaw)
+      : (vendorObj?.advanceBalance && vendorObj.advanceBalance > 0 ? vendorObj.advanceBalance : 0);
     const overdueAmount = 0; // Baseline; derived from individual invoice due dates if applicable
 
     // availableCredit = 0 when no limit is set (treat as "no limit")
@@ -220,7 +223,7 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
       advanceBalance,
       overdueAmount,
       availableCredit,
-      lastLedgerBalance: currentOutstanding,
+      lastLedgerBalance: roundedRaw,
     };
   },
 

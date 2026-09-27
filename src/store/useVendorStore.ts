@@ -162,14 +162,14 @@ export const useVendorStore = create<VendorState>((set, get) => ({
     set({
       vendors: get().vendors.map((v) => {
         if (v.id === params.vendorId || v.vendorId === params.vendorId) {
-          const updatedBal = Math.max(
-            0,
-            Math.round(((v.currentBalance || 0) - params.amount) * 100) / 100
-          );
+          const updatedBal = Math.round(((v.currentBalance || 0) - params.amount) * 100) / 100;
+          const currentOutstanding = Math.max(0, updatedBal);
+          const advanceBalance = Math.max(0, -updatedBal);
           return {
             ...v,
             currentBalance: updatedBal,
-            currentOutstanding: updatedBal,
+            currentOutstanding,
+            advanceBalance,
             lastPaymentDate: payment.paymentDate,
           };
         }

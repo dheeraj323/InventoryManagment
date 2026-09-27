@@ -32,7 +32,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     textColor = config.color;
   } else if (paymentMethod) {
     label = PAYMENT_METHOD_LABELS[paymentMethod] || paymentMethod;
-    if (paymentMethod === 'CASH' || paymentMethod === 'ONLINE') {
+    if (paymentMethod === 'CASH' || paymentMethod === 'ONLINE' || paymentMethod === 'ADVANCE') {
       bgColor = colors.statusDeliveredBg;
       textColor = colors.statusDeliveredText;
     } else if (paymentMethod === 'PAY_LATER') {

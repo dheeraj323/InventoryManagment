@@ -53,8 +53,22 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
   const tax = getTax();
   const totalUnits = getItemCount();
 
+  const advanceBalance =
+    runningBalance.advanceBalance ||
+    (vendor.advanceBalance && vendor.advanceBalance > 0
+      ? vendor.advanceBalance
+      : vendor.currentBalance < 0
+      ? Math.abs(vendor.currentBalance)
+      : 0);
+
+  const hasAdvance = advanceBalance > 0;
+  const advanceAdjusted = hasAdvance ? Math.min(totalAmount, advanceBalance) : 0;
+  const finalBillAmount = Math.max(0, totalAmount - advanceAdjusted);
+  const remainingAdvance = Math.max(0, advanceBalance - advanceAdjusted);
+  const isFullyCoveredByAdvance = hasAdvance && finalBillAmount === 0;
+
   const [selectedPaymentMode, setSelectedPaymentMode] = useState<PaymentMethod>(
-    vendor.preferredPaymentMode || 'PAY_LATER'
+    isFullyCoveredByAdvance ? 'ADVANCE' : vendor.preferredPaymentMode || 'PAY_LATER'
   );
   const [deliveryAddress, setDeliveryAddress] = useState(
     vendor.address || currentUser?.address || 'Shop Address'
@@ -104,16 +118,21 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     setCreditWarning('');
     setLoading(true);
 
-    // Credit limit pre-flight check for PAY_LATER orders
+    // Credit limit pre-flight check for PAY_LATER orders (based on remaining finalBillAmount)
     // Non-blocking: order is still created but flagged pendingAdminOverride
     let pendingAdminOverrideLocal = false;
-    if (selectedPaymentMode === 'PAY_LATER' && vendor.creditLimit && vendor.creditLimit > 0) {
+    if (
+      !isFullyCoveredByAdvance &&
+      selectedPaymentMode === 'PAY_LATER' &&
+      vendor.creditLimit &&
+      vendor.creditLimit > 0
+    ) {
       const outstanding = runningBalance.currentOutstanding;
-      if (outstanding + totalAmount > vendor.creditLimit) {
+      if (outstanding + finalBillAmount > vendor.creditLimit) {
         pendingAdminOverrideLocal = true;
         setCreditWarning(
           `⚠️ This order exceeds your credit limit. Outstanding: ₹${outstanding.toLocaleString('en-IN')}, ` +
-          `Limit: ₹${vendor.creditLimit.toLocaleString('en-IN')}. The order will require Admin approval.`
+          `Bill to Add: ₹${finalBillAmount.toLocaleString('en-IN')}, Limit: ₹${vendor.creditLimit.toLocaleString('en-IN')}. The order will require Admin approval.`
         );
       }
     }
@@ -123,6 +142,18 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       const finalLocationUrl = locationUrl.trim() || vendor.locationUrl || currentUser?.locationUrl || undefined;
       const finalLat = latitude !== undefined ? latitude : vendor.latitude !== undefined ? vendor.latitude : currentUser?.latitude;
       const finalLng = longitude !== undefined ? longitude : vendor.longitude !== undefined ? vendor.longitude : currentUser?.longitude;
+
+      const effectivePaymentMode = isFullyCoveredByAdvance ? 'ADVANCE' : selectedPaymentMode;
+      const paidAmount = isFullyCoveredByAdvance
+        ? 0
+        : effectivePaymentMode === 'CASH' || effectivePaymentMode === 'ONLINE'
+        ? finalBillAmount
+        : 0;
+      const balanceDue = isFullyCoveredByAdvance
+        ? 0
+        : effectivePaymentMode === 'PAY_LATER'
+        ? finalBillAmount
+        : 0;
 
       const newOrder = await createOrder({
         vendorId: vendor.id,
@@ -140,10 +171,12 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         tax,
         discount: 0,
         totalAmount,
+        advanceAdjusted,
+        finalBillAmount,
         status: 'PENDING',
-        preferredPaymentMode: selectedPaymentMode,
-        paidAmount: selectedPaymentMode === 'CASH' || selectedPaymentMode === 'ONLINE' ? totalAmount : 0,
-        balanceDue: selectedPaymentMode === 'PAY_LATER' ? totalAmount : 0,
+        preferredPaymentMode: effectivePaymentMode,
+        paidAmount,
+        balanceDue,
         orderDate: new Date().toISOString(),
         deliveryDate: new Date().toISOString().split('T')[0],
         notes: notes.trim() || '',
@@ -258,15 +291,38 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
               </View>
             ) : null}
 
+            {placedOrder.advanceAdjusted && placedOrder.advanceAdjusted > 0 ? (
+              <>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Order Value</Text>
+                  <Text style={styles.infoVal}>
+                    ₹{placedOrder.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={[styles.infoLabel, { color: colors.brandGreen, fontWeight: '700' }]}>
+                    Advance Adjusted
+                  </Text>
+                  <Text style={[styles.infoVal, { color: colors.brandGreen, fontWeight: '700' }]}>
+                    - ₹{placedOrder.advanceAdjusted.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
+              </>
+            ) : null}
+
             <View style={styles.divider} />
 
             <View style={styles.totalRow}>
               <View>
-                <Text style={styles.totalLabel}>Total Amount</Text>
-                <Text style={styles.totalSub}>Final Order Amount</Text>
+                <Text style={styles.totalLabel}>
+                  {placedOrder.advanceAdjusted ? 'Final Bill Amount' : 'Total Amount'}
+                </Text>
+                <Text style={styles.totalSub}>
+                  {placedOrder.advanceAdjusted ? 'Remaining payable amount' : 'Final Order Amount'}
+                </Text>
               </View>
               <Text style={styles.totalVal}>
-                ₹{placedOrder.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                ₹{(placedOrder.finalBillAmount !== undefined ? placedOrder.finalBillAmount : Math.max(0, placedOrder.totalAmount - (placedOrder.advanceAdjusted || 0))).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </Text>
             </View>
           </Card>
@@ -431,50 +487,115 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
           )}
         </Card>
 
+        {/* Advance Balance Available & Applied Card */}
+        {hasAdvance && (
+          <Card style={[styles.card, styles.advanceCard]} outlined elevation="sm">
+            <View style={styles.advanceHeaderRow}>
+              <View style={styles.advanceIconCircle}>
+                <Ionicons name="wallet" size={20} color={colors.brandGreen} />
+              </View>
+              <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                <Text style={styles.advanceCardTitle}>ADVANCE BALANCE APPLIED</Text>
+                <Text style={styles.advanceCardSub}>
+                  Total Available: ₹{advanceBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </Text>
+              </View>
+              <View style={styles.advanceBadge}>
+                <Text style={styles.advanceBadgeText}>
+                  -₹{advanceAdjusted.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.advanceDivider} />
+
+            <View style={styles.advanceDetailRow}>
+              <Text style={styles.advanceDetailLabel}>Advance Adjusted:</Text>
+              <Text style={[styles.advanceDetailVal, { color: colors.brandGreen }]}>
+                -₹{advanceAdjusted.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </Text>
+            </View>
+
+            <View style={styles.advanceDetailRow}>
+              <Text style={styles.advanceDetailLabel}>Remaining Advance after this order:</Text>
+              <Text style={[styles.advanceDetailVal, { color: colors.textPrimary }]}>
+                ₹{remainingAdvance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </Text>
+            </View>
+
+            {isFullyCoveredByAdvance && (
+              <View style={styles.fullyCoveredNotice}>
+                <Ionicons name="checkmark-circle" size={16} color={colors.brandGreen} />
+                <Text style={styles.fullyCoveredText}>
+                  This order is 100% covered by your advance balance! No extra payment required.
+                </Text>
+              </View>
+            )}
+          </Card>
+        )}
+
         {/* Payment Preferences Section */}
         <Card style={styles.card} outlined elevation="sm">
-          <Text style={styles.cardTitle}>SELECT PAYMENT METHOD</Text>
+          <Text style={styles.cardTitle}>
+            {isFullyCoveredByAdvance
+              ? 'PAYMENT STATUS'
+              : hasAdvance
+              ? `PAY REMAINING BILL (₹${finalBillAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })})`
+              : 'SELECT PAYMENT METHOD'}
+          </Text>
 
-          {(['PAY_LATER', 'CASH', 'ONLINE'] as PaymentMethod[]).map((mode) => {
-            const isSelected = selectedPaymentMode === mode;
+          {isFullyCoveredByAdvance ? (
+            <View style={styles.advancePaidBanner}>
+              <Ionicons name="shield-checkmark" size={22} color={colors.brandGreen} />
+              <View style={{ flex: 1, marginLeft: spacing.sm }}>
+                <Text style={styles.advancePaidTitle}>Pre-Paid with Advance</Text>
+                <Text style={styles.advancePaidSub}>
+                  The entire bill of ₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} will be deducted from your advance balance upon delivery.
+                </Text>
+              </View>
+            </View>
+          ) : (
+            (['PAY_LATER', 'CASH', 'ONLINE'] as PaymentMethod[]).map((mode) => {
+              const isSelected = selectedPaymentMode === mode;
 
-            return (
-              <TouchableOpacity
-                key={mode}
-                style={[
-                  styles.paymentOption,
-                  isSelected ? styles.paymentOptionSelected : null,
-                ]}
-                onPress={() => setSelectedPaymentMode(mode)}
-                activeOpacity={0.8}
-              >
-                <View style={styles.radioCircle}>
-                  {isSelected && <View style={styles.radioDot} />}
-                </View>
+              return (
+                <TouchableOpacity
+                  key={mode}
+                  style={[
+                    styles.paymentOption,
+                    isSelected ? styles.paymentOptionSelected : null,
+                  ]}
+                  onPress={() => setSelectedPaymentMode(mode)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.radioCircle}>
+                    {isSelected && <View style={styles.radioDot} />}
+                  </View>
 
-                <View style={styles.paymentCol}>
-                  <Text style={styles.paymentName}>
-                    {PAYMENT_METHOD_LABELS[mode]}
-                  </Text>
-                  {mode === 'PAY_LATER' && (
-                    <Text style={styles.paymentSubtext}>
-                      Add to shop Khata balance for periodic settlement.
+                  <View style={styles.paymentCol}>
+                    <Text style={styles.paymentName}>
+                      {PAYMENT_METHOD_LABELS[mode]}
                     </Text>
-                  )}
-                  {mode === 'CASH' && (
-                    <Text style={styles.paymentSubtext}>
-                      Pay cash on spot to delivery executive.
-                    </Text>
-                  )}
-                  {mode === 'ONLINE' && (
-                    <Text style={styles.paymentSubtext}>
-                      UPI / Online transfer at time of delivery.
-                    </Text>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+                    {mode === 'PAY_LATER' && (
+                      <Text style={styles.paymentSubtext}>
+                        Add remaining ₹{finalBillAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} to Khata balance.
+                      </Text>
+                    )}
+                    {mode === 'CASH' && (
+                      <Text style={styles.paymentSubtext}>
+                        Pay remaining ₹{finalBillAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} in cash at delivery.
+                      </Text>
+                    )}
+                    {mode === 'ONLINE' && (
+                      <Text style={styles.paymentSubtext}>
+                        Pay remaining ₹{finalBillAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} via UPI / Online.
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )}
         </Card>
 
         {/* Bill Summary Breakdown */}
@@ -502,15 +623,35 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             </View>
           )}
 
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Total Order Value</Text>
+            <Text style={styles.infoVal}>
+              ₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </Text>
+          </View>
+
+          {hasAdvance && (
+            <View style={[styles.infoRow, { backgroundColor: '#F0FDF4', marginHorizontal: -spacing.md, paddingHorizontal: spacing.md, paddingVertical: 4, marginVertical: 2 }]}>
+              <Text style={[styles.infoLabel, { color: colors.brandGreen, fontWeight: '700' }]}>
+                Advance Adjusted
+              </Text>
+              <Text style={[styles.infoVal, { color: colors.brandGreen, fontWeight: '700' }]}>
+                - ₹{advanceAdjusted.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.divider} />
 
           <View style={styles.totalRow}>
             <View>
-              <Text style={styles.totalLabel}>Grand Total</Text>
-              <Text style={styles.totalSub}>Final payable amount</Text>
+              <Text style={styles.totalLabel}>Final Bill Amount</Text>
+              <Text style={styles.totalSub}>
+                {hasAdvance ? 'Net payable after advance adjustment' : 'Final payable amount'}
+              </Text>
             </View>
             <Text style={styles.totalVal}>
-              ₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              ₹{finalBillAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </Text>
           </View>
         </Card>
@@ -535,7 +676,11 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       {/* Place Order CTA Button */}
       <View style={styles.footerContainer}>
         <Button
-          title={`Confirm & Place Order  ₹${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+          title={
+            isFullyCoveredByAdvance
+              ? 'Confirm & Place Order (Paid by Advance)'
+              : `Confirm & Place Order  ₹${finalBillAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+          }
           onPress={handlePlaceOrder}
           loading={loading}
           disabled={loading || items.length === 0 || totalAmount <= 0}
@@ -902,6 +1047,106 @@ const styles = StyleSheet.create({
   },
   viewOrderBtn: {
     marginTop: 2,
+  },
+  // ── Advance Card Styles ──────────────────────────────────────────
+  advanceCard: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+    borderWidth: 1.5,
+  },
+  advanceHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  advanceIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  advanceCardTitle: {
+    ...typography.captionBold,
+    color: '#15803D',
+    fontSize: 11,
+    letterSpacing: 0.5,
+  },
+  advanceCardSub: {
+    ...typography.caption,
+    color: '#166534',
+    fontSize: 11,
+    marginTop: 1,
+  },
+  advanceBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  advanceBadgeText: {
+    ...typography.bodyBold,
+    color: '#15803D',
+    fontSize: 13,
+  },
+  advanceDivider: {
+    height: 1,
+    backgroundColor: '#DCFCE7',
+    marginVertical: spacing.sm,
+  },
+  advanceDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 3,
+  },
+  advanceDetailLabel: {
+    ...typography.caption,
+    color: '#14532D',
+    fontSize: 12,
+  },
+  advanceDetailVal: {
+    ...typography.bodyBold,
+    fontSize: 12,
+  },
+  fullyCoveredNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#DCFCE7',
+    padding: spacing.sm,
+    borderRadius: spacing.borderRadiusSm,
+    marginTop: spacing.sm,
+  },
+  fullyCoveredText: {
+    ...typography.bodyBold,
+    color: '#15803D',
+    fontSize: 12,
+    flex: 1,
+  },
+  advancePaidBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    padding: spacing.md,
+    borderRadius: spacing.borderRadiusSm,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  advancePaidTitle: {
+    ...typography.bodyBold,
+    color: '#15803D',
+    fontSize: 13,
+  },
+  advancePaidSub: {
+    ...typography.caption,
+    color: '#166534',
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 15,
   },
 });
 

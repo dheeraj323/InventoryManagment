@@ -20,6 +20,7 @@ interface OrderState {
     orderId: string,
     staff: { staffId: string; name: string; phone?: string }
   ) => Promise<void>;
+  dispatchAllStaffOrders: (staffId: string) => Promise<void>;
   recordDelivery: (
     orderId: string,
     updatedItems: OrderItem[],
@@ -114,30 +115,33 @@ export const useOrderStore = create<OrderState>((set, get) => ({
           autoStaffPhone = route.assignedStaffPhone;
         }
       }
-
-      if (autoStaffId) {
-        newStatus = 'OUT_FOR_DELIVERY';
-      }
     }
 
-    set({
-      orders: get().orders.map((o) =>
-        o.id === orderId
-          ? {
-              ...o,
-              status: newStatus,
-              ...(targetRouteId ? { routeId: targetRouteId } : {}),
-              ...(targetRouteName ? { routeName: targetRouteName } : {}),
-              ...(autoStaffId ? {
-                assignedStaffId: autoStaffId,
-                assignedStaffName: autoStaffName || 'Delivery Staff',
-                assignedStaffPhone: autoStaffPhone || '',
-                dispatchedAt: o.dispatchedAt || new Date().toISOString(),
-              } : {}),
-            }
-          : o
-      ),
-    });
+    const updatedOrders = get().orders.map((o) =>
+      o.id === orderId
+        ? {
+            ...o,
+            status: newStatus,
+            ...(targetRouteId ? { routeId: targetRouteId } : {}),
+            ...(targetRouteName ? { routeName: targetRouteName } : {}),
+            ...(autoStaffId ? {
+              assignedStaffId: autoStaffId,
+              assignedStaffName: autoStaffName || 'Delivery Staff',
+              assignedStaffPhone: autoStaffPhone || '',
+            } : {}),
+          }
+        : o
+    );
+
+    set({ orders: updatedOrders });
+
+    const targetStaffId = autoStaffId || existing?.assignedStaffId;
+    if (targetStaffId) {
+      useStaffStockStore.getState().syncOutForDeliveryStock(targetStaffId, updatedOrders).catch((err) => {
+        console.warn('Error syncing out for delivery stock on updateOrderStatus:', err);
+      });
+    }
+
     try {
       await orderService.updateOrderStatus(orderId, status);
     } catch (err) {
@@ -146,24 +150,79 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   },
 
   assignStaffAndDispatch: async (orderId, staff) => {
-    set({
-      orders: get().orders.map((o) =>
-        o.id === orderId
-          ? {
-              ...o,
-              status: 'OUT_FOR_DELIVERY',
-              assignedStaffId: staff.staffId,
-              assignedStaffName: staff.name,
-              assignedStaffPhone: staff.phone || '',
-              dispatchedAt: new Date().toISOString(),
-            }
-          : o
-      ),
-    });
+    const updatedOrders = get().orders.map((o) =>
+      o.id === orderId
+        ? {
+            ...o,
+            status: 'APPROVED' as OrderStatus,
+            assignedStaffId: staff.staffId,
+            assignedStaffName: staff.name,
+            assignedStaffPhone: staff.phone || '',
+          }
+        : o
+    );
+
+    set({ orders: updatedOrders });
+
+    if (staff.staffId) {
+      useStaffStockStore.getState().syncOutForDeliveryStock(staff.staffId, updatedOrders).catch((err) => {
+        console.warn('Error syncing out for delivery stock on assignStaffAndDispatch:', err);
+      });
+    }
+
     try {
       await orderService.assignStaffAndDispatch(orderId, staff);
     } catch (err) {
-      console.error(`Error assigning staff and dispatching order ${orderId}:`, err);
+      console.error(`Error assigning staff to order ${orderId}:`, err);
+    }
+  },
+
+  dispatchAllStaffOrders: async (staffId: string) => {
+    if (!staffId) return;
+    const currentOrders = get().orders;
+    const nowStr = new Date().toISOString();
+
+    // Find all orders assigned to this staff (direct + route-based) that are approved or pending
+    const staffOrders = get().getOrdersByStaff(staffId);
+    const ordersToDispatch = staffOrders.filter(
+      (o) => o.status === 'APPROVED' || o.status === 'PENDING'
+    );
+
+    if (ordersToDispatch.length === 0) {
+      // Ensure real-time stock sync
+      useStaffStockStore.getState().syncOutForDeliveryStock(staffId, currentOrders).catch((err) => {
+        console.warn('Error syncing out for delivery stock on dispatchAllStaffOrders:', err);
+      });
+      return;
+    }
+
+    const updatedOrders = currentOrders.map((o) => {
+      const shouldDispatch = ordersToDispatch.some((td) => td.id === o.id);
+      if (shouldDispatch) {
+        return {
+          ...o,
+          status: 'OUT_FOR_DELIVERY' as OrderStatus,
+          assignedStaffId: o.assignedStaffId || staffId,
+          dispatchedAt: o.dispatchedAt || nowStr,
+        };
+      }
+      return o;
+    });
+
+    set({ orders: updatedOrders });
+
+    // Sync out for delivery stock session records
+    useStaffStockStore.getState().syncOutForDeliveryStock(staffId, updatedOrders).catch((err) => {
+      console.warn('Error syncing out for delivery stock on dispatchAllStaffOrders:', err);
+    });
+
+    // Update orders in Firestore
+    for (const ord of ordersToDispatch) {
+      try {
+        await orderService.updateOrderStatus(ord.id, 'OUT_FOR_DELIVERY');
+      } catch (err) {
+        console.warn(`Error dispatching order ${ord.id} to OUT_FOR_DELIVERY:`, err);
+      }
     }
   },
 

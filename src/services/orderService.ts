@@ -148,6 +148,11 @@ export const orderService = {
       const timestampPart = Date.now().toString().slice(-4);
       const orderNumber = `ORD-2026-${timestampPart}`;
 
+      const advanceAdjusted = orderData.advanceAdjusted || 0;
+      const finalBillAmount = orderData.finalBillAmount !== undefined
+        ? orderData.finalBillAmount
+        : Math.max(0, orderData.totalAmount - advanceAdjusted);
+
       // Credit limit check
       let pendingAdminOverride = false;
       if (
@@ -157,7 +162,7 @@ export const orderService = {
         const limit = vendor?.creditLimit || 0;
         if (limit > 0) {
           const currentOutstanding = vendor?.currentBalance || 0;
-          if (currentOutstanding + orderData.totalAmount > limit) {
+          if (currentOutstanding + finalBillAmount > limit) {
             pendingAdminOverride = true;
           }
         }
@@ -170,6 +175,8 @@ export const orderService = {
 
       const newOrder: Order = {
         ...orderData,
+        advanceAdjusted,
+        finalBillAmount,
         routeId: targetRouteId || undefined,
         routeName: targetRouteName || undefined,
         assignedStaffId: autoStaffId || undefined,
@@ -269,23 +276,22 @@ export const orderService = {
             }
           }
 
-          // If staff is resolved, directly dispatch to OUT_FOR_DELIVERY
+          // If staff is resolved, set assigned staff and keep status as APPROVED or requested status
           if (assignedStaffId) {
             await updateDoc(docRef, {
-              status: 'OUT_FOR_DELIVERY',
+              status,
               assignedStaffId,
               assignedStaffName: assignedStaffName || 'Delivery Staff',
               assignedStaffPhone: assignedStaffPhone || '',
               ...(routeId ? { routeId } : {}),
               ...(routeName ? { routeName } : {}),
-              dispatchedAt: orderData.dispatchedAt || new Date().toISOString(),
               updatedAt: serverTimestamp(),
             });
             return;
           }
         }
       } catch (e) {
-        console.error('Error auto-dispatching approved order:', e);
+        console.error('Error resolving route staff for order:', e);
       }
     }
 
@@ -295,18 +301,17 @@ export const orderService = {
     });
   },
 
-  // Assign Delivery Staff and Dispatch Order (Status -> OUT_FOR_DELIVERY)
+  // Assign Delivery Staff to Order (Status stays APPROVED until staff starts delivery trip)
   assignStaffAndDispatch: async (
     orderId: string,
     staff: { staffId: string; name: string; phone?: string }
   ): Promise<void> => {
     const docRef = doc(db, ORDERS_COLLECTION, orderId);
     await updateDoc(docRef, {
-      status: 'OUT_FOR_DELIVERY',
+      status: 'APPROVED',
       assignedStaffId: staff.staffId,
       assignedStaffName: staff.name,
       assignedStaffPhone: staff.phone || '',
-      dispatchedAt: new Date().toISOString(),
       updatedAt: serverTimestamp(),
     });
   },

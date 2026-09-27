@@ -293,8 +293,26 @@ export const AdminOrderDetailScreen: React.FC<{ route: any; navigation: any }> =
             </View>
           )}
           <View style={styles.summaryRow}>
-            <Text style={styles.totalLabel}>Total Bill</Text>
-            <Text style={styles.totalVal}>₹{order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+            <Text style={styles.summaryLabel}>Total Order Value</Text>
+            <Text style={styles.summaryVal}>₹{order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+          </View>
+          {order.advanceAdjusted && order.advanceAdjusted > 0 ? (
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.brandGreen, fontWeight: '700' }]}>
+                Advance Adjusted
+              </Text>
+              <Text style={[styles.summaryVal, { color: colors.brandGreen, fontWeight: '700' }]}>
+                - ₹{order.advanceAdjusted.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </Text>
+            </View>
+          ) : null}
+          <View style={styles.summaryRow}>
+            <Text style={styles.totalLabel}>
+              {order.advanceAdjusted ? 'Final Bill Amount' : 'Total Bill'}
+            </Text>
+            <Text style={styles.totalVal}>
+              ₹{(order.finalBillAmount !== undefined ? order.finalBillAmount : Math.max(0, order.totalAmount - (order.advanceAdjusted || 0))).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </Text>
           </View>
         </Card>
       </ScrollView>

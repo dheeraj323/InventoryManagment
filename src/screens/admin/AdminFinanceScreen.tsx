@@ -48,6 +48,11 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
     return vendorBalances.reduce((sum, v) => sum + v.outstanding, 0);
   }, [vendorBalances]);
 
+  // Total Vendor Advances Held
+  const totalAdvances = useMemo(() => {
+    return vendorBalances.reduce((sum, v) => sum + (v.advance || 0), 0);
+  }, [vendorBalances]);
+
   // Total Supplier Payables
   const totalPayables = useMemo(() => {
     return suppliers.reduce(
@@ -93,7 +98,7 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
       {/* ── Screen Header ─────────────────────────────────────────── */}
       <Header
         title="Finance"
-        subtitle="Receivables & Payables"
+        subtitle="Receivables, Advances & Payables"
         showBack={navigation.canGoBack()}
         onBackPress={() => {
           if (navigation.canGoBack()) navigation.goBack();
@@ -111,15 +116,33 @@ export const AdminFinanceScreen: React.FC<{ navigation: any }> = ({ navigation }
             <Text style={[styles.summaryAmount, { color: colors.debit }]}>
               ₹{fmt(totalReceivables)}
             </Text>
-            <Text style={styles.summarySub}>From {vendorBalances.filter((v) => v.outstanding > 0).length} retailers</Text>
+            <Text style={styles.summarySub}>
+              From {vendorBalances.filter((v) => v.outstanding > 0).length} retailers
+            </Text>
           </View>
 
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Total Payables</Text>
+            <Text style={styles.summaryLabel}>Vendor Advances</Text>
             <Text style={[styles.summaryAmount, { color: colors.brandGreen }]}>
+              ₹{fmt(totalAdvances)}
+            </Text>
+            <Text style={styles.summarySub}>
+              Held from {vendorBalances.filter((v) => v.advance > 0).length} retailers
+            </Text>
+          </View>
+        </View>
+
+        {/* Payables Full-width Banner */}
+        <View style={styles.payablesBanner}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.summaryLabel}>Total Supplier Payables</Text>
+            <Text style={[styles.summaryAmount, { color: colors.primary }]}>
               ₹{fmt(totalPayables)}
             </Text>
-            <Text style={styles.summarySub}>To {suppliers.length} suppliers</Text>
+            <Text style={styles.summarySub}>Owed to {suppliers.length} suppliers</Text>
+          </View>
+          <View style={styles.payablesIconCircle}>
+            <Ionicons name="business-outline" size={22} color={colors.primary} />
           </View>
         </View>
 
@@ -454,7 +477,26 @@ const styles = StyleSheet.create({
   summaryGrid: {
     flexDirection: 'row',
     gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  payablesBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderRadius: spacing.borderRadiusLg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
     marginBottom: spacing.md,
+  },
+  payablesIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   summaryCard: {
     flex: 1,

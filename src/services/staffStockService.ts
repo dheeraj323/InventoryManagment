@@ -14,7 +14,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { StaffDailyStockSession, StaffStockItem } from '../types';
+import { StaffDailyStockSession, StaffStockItem, Order } from '../types';
 import { productService } from './productService';
 
 const STAFF_STOCK_COLLECTION = 'staffStockSessions';
@@ -185,11 +185,13 @@ export const staffStockService = {
       throw new Error('Please select at least one product with quantity greater than 0.');
     }
 
-    // 1. Fetch current session if already exists (merge additional loads)
+    // 1. Fetch current session if already exists (only merge if currently ACTIVE)
     const existingSnap = await getDoc(docRef);
     let updatedItemsMap: Record<string, StaffStockItem> = {};
+    const isExistingActive =
+      existingSnap.exists() && (existingSnap.data() as StaffDailyStockSession).status === 'ACTIVE';
 
-    if (existingSnap.exists()) {
+    if (isExistingActive) {
       const existingData = existingSnap.data() as StaffDailyStockSession;
       (existingData.items || []).forEach((it) => {
         updatedItemsMap[it.productId] = { ...it };
@@ -205,7 +207,7 @@ export const staffStockService = {
       const extraLoaded = Math.max(0, newItem.extraLoadedQty || 0);
       const totalLoadedForItem = preOrdered + extraLoaded;
 
-      if (updatedItemsMap[newItem.productId]) {
+      if (isExistingActive && updatedItemsMap[newItem.productId]) {
         const existing = updatedItemsMap[newItem.productId];
         // Calculate additional extra being added in this call
         const additionalExtra = Math.max(0, extraLoaded - (existing.extraLoadedQty || 0));
@@ -261,8 +263,12 @@ export const staffStockService = {
     const totalPreOrdered = mergedItems.reduce((sum, it) => sum + (it.preOrderedQty || 0), 0);
     const totalExtraLoaded = mergedItems.reduce((sum, it) => sum + (it.extraLoadedQty || 0), 0);
     const totalLoaded = mergedItems.reduce((sum, it) => sum + it.loadedQty, 0);
-    const totalDelivered = mergedItems.reduce((sum, it) => sum + it.deliveredQty, 0);
-    const totalReturned = mergedItems.reduce((sum, it) => sum + (it.returnedQty || 0), 0);
+    const totalDelivered = isExistingActive
+      ? mergedItems.reduce((sum, it) => sum + it.deliveredQty, 0)
+      : 0;
+    const totalReturned = isExistingActive
+      ? mergedItems.reduce((sum, it) => sum + (it.returnedQty || 0), 0)
+      : 0;
 
     const nowStr = new Date().toISOString();
     const sessionData: StaffDailyStockSession = {
@@ -278,8 +284,12 @@ export const staffStockService = {
       totalLoadedUnits: totalLoaded,
       totalDeliveredUnits: totalDelivered,
       totalReturnedUnits: totalReturned,
+      totalOutForDeliveryUnits: 0,
+      totalDamagedUnits: 0,
+      totalMissingUnits: 0,
+      totalVarianceUnits: 0,
       notes: notes || '',
-      loadedAt: existingSnap.exists()
+      loadedAt: isExistingActive
         ? (existingSnap.data() as StaffDailyStockSession).loadedAt || nowStr
         : nowStr,
       createdAt: nowStr,
@@ -293,11 +303,11 @@ export const staffStockService = {
       cleanFirestoreData({
         ...sessionData,
         updatedAt: serverTimestamp(),
-        createdAt: existingSnap.exists()
+        createdAt: isExistingActive
           ? existingSnap.data().createdAt || serverTimestamp()
           : serverTimestamp(),
       }),
-      { merge: true }
+      { merge: isExistingActive }
     );
 
     // Deduct only extraLoaded quantities from product stock
@@ -365,12 +375,14 @@ export const staffStockService = {
         const newDelivered = item.deliveredQty + (d.deliveredQty || 0);
         const newDamaged = (item.damagedQty || 0) + (d.damagedQty || 0);
         const newMissing = (item.missingQty || 0) + (d.missingQty || 0);
+        const newOutForDelivery = Math.max(0, (item.outForDeliveryQty || 0) - (d.deliveredQty || 0));
         const curStock = Math.max(
           0,
           item.loadedQty - newDelivered - (item.returnedQty || 0) - newDamaged - newMissing
         );
         itemsMap[d.productId] = {
           ...item,
+          outForDeliveryQty: newOutForDelivery,
           deliveredQty: newDelivered,
           damagedQty: newDamaged,
           missingQty: newMissing,
@@ -381,6 +393,7 @@ export const staffStockService = {
 
     const updatedItems = Object.values(itemsMap);
     const totalDelivered = updatedItems.reduce((sum, it) => sum + it.deliveredQty, 0);
+    const totalOutForDelivery = updatedItems.reduce((sum, it) => sum + (it.outForDeliveryQty || 0), 0);
     const totalDamaged = updatedItems.reduce((sum, it) => sum + (it.damagedQty || 0), 0);
     const totalMissing = updatedItems.reduce((sum, it) => sum + (it.missingQty || 0), 0);
 
@@ -389,8 +402,60 @@ export const staffStockService = {
       cleanFirestoreData({
         items: updatedItems,
         totalDeliveredUnits: totalDelivered,
+        totalOutForDeliveryUnits: totalOutForDelivery,
         totalDamagedUnits: totalDamaged,
         totalMissingUnits: totalMissing,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  },
+
+  // ── 5b. Sync Out for Delivery (On Way) Stock from Assigned Active Orders ──
+  syncOutForDeliveryStock: async (
+    staffId: string,
+    orders: Order[],
+    dateParam?: string
+  ): Promise<void> => {
+    if (!staffId) return;
+    const date = dateParam || getTodayDateStr();
+    const docId = `stock_${staffId}_${date}`;
+    const docRef = doc(db, STAFF_STOCK_COLLECTION, docId);
+
+    const snapshot = await getDoc(docRef);
+    if (!snapshot.exists()) return;
+
+    const session = snapshot.data() as StaffDailyStockSession;
+    const outForDeliveryMap: Record<string, number> = {};
+
+    // Sum quantities from orders assigned to staff currently in OUT_FOR_DELIVERY status
+    (orders || []).forEach((o) => {
+      const orderStaffId = o.assignedStaffId || '';
+      if (
+        (orderStaffId === staffId || !orderStaffId) &&
+        o.status === 'OUT_FOR_DELIVERY'
+      ) {
+        (o.items || []).forEach((item) => {
+          outForDeliveryMap[item.productId] =
+            (outForDeliveryMap[item.productId] || 0) + (item.orderedQty || 0);
+        });
+      }
+    });
+
+    let totalOutForDeliveryUnits = 0;
+    const updatedItems = (session.items || []).map((it) => {
+      const outQty = outForDeliveryMap[it.productId] || 0;
+      totalOutForDeliveryUnits += outQty;
+      return {
+        ...it,
+        outForDeliveryQty: outQty,
+      };
+    });
+
+    await updateDoc(
+      docRef,
+      cleanFirestoreData({
+        items: updatedItems,
+        totalOutForDeliveryUnits,
         updatedAt: serverTimestamp(),
       })
     );
@@ -463,6 +528,7 @@ export const staffStockService = {
 
       itemsMap[item.productId] = {
         ...item,
+        outForDeliveryQty: 0,
         returnedQty,
         damagedQty,
         missingQty,
@@ -483,6 +549,7 @@ export const staffStockService = {
       ...session,
       status: finalStatus,
       items: updatedItems,
+      totalOutForDeliveryUnits: 0,
       totalReturnedUnits: totalReturned,
       totalDamagedUnits: totalDamaged,
       totalMissingUnits: totalMissing,
@@ -499,6 +566,7 @@ export const staffStockService = {
       cleanFirestoreData({
         status: finalStatus,
         items: updatedItems,
+        totalOutForDeliveryUnits: 0,
         totalReturnedUnits: totalReturned,
         totalDamagedUnits: totalDamaged,
         totalMissingUnits: totalMissing,

@@ -55,6 +55,8 @@ interface StaffStockState {
     }[],
     date?: string
   ) => Promise<void>;
+
+  syncOutForDeliveryStock: (staffId: string, orders: any[], date?: string) => Promise<void>;
 }
 
 export const useStaffStockStore = create<StaffStockState>((set, get) => ({
@@ -236,6 +238,14 @@ export const useStaffStockStore = create<StaffStockState>((set, get) => ({
       await staffStockService.recordDeliveredUnits(staffId, deliveredItems, date);
     } catch (err) {
       console.warn('Error recording delivered units in staff stock session:', err);
+    }
+  },
+
+  syncOutForDeliveryStock: async (staffId, orders, date) => {
+    try {
+      await staffStockService.syncOutForDeliveryStock(staffId, orders, date);
+    } catch (err) {
+      console.warn('Error syncing out for delivery stock:', err);
     }
   },
 }));

@@ -205,7 +205,9 @@ export const financialTransactionService = {
       const newBalanceDue = Math.max(0, newTotalAmount - safePaidAmount);
 
       // After this delivery, vendor balance is updated by the invoice total minus cash collected
-      const updatedVendorBalance = Math.max(0, currentVendorBalance + newTotalAmount - safePaidAmount);
+      const updatedVendorBalance = Math.round((currentVendorBalance + newTotalAmount - safePaidAmount) * 100) / 100;
+      const currentOutstanding = Math.max(0, updatedVendorBalance);
+      const advanceBalance = Math.max(0, -updatedVendorBalance);
 
       // ── Deterministic Document IDs ────────────────────────────────────
       // Using orderId-derived IDs makes setDoc idempotent:
@@ -284,7 +286,8 @@ export const financialTransactionService = {
       if (vendorExists) {
         transaction.update(vendorRef, {
           currentBalance: updatedVendorBalance,
-          currentOutstanding: updatedVendorBalance,
+          currentOutstanding,
+          advanceBalance,
           updatedAt: serverTimestamp(),
         });
       }
@@ -308,7 +311,7 @@ export const financialTransactionService = {
         transactionType: 'DEBIT',
         direction: 'debit',
         amount: newTotalAmount,
-        runningBalance: currentVendorBalance + newTotalAmount,
+        runningBalance: Math.round((currentVendorBalance + newTotalAmount) * 100) / 100,
         referenceId: invoiceNumber,
         referenceNo: invoiceNumber,
         orderId: existingOrder.id,
@@ -342,7 +345,7 @@ export const financialTransactionService = {
           transactionType: 'CREDIT',
           direction: 'credit',
           amount: safePaidAmount,
-          runningBalance: currentVendorBalance + newTotalAmount - safePaidAmount,
+          runningBalance: Math.round((currentVendorBalance + newTotalAmount - safePaidAmount) * 100) / 100,
           referenceId: receiptNumber,
           referenceNo: receiptNumber,
           orderId: existingOrder.id,
@@ -364,6 +367,11 @@ export const financialTransactionService = {
       }
 
       // 6. Create Invoice document (persisted record for invoice-level queries)
+      const advanceAdjusted = existingOrder.advanceAdjusted || 0;
+      const finalBillAmount = existingOrder.finalBillAmount !== undefined
+        ? existingOrder.finalBillAmount
+        : Math.max(0, newTotalAmount - advanceAdjusted);
+
       const invoice: Invoice = {
         id: orderId,
         invoiceNumber,
@@ -377,6 +385,8 @@ export const financialTransactionService = {
         taxAmount: newTax,
         discountAmount: existingOrder.discount || 0,
         totalAmount: newTotalAmount,
+        advanceAdjusted,
+        finalBillAmount,
         paidAmount: safePaidAmount,
         balanceDue: newBalanceDue,
         invoiceDate: nowStr,

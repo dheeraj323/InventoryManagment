@@ -367,33 +367,46 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
             {/* Balance Overview Card */}
             <View style={styles.balanceHeroCard}>
               <View style={styles.heroTop}>
-                <Text style={styles.heroSubtitle}>Outstanding Receivable</Text>
+                <Text style={styles.heroSubtitle}>
+                  {summary.advanceBalance > 0
+                    ? 'Advance Balance Available'
+                    : 'Outstanding Receivable'}
+                </Text>
               </View>
 
               <Text
                 style={[
                   styles.heroBalanceAmount,
-                  runningBalance > 0 ? { color: colors.debit } : { color: colors.textSecondary },
+                  runningBalance > 0
+                    ? { color: colors.debit }
+                    : summary.advanceBalance > 0
+                    ? { color: colors.brandGreen }
+                    : { color: colors.textSecondary },
                 ]}
               >
-                ₹{fmt(runningBalance)}
+                ₹{fmt(summary.advanceBalance > 0 ? summary.advanceBalance : runningBalance)}
               </Text>
 
               <Text style={styles.heroHelperText}>
                 {runningBalance > 0
                   ? 'Net amount to be collected from retailer'
-                  : runningBalance < 0
-                  ? 'Advance payment on account'
+                  : summary.advanceBalance > 0
+                  ? 'Advance money held — auto-deducted on next order'
                   : 'Account fully settled (Zero pending dues)'}
               </Text>
 
               <TouchableOpacity
-                style={styles.heroPayBtn}
+                style={[
+                  styles.heroPayBtn,
+                  summary.advanceBalance > 0 && { backgroundColor: colors.brandGreen },
+                ]}
                 onPress={() => setShowPaymentModal(true)}
                 activeOpacity={0.8}
               >
                 <Ionicons name="cash-outline" size={17} color={colors.textInverse} />
-                <Text style={styles.heroPayBtnText}>Record Payment</Text>
+                <Text style={styles.heroPayBtnText}>
+                  {summary.advanceBalance > 0 ? 'Record Advance / Payment' : 'Record Payment'}
+                </Text>
               </TouchableOpacity>
             </View>
 

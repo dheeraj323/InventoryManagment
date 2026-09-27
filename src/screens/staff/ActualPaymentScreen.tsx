@@ -32,14 +32,18 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
 
   const order = getOrderById(orderId);
   const vendor = order ? getVendorById(order.vendorId) : null;
-  const totalBill = calculatedTotal || order?.totalAmount || 0;
+  const totalOrderValue = calculatedTotal || order?.totalAmount || 0;
+  const advanceAdjusted = order?.advanceAdjusted || 0;
+  const remainingPayable = Math.max(0, totalOrderValue - advanceAdjusted);
 
   const [actualMethod, setActualMethod] = useState<PaymentMethod>(
     order?.preferredPaymentMode || 'CASH'
   );
 
   const [amountCollectedStr, setAmountCollectedStr] = useState<string>(
-    order?.preferredPaymentMode === 'PAY_LATER' ? '0' : (calculatedTotal || 0).toString()
+    order?.preferredPaymentMode === 'PAY_LATER' || order?.preferredPaymentMode === 'ADVANCE'
+      ? '0'
+      : remainingPayable.toString()
   );
 
   const [notes, setNotes] = useState('');
@@ -114,9 +118,23 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
           <View style={styles.noticeBanner}>
             <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
             <Text style={styles.noticeText}>
-              Vendor Preferred: {PAYMENT_METHOD_LABELS[order.preferredPaymentMode]}. Record the actual payment method received at shop counter.
+              Vendor Preferred: {PAYMENT_METHOD_LABELS[order.preferredPaymentMode] || order.preferredPaymentMode}. Record the actual payment method received at shop counter.
             </Text>
           </View>
+
+          {advanceAdjusted > 0 && (
+            <View style={[styles.noticeBanner, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+              <Ionicons name="wallet-outline" size={18} color={colors.brandGreen} />
+              <View style={{ flex: 1, marginLeft: 6 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.brandGreen }}>
+                  Advance Applied: ₹{advanceAdjusted.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </Text>
+                <Text style={{ fontSize: 11, color: '#166534', marginTop: 1 }}>
+                  Order Total: ₹{totalOrderValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })} · Remaining Bill: ₹{remainingPayable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* Payment Method Selector */}
           <Card style={styles.card} outlined elevation="sm">
@@ -137,7 +155,7 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
                       if (method === 'PAY_LATER' || method === 'PENDING') {
                         setAmountCollectedStr('0');
                       } else if (method === 'CASH' || method === 'ONLINE') {
-                        setAmountCollectedStr((calculatedTotal || order.totalAmount).toString());
+                        setAmountCollectedStr(remainingPayable.toString());
                       }
                     }}
                     activeOpacity={0.8}

@@ -184,12 +184,28 @@ export const VendorOrderDetailScreen: React.FC<{ route: any; navigation: any }> 
               <Text style={styles.infoVal}>₹{order.tax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
             </View>
           )}
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Total Order Amount</Text>
+            <Text style={styles.infoVal}>₹{order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+          </View>
+          {order.advanceAdjusted && order.advanceAdjusted > 0 ? (
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, { color: colors.brandGreen, fontWeight: '700' }]}>Advance Adjusted</Text>
+              <Text style={[styles.infoVal, { color: colors.brandGreen, fontWeight: '700' }]}>
+                - ₹{order.advanceAdjusted.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </Text>
+            </View>
+          ) : null}
           <View style={[styles.infoRow, styles.totalRow]}>
-            <Text style={styles.totalLabel}>Total Invoice Amount</Text>
-            <Text style={styles.totalVal}>₹{order.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>
+            <Text style={styles.totalLabel}>
+              {order.advanceAdjusted ? 'Final Bill Amount' : 'Total Invoice Amount'}
+            </Text>
+            <Text style={styles.totalVal}>
+              ₹{(order.finalBillAmount !== undefined ? order.finalBillAmount : Math.max(0, order.totalAmount - (order.advanceAdjusted || 0))).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Amount Paid</Text>
+            <Text style={styles.infoLabel}>Amount Paid at Counter</Text>
             <Text style={[styles.infoVal, { color: colors.success }]}>
               ₹{order.paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </Text>

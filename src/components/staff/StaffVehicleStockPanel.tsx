@@ -53,6 +53,7 @@ export const StaffVehicleStockPanel: React.FC<StaffVehicleStockPanelProps> = ({
     let settledVans = 0;
     let discrepancyVans = 0;
     let totalLoaded = 0;
+    let totalOutForDelivery = 0;
     let totalDelivered = 0;
     let totalInTransit = 0;
     let totalReturned = 0;
@@ -67,6 +68,9 @@ export const StaffVehicleStockPanel: React.FC<StaffVehicleStockPanelProps> = ({
       totalReturned += s.totalReturnedUnits || 0;
 
       if (s.status === 'ACTIVE') {
+        totalOutForDelivery +=
+          s.totalOutForDeliveryUnits ??
+          (s.items || []).reduce((sum, it) => sum + (it.outForDeliveryQty || 0), 0);
         const inVan = (s.items || []).reduce((sum, it) => sum + (it.currentStock || 0), 0);
         totalInTransit += inVan;
       }
@@ -77,6 +81,7 @@ export const StaffVehicleStockPanel: React.FC<StaffVehicleStockPanelProps> = ({
       settledVans,
       discrepancyVans,
       totalLoaded,
+      totalOutForDelivery,
       totalDelivered,
       totalInTransit,
       totalReturned,
@@ -168,16 +173,16 @@ export const StaffVehicleStockPanel: React.FC<StaffVehicleStockPanelProps> = ({
             </View>
           </View>
 
-          {/* In Transit Stock */}
+          {/* On Way Out for Delivery */}
           <View style={styles.kpiTile}>
-            <View style={[styles.kpiIconWrap, { backgroundColor: '#EFF6FF' }]}>
-              <Ionicons name="cube" size={18} color={colors.primary} />
+            <View style={[styles.kpiIconWrap, { backgroundColor: '#FFFBEB' }]}>
+              <Ionicons name="bicycle" size={18} color="#D97706" />
             </View>
             <View style={styles.kpiInfo}>
-              <Text style={[styles.kpiValue, { color: colors.primary }]}>
-                {metrics.totalInTransit}
+              <Text style={[styles.kpiValue, { color: '#D97706' }]}>
+                {metrics.totalOutForDelivery}
               </Text>
-              <Text style={styles.kpiLabel}>Units in Transit</Text>
+              <Text style={styles.kpiLabel}>On Way (Out)</Text>
             </View>
           </View>
         </View>
@@ -244,9 +249,16 @@ export const StaffVehicleStockPanel: React.FC<StaffVehicleStockPanelProps> = ({
           const hasDiscrepancy = session?.status === 'DISCREPANCY';
           const isActive = session?.status === 'ACTIVE';
 
-          const currentInVan = session
+          const currentInVan = isReturned || hasDiscrepancy
+            ? 0
+            : session
             ? (session.items || []).reduce((sum, it) => sum + (it.currentStock || 0), 0)
             : 0;
+
+          const currentOnWay = isReturned || hasDiscrepancy
+            ? 0
+            : session?.totalOutForDeliveryUnits ??
+              (session?.items || []).reduce((sum, it) => sum + (it.outForDeliveryQty || 0), 0);
 
           return (
             <View style={styles.staffStockCard}>
@@ -338,8 +350,15 @@ export const StaffVehicleStockPanel: React.FC<StaffVehicleStockPanelProps> = ({
               {hasSession && (
                 <View style={styles.stockSummaryRow}>
                   <View style={styles.stockChip}>
-                    <Text style={styles.stockChipLabel}>Morning Loaded</Text>
+                    <Text style={styles.stockChipLabel}>Loaded</Text>
                     <Text style={styles.stockChipVal}>{session.totalLoadedUnits}</Text>
+                  </View>
+
+                  <View style={[styles.stockChip, { backgroundColor: '#FFFBEB' }]}>
+                    <Text style={[styles.stockChipLabel, { color: '#B45309' }]}>On Way</Text>
+                    <Text style={[styles.stockChipVal, { color: '#D97706' }]}>
+                      {currentOnWay}
+                    </Text>
                   </View>
 
                   <View style={styles.stockChip}>
@@ -351,10 +370,10 @@ export const StaffVehicleStockPanel: React.FC<StaffVehicleStockPanelProps> = ({
 
                   <View style={[styles.stockChip, { backgroundColor: '#EFF6FF' }]}>
                     <Text style={[styles.stockChipLabel, { color: colors.accent }]}>
-                      {isReturned ? 'Returned' : 'In Van'}
+                      {isReturned || hasDiscrepancy ? 'Returned' : 'In Van'}
                     </Text>
                     <Text style={[styles.stockChipVal, { color: colors.accent }]}>
-                      {isReturned ? session.totalReturnedUnits : currentInVan}
+                      {isReturned || hasDiscrepancy ? session.totalReturnedUnits : currentInVan}
                     </Text>
                   </View>
                 </View>
@@ -383,9 +402,12 @@ export const StaffVehicleStockPanel: React.FC<StaffVehicleStockPanelProps> = ({
                         <Text style={[styles.itemColHeader, { flex: 2.2 }]}>PRODUCT</Text>
                         <Text style={[styles.itemColHeader, styles.itemColRight]}>ROUTE</Text>
                         <Text style={[styles.itemColHeader, styles.itemColRight]}>EXTRA</Text>
+                        <Text style={[styles.itemColHeader, styles.itemColRight, { color: '#B45309' }]}>
+                          ON WAY
+                        </Text>
                         <Text style={[styles.itemColHeader, styles.itemColRight]}>DELIV</Text>
                         <Text style={[styles.itemColHeader, styles.itemColRight]}>
-                          {isReturned ? 'RESTOCK' : 'VAN'}
+                          {isReturned || hasDiscrepancy ? 'RESTOCK' : 'VAN'}
                         </Text>
                         {(session.totalDamagedUnits || 0) > 0 && (
                           <Text style={[styles.itemColHeader, styles.itemColRight, { color: colors.danger }]}>
@@ -420,6 +442,18 @@ export const StaffVehicleStockPanel: React.FC<StaffVehicleStockPanelProps> = ({
                           <Text style={[styles.productLineVal, styles.itemColRight, { color: colors.accent }]}>
                             {it.extraLoadedQty || 0}
                           </Text>
+                          <Text
+                            style={[
+                              styles.productLineVal,
+                              styles.itemColRight,
+                              {
+                                color: isReturned || hasDiscrepancy ? colors.textMuted : '#D97706',
+                                fontWeight: '600',
+                              },
+                            ]}
+                          >
+                            {isReturned || hasDiscrepancy ? 0 : it.outForDeliveryQty || 0}
+                          </Text>
                           <Text style={[styles.productLineVal, styles.itemColRight, { color: colors.primary }]}>
                             {it.deliveredQty}
                           </Text>
@@ -430,7 +464,7 @@ export const StaffVehicleStockPanel: React.FC<StaffVehicleStockPanelProps> = ({
                               { color: colors.textPrimary, fontWeight: '700' },
                             ]}
                           >
-                            {isReturned ? it.returnedQty || 0 : it.currentStock}
+                            {isReturned || hasDiscrepancy ? it.returnedQty || 0 : it.currentStock}
                           </Text>
                           {(session.totalDamagedUnits || 0) > 0 && (
                             <Text

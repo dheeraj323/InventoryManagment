@@ -23,6 +23,7 @@ const fmt = (n: number) =>
 export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
   currentBalance,
   currentOutstanding: explicitOutstanding,
+  advanceBalance,
   totalInvoiced,
   paymentsReceived,
   overdueAmount = 0,
@@ -48,7 +49,15 @@ export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
       ? rawBalance
       : 0;
 
+  const advance =
+    advanceBalance !== undefined && advanceBalance > 0
+      ? advanceBalance
+      : rawBalance < 0
+      ? Math.abs(rawBalance)
+      : 0;
+
   const isDue = outstanding > 0;
+  const hasAdvance = !isDue && advance > 0;
 
   let heroLabel = 'ACCOUNT BALANCE';
   let heroAmount = '₹0.00';
@@ -64,6 +73,13 @@ export const LedgerSummaryCard: React.FC<LedgerSummaryCardProps> = ({
     statusTextColor = '#B45309';
     statusBgColor = '#FEF3C7';
     amountColor = isVendor ? colors.brandGreen : colors.debit;
+  } else if (hasAdvance) {
+    heroLabel = isVendor ? 'ADVANCE BALANCE AVAILABLE' : 'ADVANCE HELD';
+    heroAmount = `₹${fmt(advance)}`;
+    statusText = 'Advance Paid';
+    statusTextColor = '#15803D';
+    statusBgColor = '#DCFCE7';
+    amountColor = colors.brandGreen;
   }
 
   return (

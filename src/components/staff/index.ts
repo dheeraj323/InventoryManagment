@@ -11,3 +11,5 @@ export * from './EveningStockReturnModal';
 export * from './StaffVehicleStockModal';
 export * from './StaffVehicleStockPanel';
 export * from './StaffAddProductsModal';
+export * from './StaffMonthlyAttendanceModal';
+

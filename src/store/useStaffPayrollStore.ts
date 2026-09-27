@@ -33,16 +33,19 @@ interface StaffPayrollState {
 
   // Data
   dailyAttendanceMap: Record<string, StaffAttendance>;
+  monthlyAttendanceRecords: StaffAttendance[];
   advancesList: StaffAdvance[];
   salarySlipsList: StaffSalarySlip[];
 
   // Loading flags
   isAttendanceLoading: boolean;
+  isMonthlyAttendanceLoading: boolean;
   isAdvancesLoading: boolean;
   isPayrollLoading: boolean;
 
   // Unsubscribers
   attendanceUnsub: (() => void) | null;
+  monthlyAttendanceUnsub: (() => void) | null;
   advancesUnsub: (() => void) | null;
   payrollUnsub: (() => void) | null;
 
@@ -50,6 +53,7 @@ interface StaffPayrollState {
   setSelectedDate: (date: string) => void;
   setSelectedMonth: (month: string) => void;
   subscribeAttendance: (date?: string) => void;
+  subscribeMonthlyAttendance: (month?: string) => void;
   subscribeAdvances: () => void;
   subscribePayroll: (month?: string) => void;
   unsubscribeAll: () => void;
@@ -123,14 +127,17 @@ export const useStaffPayrollStore = create<StaffPayrollState>((set, get) => ({
   selectedMonth: getCurrentMonthString(),
 
   dailyAttendanceMap: {},
+  monthlyAttendanceRecords: [],
   advancesList: [],
   salarySlipsList: [],
 
   isAttendanceLoading: false,
+  isMonthlyAttendanceLoading: false,
   isAdvancesLoading: false,
   isPayrollLoading: false,
 
   attendanceUnsub: null,
+  monthlyAttendanceUnsub: null,
   advancesUnsub: null,
   payrollUnsub: null,
 
@@ -142,6 +149,7 @@ export const useStaffPayrollStore = create<StaffPayrollState>((set, get) => ({
   setSelectedMonth: (month: string) => {
     set({ selectedMonth: month });
     get().subscribePayroll(month);
+    get().subscribeMonthlyAttendance(month);
   },
 
   subscribeAttendance: (dateInput?: string) => {
@@ -164,6 +172,24 @@ export const useStaffPayrollStore = create<StaffPayrollState>((set, get) => ({
     });
 
     set({ attendanceUnsub: unsub });
+  },
+
+  subscribeMonthlyAttendance: (monthInput?: string) => {
+    const targetMonth = monthInput || get().selectedMonth;
+    const currentUnsub = get().monthlyAttendanceUnsub;
+    if (currentUnsub) {
+      currentUnsub();
+    }
+
+    set({ isMonthlyAttendanceLoading: true });
+    const unsub = staffPayrollService.subscribeMonthlyAttendance(targetMonth, (records) => {
+      set({
+        monthlyAttendanceRecords: records,
+        isMonthlyAttendanceLoading: false,
+      });
+    });
+
+    set({ monthlyAttendanceUnsub: unsub });
   },
 
   subscribeAdvances: () => {
@@ -202,12 +228,14 @@ export const useStaffPayrollStore = create<StaffPayrollState>((set, get) => ({
   },
 
   unsubscribeAll: () => {
-    const { attendanceUnsub, advancesUnsub, payrollUnsub } = get();
+    const { attendanceUnsub, monthlyAttendanceUnsub, advancesUnsub, payrollUnsub } = get();
     if (attendanceUnsub) attendanceUnsub();
+    if (monthlyAttendanceUnsub) monthlyAttendanceUnsub();
     if (advancesUnsub) advancesUnsub();
     if (payrollUnsub) payrollUnsub();
     set({
       attendanceUnsub: null,
+      monthlyAttendanceUnsub: null,
       advancesUnsub: null,
       payrollUnsub: null,
     });
