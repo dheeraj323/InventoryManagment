@@ -351,7 +351,8 @@ export const staffStockService = {
   recordDeliveredUnits: async (
     staffId: string,
     deliveredItems: { productId: string; deliveredQty: number; damagedQty?: number; missingQty?: number }[],
-    dateParam?: string
+    dateParam?: string,
+    orderId?: string
   ): Promise<void> => {
     if (!staffId || !deliveredItems || deliveredItems.length === 0) return;
     const date = dateParam || getTodayDateStr();
@@ -364,6 +365,19 @@ export const staffStockService = {
     }
 
     const session = snapshot.data() as StaffDailyStockSession;
+
+    // ── Idempotency guard ───────────────────────────────────────────────────
+    // If this orderId has already been applied to the vehicle stock session,
+    // do not add its delivered qty again (prevents double-counting from the
+    // optimistic store update + Firestore write both calling this function).
+    if (orderId) {
+      const alreadyRecorded = session.deliveredByOrderId?.[orderId] === true;
+      if (alreadyRecorded) {
+        console.log(`[staffStockService] Order ${orderId} already recorded in vehicle stock — skipping duplicate.`);
+        return;
+      }
+    }
+
     const itemsMap: Record<string, StaffStockItem> = {};
     (session.items || []).forEach((it) => {
       itemsMap[it.productId] = { ...it };
@@ -374,11 +388,16 @@ export const staffStockService = {
         const item = itemsMap[d.productId];
         const newDelivered = item.deliveredQty + (d.deliveredQty || 0);
         const newDamaged = (item.damagedQty || 0) + (d.damagedQty || 0);
+        // NOTE: missingQty is only for genuinely lost/stolen items, NOT for undelivered
+        // order quantities. Undelivered units stay in the van (currentStock).
         const newMissing = (item.missingQty || 0) + (d.missingQty || 0);
         const newOutForDelivery = Math.max(0, (item.outForDeliveryQty || 0) - (d.deliveredQty || 0));
+        // currentStock = what's physically left in the van:
+        //   loadedQty − delivered − returned − damaged (genuinely lost)
+        // Undelivered order remainder stays in van, so we do NOT subtract missingQty here.
         const curStock = Math.max(
           0,
-          item.loadedQty - newDelivered - (item.returnedQty || 0) - newDamaged - newMissing
+          item.loadedQty - newDelivered - (item.returnedQty || 0) - newDamaged
         );
         itemsMap[d.productId] = {
           ...item,
@@ -397,6 +416,12 @@ export const staffStockService = {
     const totalDamaged = updatedItems.reduce((sum, it) => sum + (it.damagedQty || 0), 0);
     const totalMissing = updatedItems.reduce((sum, it) => sum + (it.missingQty || 0), 0);
 
+    // Build the updated deliveredByOrderId map
+    const updatedDeliveredByOrderId = {
+      ...(session.deliveredByOrderId || {}),
+      ...(orderId ? { [orderId]: true } : {}),
+    };
+
     await updateDoc(
       docRef,
       cleanFirestoreData({
@@ -405,6 +430,7 @@ export const staffStockService = {
         totalOutForDeliveryUnits: totalOutForDelivery,
         totalDamagedUnits: totalDamaged,
         totalMissingUnits: totalMissing,
+        deliveredByOrderId: updatedDeliveredByOrderId,
         updatedAt: serverTimestamp(),
       })
     );

@@ -53,7 +53,8 @@ interface StaffStockState {
       damagedQty?: number;
       missingQty?: number;
     }[],
-    date?: string
+    date?: string,
+    orderId?: string
   ) => Promise<void>;
 
   syncOutForDeliveryStock: (staffId: string, orders: any[], date?: string) => Promise<void>;
@@ -189,11 +190,20 @@ export const useStaffStockStore = create<StaffStockState>((set, get) => ({
     }
   },
 
-  recordDeliveredUnits: async (staffId, deliveredItems, date) => {
+  recordDeliveredUnits: async (staffId, deliveredItems, date, orderId) => {
     try {
       // Optimistically update todaySession if loaded in memory
       const currentSession = get().todaySession;
       if (currentSession && currentSession.staffId === staffId) {
+        // ── Idempotency guard (in-memory) ────────────────────────────────────────
+        // Skip if this order's delivery was already applied to the in-memory session.
+        if (orderId && currentSession.deliveredByOrderId?.[orderId] === true) {
+          console.log(`[useStaffStockStore] Order ${orderId} already in memory session — skipping.`);
+          // Still call the service so Firestore idempotency guard can log/confirm.
+          await staffStockService.recordDeliveredUnits(staffId, deliveredItems, date, orderId);
+          return;
+        }
+
         const itemsMap: Record<string, StaffStockItem> = {};
         (currentSession.items || []).forEach((it) => {
           itemsMap[it.productId] = { ...it };
@@ -205,9 +215,11 @@ export const useStaffStockStore = create<StaffStockState>((set, get) => ({
             const newDelivered = item.deliveredQty + (d.deliveredQty || 0);
             const newDamaged = (item.damagedQty || 0) + (d.damagedQty || 0);
             const newMissing = (item.missingQty || 0) + (d.missingQty || 0);
+            // currentStock = loadedQty − delivered − returned − damaged only.
+            // Undelivered units from partial orders stay physically in the van.
             const curStock = Math.max(
               0,
-              item.loadedQty - newDelivered - (item.returnedQty || 0) - newDamaged - newMissing
+              item.loadedQty - newDelivered - (item.returnedQty || 0) - newDamaged
             );
             itemsMap[d.productId] = {
               ...item,
@@ -231,11 +243,15 @@ export const useStaffStockStore = create<StaffStockState>((set, get) => ({
             totalDeliveredUnits: totalDelivered,
             totalDamagedUnits: totalDamaged,
             totalMissingUnits: totalMissing,
+            deliveredByOrderId: {
+              ...(currentSession.deliveredByOrderId || {}),
+              ...(orderId ? { [orderId]: true } : {}),
+            },
           },
         });
       }
 
-      await staffStockService.recordDeliveredUnits(staffId, deliveredItems, date);
+      await staffStockService.recordDeliveredUnits(staffId, deliveredItems, date, orderId);
     } catch (err) {
       console.warn('Error recording delivered units in staff stock session:', err);
     }

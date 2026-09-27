@@ -89,12 +89,10 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
           item.orderedQty > 0
             ? Math.min(item.deliveredQty > 0 ? item.deliveredQty : item.orderedQty, availableVanStock)
             : Math.min(item.deliveredQty, availableVanStock);
-        const ordered = item.orderedQty || 0;
-        const missing = Math.max(0, ordered - targetDelivered);
         return {
           ...item,
           deliveredQty: targetDelivered,
-          missingDamagedQty: missing,
+          missingDamagedQty: item.damagedQty || 0,
           totalAmount: targetDelivered * item.unitPrice,
         };
       });
@@ -146,12 +144,10 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
             const maxAllowed = vanStockMap[item.productId] ?? 0;
             const targetDelivered = item.deliveredQty + delta;
             const newDelivered = Math.min(maxAllowed, Math.max(0, targetDelivered));
-            const ordered = item.orderedQty || 0;
-            const newMissing = Math.max(0, ordered - newDelivered);
             return {
               ...item,
               deliveredQty: newDelivered,
-              missingDamagedQty: newMissing,
+              missingDamagedQty: item.damagedQty || 0,
               totalAmount: newDelivered * item.unitPrice,
             };
           }
@@ -176,8 +172,8 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
   const calculatedTax = calculatedSubtotal * (BUSINESS_RULES.TAX_RATE || 0);
   const calculatedTotal = calculatedSubtotal + calculatedTax;
 
-  const hasMissingOrDamaged = items.some(
-    (i) => (i.missingDamagedQty || 0) > 0 || (i.damagedQty || 0) > 0
+  const hasPartialDelivery = items.some(
+    (i) => (i.orderedQty > 0 && i.deliveredQty < i.orderedQty) || (i.damagedQty || 0) > 0
   );
 
   const hasOutOfVanStock = useMemo(() => {
@@ -406,7 +402,7 @@ export const DeliveryDetailScreen: React.FC<{ route: any; navigation: any }> = (
           deliveredSubtotal={calculatedSubtotal}
           tax={calculatedTax}
           payableTotal={calculatedTotal}
-          hasPartialDelivery={hasMissingOrDamaged}
+          hasPartialDelivery={hasPartialDelivery}
         />
       </ScrollView>
 

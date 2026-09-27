@@ -53,7 +53,7 @@ export const BillSummaryCard: React.FC<BillSummaryCardProps> = ({
             {hasPartialDelivery ? 'Partially Delivered Total' : 'Final Payable Total'}
           </Text>
           {hasPartialDelivery ? (
-            <Text style={styles.partialSubtext}>Adjusted for missing/damaged items</Text>
+            <Text style={styles.partialSubtext}>Adjusted for delivered quantity</Text>
           ) : null}
         </View>
         <Text style={styles.totalVal}>

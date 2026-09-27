@@ -441,7 +441,9 @@ export const financialTransactionService = {
         if (orderData.assignedStaffId) {
           await staffStockService.recordDeliveredUnits(
             orderData.assignedStaffId,
-            deliveredPayload
+            deliveredPayload,
+            undefined,
+            orderId  // idempotency key: prevents double-counting if store already applied it
           );
         }
       }
@@ -744,7 +746,7 @@ export const financialTransactionService = {
           productId: it.productId,
           deliveredQty: it.quantity || 0,
         }));
-        await staffStockService.recordDeliveredUnits(staffId, deliveredPayload);
+        await staffStockService.recordDeliveredUnits(staffId, deliveredPayload, undefined, orderId);
       } catch (stockErr) {
         console.warn('[financialTransactionService] Could not update staff vehicle stock session:', stockErr);
       }

@@ -614,6 +614,8 @@ export interface StaffDailyStockSession {
   totalDamagedUnits?: number;
   totalMissingUnits?: number;
   totalVarianceUnits?: number;
+  /** Map of orderId -> true, tracking which orders have already been recorded to avoid double-counting */
+  deliveredByOrderId?: Record<string, boolean>;
   notes?: string;
   loadedAt: string;     // ISO String timestamp
   returnedAt?: string;  // ISO String timestamp

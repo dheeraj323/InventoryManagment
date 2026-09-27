@@ -18,7 +18,6 @@ import { useVendorStore } from '../../store/useVendorStore';
 import { useInventoryStore } from '../../store/useInventoryStore';
 import { useStaffStockStore } from '../../store/useStaffStockStore';
 import { useOrderStore } from '../../store/useOrderStore';
-import { useLedgerStore } from '../../store/useLedgerStore';
 import { Header } from '../../components/common/Header';
 import { Card } from '../../components/common/Card';
 import { Button } from '../../components/common/Button';
@@ -42,7 +41,6 @@ export const DirectDeliveryScreen: React.FC<{ navigation: any; route?: any }> = 
   const { products, fetchProducts } = useInventoryStore();
   const { todaySession, subscribeTodaySession } = useStaffStockStore();
   const { recordDirectSpotDelivery } = useOrderStore();
-  const { getVendorAccountSummary } = useLedgerStore();
 
   const effectiveStaffId =
     activeStaffId || currentUser?.staffId || currentUser?.uid || currentUser?.id || '';
@@ -108,10 +106,14 @@ export const DirectDeliveryScreen: React.FC<{ navigation: any; route?: any }> = 
     );
   }, [vendors, vendorSearch]);
 
-  // Filtered products list (priority to items carried in van)
+  // Filtered products list — ONLY products currently in the van (vanStock > 0)
   const availableProductsList = useMemo(() => {
     const q = productSearch.trim().toLowerCase();
-    let list = products.filter((p) => p.active !== false);
+
+    // Start from van items only — staff can only deliver what's physically in the van
+    let list = (todaySession?.items || []).map((it) => {
+      return products.find((p) => p.id === it.productId);
+    }).filter((p): p is Product => !!p && p.active !== false && (vanStockMap[p.id] || 0) > 0);
 
     if (q) {
       list = list.filter(
@@ -122,15 +124,9 @@ export const DirectDeliveryScreen: React.FC<{ navigation: any; route?: any }> = 
       );
     }
 
-    // Sort products: items in van first, then by name
-    return list.sort((a, b) => {
-      const stockA = vanStockMap[a.id] || 0;
-      const stockB = vanStockMap[b.id] || 0;
-      if (stockA > 0 && stockB === 0) return -1;
-      if (stockA === 0 && stockB > 0) return 1;
-      return a.name.localeCompare(b.name);
-    });
-  }, [products, vanStockMap, productSearch]);
+    // Sort by van stock descending
+    return list.sort((a, b) => (vanStockMap[b.id] || 0) - (vanStockMap[a.id] || 0));
+  }, [products, todaySession, vanStockMap, productSearch]);
 
   // Selected items array with calculations
   const selectedItemsArray: SelectedProductItem[] = useMemo(() => {
@@ -279,9 +275,6 @@ export const DirectDeliveryScreen: React.FC<{ navigation: any; route?: any }> = 
     setIsVendorDropdownOpen(true);
   };
 
-  const vendorKhataSummary = selectedVendor ? getVendorAccountSummary(selectedVendor.id) : null;
-  const currentOutstanding = vendorKhataSummary?.currentOutstanding ?? selectedVendor?.currentBalance ?? 0;
-  const advanceBal = vendorKhataSummary?.advanceBalance ?? selectedVendor?.advanceBalance ?? 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -344,30 +337,6 @@ export const DirectDeliveryScreen: React.FC<{ navigation: any; route?: any }> = 
                   {selectedVendor.area ? (
                     <Text style={styles.selectedVendorArea}>Area: {selectedVendor.area}</Text>
                   ) : null}
-
-                  {/* Khata Balance Pill */}
-                  <View style={styles.khataPillRow}>
-                    {advanceBal > 0 ? (
-                      <View style={styles.advanceBadge}>
-                        <Ionicons name="wallet-outline" size={12} color={colors.brandGreen} />
-                        <Text style={styles.advanceBadgeText}>
-                          Advance in Khata: ₹{advanceBal.toFixed(2)}
-                        </Text>
-                      </View>
-                    ) : currentOutstanding > 0 ? (
-                      <View style={styles.dueBadge}>
-                        <Ionicons name="alert-circle-outline" size={12} color="#D97706" />
-                        <Text style={styles.dueBadgeText}>
-                          Current Khata Due: ₹{currentOutstanding.toFixed(2)}
-                        </Text>
-                      </View>
-                    ) : (
-                      <View style={styles.settledBadge}>
-                        <Ionicons name="checkmark-circle-outline" size={12} color={colors.textSecondary} />
-                        <Text style={styles.settledBadgeText}>Khata Balance: ₹0 (Settled)</Text>
-                      </View>
-                    )}
-                  </View>
                 </View>
               </View>
             ) : (
@@ -391,7 +360,6 @@ export const DirectDeliveryScreen: React.FC<{ navigation: any; route?: any }> = 
                 <View style={styles.vendorListContainer}>
                   {filteredVendors.slice(0, 10).map((v) => {
                     const isSelected = selectedVendorId === v.id;
-                    const due = v.currentBalance || 0;
                     return (
                       <TouchableOpacity
                         key={v.id}
@@ -418,22 +386,11 @@ export const DirectDeliveryScreen: React.FC<{ navigation: any; route?: any }> = 
                             {v.name} • {v.area || v.routeName || 'No Area'}
                           </Text>
                         </View>
-                        <View style={{ alignItems: 'flex-end' }}>
-                          <Text
-                            style={[
-                              styles.vendorOptionBalance,
-                              due > 0 ? { color: '#D97706' } : { color: colors.brandGreen },
-                            ]}
-                          >
-                            {due > 0 ? `₹${due.toFixed(0)} Due` : 'No Due'}
-                          </Text>
-                          <Ionicons
-                            name={isSelected ? 'radio-button-on' : 'radio-button-off'}
-                            size={16}
-                            color={isSelected ? colors.primary : colors.border}
-                            style={{ marginTop: 2 }}
-                          />
-                        </View>
+                        <Ionicons
+                          name={isSelected ? 'radio-button-on' : 'radio-button-off'}
+                          size={18}
+                          color={isSelected ? colors.primary : colors.border}
+                        />
                       </TouchableOpacity>
                     );
                   })}
@@ -476,79 +433,87 @@ export const DirectDeliveryScreen: React.FC<{ navigation: any; route?: any }> = 
               )}
             </View>
 
-            {/* Product items list */}
+            {/* Product items list — only items physically in van */}
             <View style={styles.productsList}>
-              {availableProductsList.map((prod) => {
-                const qty = selectedItemsMap[prod.id] || 0;
-                const vanStock = vanStockMap[prod.id] ?? 0;
-                const price = prod.price || prod.sellingPrice || 0;
-                const isSelected = qty > 0;
+              {availableProductsList.length === 0 ? (
+                <View style={styles.emptyVanState}>
+                  <Ionicons name="cube-outline" size={32} color={colors.textMuted} />
+                  <Text style={styles.emptyVanStateTitle}>
+                    {todaySession ? 'No Van Stock Available' : 'Van Stock Not Loaded'}
+                  </Text>
+                  <Text style={styles.emptyVanStateText}>
+                    {todaySession
+                      ? productSearch
+                        ? `No matching products with available van stock.`
+                        : 'All van stock has been delivered or none is loaded for today.'
+                      : 'Morning stock has not been loaded yet. Load your van first.'}
+                  </Text>
+                </View>
+              ) : (
+                availableProductsList.map((prod) => {
+                  const qty = selectedItemsMap[prod.id] || 0;
+                  const vanStock = vanStockMap[prod.id] ?? 0;
+                  const price = prod.price || prod.sellingPrice || 0;
+                  const isSelected = qty > 0;
 
-                return (
-                  <View
-                    key={prod.id}
-                    style={[styles.productItemCard, isSelected ? styles.productItemCardActive : null]}
-                  >
-                    <View style={{ flex: 1, marginRight: spacing.sm }}>
-                      <Text style={styles.productItemName} numberOfLines={1}>
-                        {prod.name}
-                      </Text>
-                      <View style={styles.productMetaRow}>
-                        <Text style={styles.productItemPrice}>₹{price.toFixed(2)}</Text>
-                        <Text style={styles.productItemUnit}>/ {prod.unit || 'unit'}</Text>
-                        <View
-                          style={[
-                            styles.vanStockPill,
-                            vanStock > 0 ? styles.vanStockPillAvail : styles.vanStockPillEmpty,
-                          ]}
-                        >
-                          <Ionicons
-                            name="bicycle-outline"
-                            size={10}
-                            color={vanStock > 0 ? colors.accent : '#94A3B8'}
-                          />
-                          <Text
-                            style={[
-                              styles.vanStockPillText,
-                              vanStock > 0 ? { color: colors.accent } : { color: '#94A3B8' },
-                            ]}
-                          >
-                            In Van: {vanStock}
-                          </Text>
+                  return (
+                    <View
+                      key={prod.id}
+                      style={[styles.productItemCard, isSelected ? styles.productItemCardActive : null]}
+                    >
+                      <View style={{ flex: 1, marginRight: spacing.sm }}>
+                        <Text style={styles.productItemName} numberOfLines={1}>
+                          {prod.name}
+                        </Text>
+                        <View style={styles.productMetaRow}>
+                          <Text style={styles.productItemPrice}>₹{price.toFixed(2)}</Text>
+                          <Text style={styles.productItemUnit}>/ {prod.unit || 'unit'}</Text>
+                          {/* Van stock badge — always visible since we only show in-van items */}
+                          <View style={[styles.vanStockPill, styles.vanStockPillAvail]}>
+                            <Ionicons name="bicycle-outline" size={10} color={colors.accent} />
+                            <Text style={[styles.vanStockPillText, { color: colors.accent }]}>
+                              {vanStock} in van
+                            </Text>
+                          </View>
                         </View>
                       </View>
-                    </View>
 
-                    {/* Quantity Selector */}
-                    <View style={styles.qtyControlWrap}>
-                      <TouchableOpacity
-                        style={[styles.qtyBtn, qty === 0 ? styles.qtyBtnDisabled : null]}
-                        onPress={() => handleUpdateItemQty(prod.id, -1)}
-                        disabled={qty === 0}
-                      >
-                        <Ionicons
-                          name="remove"
-                          size={16}
-                          color={qty === 0 ? colors.textMuted : colors.primary}
-                        />
-                      </TouchableOpacity>
+                      {/* Quantity Selector */}
+                      <View style={styles.qtyControlWrap}>
+                        <TouchableOpacity
+                          style={[styles.qtyBtn, qty === 0 ? styles.qtyBtnDisabled : null]}
+                          onPress={() => handleUpdateItemQty(prod.id, -1)}
+                          disabled={qty === 0}
+                        >
+                          <Ionicons
+                            name="remove"
+                            size={16}
+                            color={qty === 0 ? colors.textMuted : colors.primary}
+                          />
+                        </TouchableOpacity>
 
-                      <View style={styles.qtyDisplay}>
-                        <Text style={[styles.qtyDisplayText, isSelected ? styles.qtyDisplayTextActive : null]}>
-                          {qty}
-                        </Text>
+                        <View style={styles.qtyDisplay}>
+                          <Text style={[styles.qtyDisplayText, isSelected ? styles.qtyDisplayTextActive : null]}>
+                            {qty}
+                          </Text>
+                        </View>
+
+                        <TouchableOpacity
+                          style={[styles.qtyBtn, qty >= vanStock ? styles.qtyBtnDisabled : null]}
+                          onPress={() => handleUpdateItemQty(prod.id, 1)}
+                          disabled={qty >= vanStock}
+                        >
+                          <Ionicons
+                            name="add"
+                            size={16}
+                            color={qty >= vanStock ? colors.textMuted : colors.primary}
+                          />
+                        </TouchableOpacity>
                       </View>
-
-                      <TouchableOpacity
-                        style={styles.qtyBtn}
-                        onPress={() => handleUpdateItemQty(prod.id, 1)}
-                      >
-                        <Ionicons name="add" size={16} color={colors.primary} />
-                      </TouchableOpacity>
                     </View>
-                  </View>
-                );
-              })}
+                  );
+                })
+              )}
             </View>
           </Card>
 
@@ -1276,5 +1241,23 @@ const styles = StyleSheet.create({
   successModalActionRow: {
     flexDirection: 'row',
     width: '100%',
+  },
+  emptyVanState: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+  },
+  emptyVanStateTitle: {
+    ...typography.bodyBold,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+  },
+  emptyVanStateText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

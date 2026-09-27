@@ -378,7 +378,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         deliveredQty: item.deliveredQty || 0,
         damagedQty: item.damagedQty || 0,
       }));
-      useStaffStockStore.getState().recordDeliveredUnits(order.assignedStaffId, deliveredItems);
+      useStaffStockStore.getState().recordDeliveredUnits(order.assignedStaffId, deliveredItems, undefined, orderId);
     }
 
     try {

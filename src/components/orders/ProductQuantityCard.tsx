@@ -59,8 +59,8 @@ export const ProductQuantityCard: React.FC<ProductQuantityCardProps> = ({
           const ordered = item.orderedQty || 0;
           const isExtra = item.deliveredQty > ordered && ordered > 0;
           const isNewlyAdded = ordered === 0;
-          const isMissing = item.deliveredQty < ordered;
-          const missingQty = Math.max(0, ordered - item.deliveredQty);
+          const isPartial = item.deliveredQty < ordered && ordered > 0;
+          const undeliveredQty = Math.max(0, ordered - item.deliveredQty);
           const extraQty = isExtra ? item.deliveredQty - ordered : 0;
           const vanStock = vanStockMap !== undefined ? (vanStockMap[item.productId] ?? 0) : undefined;
 
@@ -100,10 +100,11 @@ export const ProductQuantityCard: React.FC<ProductQuantityCardProps> = ({
                     )
                   )}
 
-                  {isMissing ? (
-                    <View style={styles.missingBadgePill}>
-                      <Text style={styles.missingBadgeText}>
-                        Missing: {missingQty}
+                  {isPartial ? (
+                    <View style={styles.partialBadgePill}>
+                      <Ionicons name="pie-chart-outline" size={11} color="#D97706" />
+                      <Text style={styles.partialBadgeText}>
+                        Delivered {item.deliveredQty}/{ordered} • {undeliveredQty} kept in van
                       </Text>
                     </View>
                   ) : isExtra ? (
@@ -295,6 +296,21 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   partialStockBadgeText: {
+    ...typography.captionBold,
+    color: '#D97706',
+    fontSize: 10,
+  },
+  partialBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: spacing.borderRadiusSm,
+    alignSelf: 'flex-start',
+  },
+  partialBadgeText: {
     ...typography.captionBold,
     color: '#D97706',
     fontSize: 10,
