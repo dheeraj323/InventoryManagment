@@ -12,4 +12,5 @@ export * from './StaffVehicleStockModal';
 export * from './StaffVehicleStockPanel';
 export * from './StaffAddProductsModal';
 export * from './StaffMonthlyAttendanceModal';
+export * from './StaffLoadPlanModal';
 

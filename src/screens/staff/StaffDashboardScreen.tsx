@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import {
   MorningStockLoadModal,
   EveningStockReturnModal,
   StaffVehicleStockModal,
+  StaffLoadPlanModal,
 } from '../../components/staff';
 import { colors, typography, spacing, shadows } from '../../theme';
 
@@ -30,6 +31,7 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
   const [isViewStockModalOpen, setIsViewStockModalOpen] = useState(false);
+  const [isLoadPlanModalOpen, setIsLoadPlanModalOpen] = useState(false);
   const [isDispatchingAll, setIsDispatchingAll] = useState(false);
 
   const staff = {
@@ -112,6 +114,44 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
       )
     : 0;
 
+  // ── Load Plan Calculation (Pre-calculated morning requirements) ──
+  const { loadPlanItems, totalPlanUnits, totalPlanOrders } = useMemo(() => {
+    const unfulfilledOrders = orders.filter(
+      (o) =>
+        o.assignedStaffId === staff.id &&
+        o.status !== 'CANCELLED' &&
+        o.status !== 'DELIVERED' &&
+        o.status !== 'PARTIALLY_DELIVERED'
+    );
+
+    const map: Record<string, { productId: string; productName: string; unit: string; totalQty: number; orderCount: number }> = {};
+    unfulfilledOrders.forEach((order) => {
+      (order.items || []).forEach((item) => {
+        if (!item.productId) return;
+        if (!map[item.productId]) {
+          map[item.productId] = {
+            productId: item.productId,
+            productName: item.productName,
+            unit: item.unit || 'units',
+            totalQty: 0,
+            orderCount: 0,
+          };
+        }
+        map[item.productId].totalQty += item.orderedQty || 0;
+        map[item.productId].orderCount += 1;
+      });
+    });
+
+    const items = Object.values(map).sort((a, b) => b.totalQty - a.totalQty);
+    const sumUnits = items.reduce((sum, item) => sum + item.totalQty, 0);
+
+    return {
+      loadPlanItems: items,
+      totalPlanUnits: sumUnits,
+      totalPlanOrders: unfulfilledOrders.length,
+    };
+  }, [orders, staff.id]);
+
   return (
     <SafeAreaView style={styles.container}>
       <Header
@@ -159,174 +199,279 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
           )}
         </View>
 
-        {/* 2. Vehicle Stock Tracker Card */}
+        {/* 2. Unified Vehicle Stock & Loading Hub */}
         <View style={styles.stockCard}>
-          {/* Header Row */}
-          <View style={styles.stockHeaderRow}>
-            <View style={styles.stockTitleWrap}>
-              <View style={styles.stockIconCircle}>
-                <Ionicons name="cube-outline" size={17} color={colors.primary} />
+          {!hasActiveUnsettledSession ? (
+            /* ── PRE-LOAD STATE: Focus on Morning Packing & Loading ── */
+            <>
+              {/* Header Row */}
+              <View style={styles.stockHeaderRow}>
+                <View style={styles.stockTitleWrap}>
+                  <View style={[styles.stockIconCircle, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+                    <Ionicons name="cube" size={17} color={colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.stockCardTitle}>Morning Van Loading</Text>
+                    <View style={styles.sessionStatusPill}>
+                      <View
+                        style={[
+                          styles.statusDot,
+                          { backgroundColor: totalPlanUnits > 0 ? '#F59E0B' : '#94A3B8' },
+                        ]}
+                      />
+                      <Text style={styles.sessionStatusText}>
+                        {totalPlanUnits > 0
+                          ? `${totalPlanUnits} Units Required (${totalPlanOrders} Deliveries)`
+                          : 'Stock Not Loaded'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {totalPlanUnits > 0 && (
+                  <TouchableOpacity
+                    style={styles.viewInventoryBtn}
+                    onPress={() => setIsLoadPlanModalOpen(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="checkbox-outline" size={13} color={colors.primary} />
+                    <Text style={styles.viewInventoryBtnText}>Checklist</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-              <View>
-                <Text style={styles.stockCardTitle}>Vehicle Stock</Text>
-                <View style={styles.sessionStatusPill}>
-                  <View
-                    style={[
-                      styles.statusDot,
-                      {
-                        backgroundColor: hasActiveUnsettledSession
-                          ? isOutForDelivery
-                            ? '#0284C7'
-                            : colors.brandGreen
-                          : '#94A3B8',
-                      },
-                    ]}
-                  />
-                  <Text style={styles.sessionStatusText}>
-                    {hasActiveUnsettledSession
-                      ? isOutForDelivery
-                        ? 'Trip in Progress'
-                        : 'Morning Stock Loaded'
-                      : 'Stock Not Loaded'}
+
+              {/* Requirement Summary & Item Chips */}
+              {loadPlanItems.length > 0 ? (
+                <View style={styles.morningLoadBox}>
+                  <View style={styles.morningLoadTopRow}>
+                    <Text style={styles.morningLoadLabel}>PACKING REQUIREMENT</Text>
+                    <Text style={styles.morningLoadBadge}>
+                      {loadPlanItems.length} Products • {totalPlanUnits} Units
+                    </Text>
+                  </View>
+
+                  <View style={styles.morningChipsGrid}>
+                    {loadPlanItems.slice(0, 4).map((item) => (
+                      <View key={item.productId} style={styles.morningItemChip}>
+                        <Text style={styles.morningChipName} numberOfLines={1}>
+                          {item.productName}
+                        </Text>
+                        <View style={styles.morningChipQtyBadge}>
+                          <Text style={styles.morningChipQty}>
+                            {item.totalQty} {item.unit}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+
+                  {loadPlanItems.length > 4 && (
+                    <TouchableOpacity
+                      style={styles.morningMoreBtn}
+                      onPress={() => setIsLoadPlanModalOpen(true)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.morningMoreText}>
+                        + {loadPlanItems.length - 4} more products • View Interactive Packing Checklist
+                      </Text>
+                      <Ionicons name="chevron-forward" size={12} color={colors.primary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ) : (
+                <View style={styles.emptyRequirementBox}>
+                  <Ionicons name="information-circle-outline" size={20} color={colors.textSecondary} />
+                  <Text style={styles.emptyRequirementText}>
+                    No unfulfilled route deliveries found. Extra stock can be loaded for direct spot sales.
                   </Text>
                 </View>
-              </View>
-            </View>
+              )}
 
-            {hasActiveUnsettledSession && (
-              <TouchableOpacity
-                style={styles.viewInventoryBtn}
-                onPress={() => setIsViewStockModalOpen(true)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.viewInventoryBtnText}>Van Stock</Text>
-                <Ionicons name="chevron-forward" size={12} color={colors.primary} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Unified Stat Metric Bar */}
-          <View style={styles.stockMetricContainer}>
-            <View style={styles.stockMetricColumn}>
-              <Text style={styles.stockMetricLabel}>LOADED</Text>
-              <Text style={styles.stockMetricVal}>{totalLoaded}</Text>
-              <Text style={styles.stockMetricSub}>morning units</Text>
-            </View>
-
-            <View style={styles.metricDivider} />
-
-            <View style={styles.stockMetricColumn}>
-              <Text style={styles.stockMetricLabel}>DELIVERED</Text>
-              <Text style={[styles.stockMetricVal, { color: colors.brandGreen }]}>
-                {totalDelivered}
-              </Text>
-              <Text style={styles.stockMetricSub}>fulfilled</Text>
-            </View>
-
-            <View style={styles.metricDivider} />
-
-            <View style={styles.stockMetricColumn}>
-              <Text style={styles.stockMetricLabel}>IN VAN</Text>
-              <Text style={[styles.stockMetricVal, { color: colors.primary }]}>
-                {totalInVehicle}
-              </Text>
-              <Text style={styles.stockMetricSub}>on-hand</Text>
-            </View>
-          </View>
-
-          {/* Action Row */}
-          <View style={styles.stockActionRow}>
-            {!hasActiveUnsettledSession ? (
-              <>
+              {/* Action Buttons */}
+              <View style={styles.stockActionRow}>
                 <TouchableOpacity
-                  style={[styles.stockActionBtn, styles.stockActionBtnPrimary]}
+                  style={[styles.stockActionBtn, styles.stockActionBtnPrimary, { flex: 2 }]}
                   onPress={() => setIsLoadModalOpen(true)}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="sunny-outline" size={16} color={colors.textInverse} />
                   <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextPrimary]}>
-                    Load Morning Stock
+                    {totalPlanUnits > 0
+                      ? `Load Van Stock (${totalPlanUnits} Units)`
+                      : 'Load Morning Stock'}
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.stockActionBtn, styles.stockActionBtnSecondary]}
+                  style={[styles.stockActionBtn, styles.stockActionBtnSecondary, { flex: 1 }]}
                   onPress={() => navigation.navigate('DirectDelivery')}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="flash-outline" size={16} color={colors.primary} />
+                  <Ionicons name="flash-outline" size={15} color={colors.primary} />
                   <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextSecondary]}>
                     Spot Sale
                   </Text>
                 </TouchableOpacity>
-              </>
-            ) : !isOutForDelivery ? (
-              <>
-                {/* 1. Load Extra Button */}
-                <TouchableOpacity
-                  style={[styles.stockActionBtn, styles.stockActionBtnSecondary]}
-                  onPress={() => setIsLoadModalOpen(true)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
-                  <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextSecondary]}>
-                    Load Extra
-                  </Text>
-                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            /* ── ACTIVE SESSION: Stock Loaded / Live Van Stock Tracking ── */
+            <>
+              {/* Header Row */}
+              <View style={styles.stockHeaderRow}>
+                <View style={styles.stockTitleWrap}>
+                  <View
+                    style={[
+                      styles.stockIconCircle,
+                      { backgroundColor: isOutForDelivery ? '#E0F2FE' : '#DCFCE7' },
+                    ]}
+                  >
+                    <Ionicons
+                      name={isOutForDelivery ? 'bicycle' : 'checkmark-done'}
+                      size={17}
+                      color={isOutForDelivery ? '#0284C7' : colors.brandGreen}
+                    />
+                  </View>
+                  <View>
+                    <Text style={styles.stockCardTitle}>
+                      {isOutForDelivery ? 'Vehicle Stock Tracker' : 'Vehicle Stock Ready'}
+                    </Text>
+                    <View style={styles.sessionStatusPill}>
+                      <View
+                        style={[
+                          styles.statusDot,
+                          { backgroundColor: isOutForDelivery ? '#0284C7' : colors.brandGreen },
+                        ]}
+                      />
+                      <Text style={styles.sessionStatusText}>
+                        {isOutForDelivery ? 'Trip in Progress' : `${totalInVehicle} Units in Van`}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
 
-                {/* 2. Spot Delivery */}
-                <TouchableOpacity
-                  style={[styles.stockActionBtn, styles.stockActionBtnSecondary]}
-                  onPress={() => navigation.navigate('DirectDelivery')}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="flash-outline" size={16} color={colors.accent} />
-                  <Text style={[styles.stockActionBtnText, { color: colors.accent, fontWeight: '700' }]}>
-                    Spot Sale
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.headerRightActions}>
+                  {totalPlanUnits > 0 && (
+                    <TouchableOpacity
+                      style={styles.planReviewBtn}
+                      onPress={() => setIsLoadPlanModalOpen(true)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="clipboard-outline" size={12} color={colors.textSecondary} />
+                      <Text style={styles.planReviewBtnText}>Plan</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={styles.viewInventoryBtn}
+                    onPress={() => setIsViewStockModalOpen(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.viewInventoryBtnText}>Van Stock</Text>
+                    <Ionicons name="chevron-forward" size={12} color={colors.primary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
 
-                {/* 3. Start Trip Button */}
-                <TouchableOpacity
-                  style={[styles.stockActionBtn, styles.stockActionBtnPrimary]}
-                  onPress={handleStartDeliveryTrip}
-                  disabled={isDispatchingAll}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="bicycle" size={16} color={colors.textInverse} />
-                  <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextPrimary]}>
-                    {isDispatchingAll ? 'Starting...' : 'Start Trip'}
-                  </Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                {/* Spot Delivery on Route */}
-                <TouchableOpacity
-                  style={[styles.stockActionBtn, styles.stockActionBtnPrimary, { backgroundColor: colors.accent }]}
-                  onPress={() => navigation.navigate('DirectDelivery')}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="flash" size={16} color={colors.textInverse} />
-                  <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextPrimary]}>
-                    Spot Delivery
-                  </Text>
-                </TouchableOpacity>
+              {/* Unified Stat Metric Bar */}
+              <View style={styles.stockMetricContainer}>
+                <View style={styles.stockMetricColumn}>
+                  <Text style={styles.stockMetricLabel}>LOADED</Text>
+                  <Text style={styles.stockMetricVal}>{totalLoaded}</Text>
+                  <Text style={styles.stockMetricSub}>morning units</Text>
+                </View>
 
-                {/* Return Stock Button */}
-                <TouchableOpacity
-                  style={[styles.stockActionBtn, styles.stockActionBtnEvening]}
-                  onPress={() => setIsReturnModalOpen(true)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="moon-outline" size={16} color={colors.textInverse} />
-                  <Text style={[styles.stockActionBtnText, { color: colors.textInverse }]}>
-                    Return Stock
+                <View style={styles.metricDivider} />
+
+                <View style={styles.stockMetricColumn}>
+                  <Text style={styles.stockMetricLabel}>DELIVERED</Text>
+                  <Text style={[styles.stockMetricVal, { color: colors.brandGreen }]}>
+                    {totalDelivered}
                   </Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
+                  <Text style={styles.stockMetricSub}>fulfilled</Text>
+                </View>
+
+                <View style={styles.metricDivider} />
+
+                <View style={styles.stockMetricColumn}>
+                  <Text style={styles.stockMetricLabel}>IN VAN</Text>
+                  <Text style={[styles.stockMetricVal, { color: colors.primary }]}>
+                    {totalInVehicle}
+                  </Text>
+                  <Text style={styles.stockMetricSub}>on-hand</Text>
+                </View>
+              </View>
+
+              {/* Action Row */}
+              <View style={styles.stockActionRow}>
+                {!isOutForDelivery ? (
+                  <>
+                    {/* Load Extra */}
+                    <TouchableOpacity
+                      style={[styles.stockActionBtn, styles.stockActionBtnSecondary]}
+                      onPress={() => setIsLoadModalOpen(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="add-circle-outline" size={16} color={colors.primary} />
+                      <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextSecondary]}>
+                        Load Extra
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Spot Sale */}
+                    <TouchableOpacity
+                      style={[styles.stockActionBtn, styles.stockActionBtnSecondary]}
+                      onPress={() => navigation.navigate('DirectDelivery')}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="flash-outline" size={16} color={colors.accent} />
+                      <Text style={[styles.stockActionBtnText, { color: colors.accent, fontWeight: '700' }]}>
+                        Spot Sale
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Start Trip Button */}
+                    <TouchableOpacity
+                      style={[styles.stockActionBtn, styles.stockActionBtnPrimary]}
+                      onPress={handleStartDeliveryTrip}
+                      disabled={isDispatchingAll}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="bicycle" size={16} color={colors.textInverse} />
+                      <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextPrimary]}>
+                        {isDispatchingAll ? 'Starting...' : 'Start Trip'}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    {/* Spot Delivery on Route */}
+                    <TouchableOpacity
+                      style={[styles.stockActionBtn, styles.stockActionBtnPrimary, { backgroundColor: colors.accent }]}
+                      onPress={() => navigation.navigate('DirectDelivery')}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="flash" size={16} color={colors.textInverse} />
+                      <Text style={[styles.stockActionBtnText, styles.stockActionBtnTextPrimary]}>
+                        Spot Delivery
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Return Stock Button */}
+                    <TouchableOpacity
+                      style={[styles.stockActionBtn, styles.stockActionBtnEvening]}
+                      onPress={() => setIsReturnModalOpen(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="moon-outline" size={16} color={colors.textInverse} />
+                      <Text style={[styles.stockActionBtnText, { color: colors.textInverse }]}>
+                        Return Stock
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            </>
+          )}
         </View>
 
         {/* 3. Today's Delivery Progress Metric Bar */}
@@ -412,6 +557,15 @@ export const StaffDashboardScreen: React.FC<{ navigation: any }> = ({ navigation
         onClose={() => setIsViewStockModalOpen(false)}
         session={todaySession}
         staffName={staff.name}
+      />
+
+      <StaffLoadPlanModal
+        visible={isLoadPlanModalOpen}
+        onClose={() => setIsLoadPlanModalOpen(false)}
+        orders={orders}
+        staffId={staff.id}
+        staffName={staff.name}
+        onProceedToLoadStock={() => setIsLoadModalOpen(true)}
       />
     </SafeAreaView>
   );
@@ -696,5 +850,118 @@ const styles = StyleSheet.create({
   primaryCtaBtn: {
     backgroundColor: colors.navy,
     borderRadius: spacing.borderRadiusXl,
+  },
+  morningLoadBox: {
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: spacing.borderRadiusMd,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
+  morningLoadTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  morningLoadLabel: {
+    ...typography.label,
+    color: colors.textMuted,
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  morningLoadBadge: {
+    ...typography.captionBold,
+    color: colors.primary,
+    fontSize: 11,
+  },
+  morningChipsGrid: {
+    gap: 6,
+  },
+  morningItemChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: spacing.borderRadiusSm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  morningChipName: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
+    fontSize: 13,
+    flex: 1,
+    marginRight: 8,
+  },
+  morningChipQtyBadge: {
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: spacing.borderRadiusSm,
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
+  morningChipQty: {
+    ...typography.captionBold,
+    color: colors.navy,
+    fontSize: 12,
+  },
+  morningMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: spacing.sm,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+    gap: 4,
+  },
+  morningMoreText: {
+    ...typography.captionBold,
+    color: colors.primary,
+    fontSize: 11,
+  },
+  emptyRequirementBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: spacing.borderRadiusMd,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
+  emptyRequirementText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontSize: 12,
+    flex: 1,
+    lineHeight: 16,
+  },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  planReviewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSubtle,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: spacing.borderRadiusSm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 3,
+  },
+  planReviewBtnText: {
+    ...typography.captionBold,
+    color: colors.textSecondary,
+    fontSize: 11,
   },
 });
