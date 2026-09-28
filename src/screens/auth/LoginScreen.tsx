@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   Alert,
   StatusBar,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +36,23 @@ export const LoginScreen: React.FC = () => {
 
   const [authMode, setAuthMode] = useState<AuthMode>('LOGIN');
   const [registerRole, setRegisterRole] = useState<RegisterRole>('VENDOR');
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardVisible(false)
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Form Fields
   const [email, setEmail] = useState('');
@@ -148,13 +166,18 @@ export const LoginScreen: React.FC = () => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         style={styles.flex}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            isKeyboardVisible && styles.scrollContentKeyboardActive,
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          bounces={false}
         >
           {/* Header Brand */}
           <View style={styles.header}>
@@ -567,6 +590,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
     flexGrow: 1,
     justifyContent: 'center',
+  },
+  scrollContentKeyboardActive: {
+    justifyContent: 'flex-start',
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xxl + 40,
   },
   header: {
     alignItems: 'center',

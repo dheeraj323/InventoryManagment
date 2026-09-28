@@ -7,8 +7,10 @@ import {
   FlatList,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
+  Platform,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Product } from '../../types';
 import { useInventoryStore } from '../../store/useInventoryStore';
@@ -35,6 +37,7 @@ export const MorningStockLoadModal: React.FC<MorningStockLoadModalProps> = ({
   staffId,
   staffName,
 }) => {
+  const insets = useSafeAreaInsets();
   const { products } = useInventoryStore();
   const { loadMorningStock, todaySession, isSaving } = useStaffStockStore();
   const orders = useOrderStore((state) => state.orders);
@@ -226,8 +229,13 @@ export const MorningStockLoadModal: React.FC<MorningStockLoadModalProps> = ({
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={styles.container}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent={Platform.OS === 'android'}
+    >
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         {/* ── Header ────────────────────────────────────────────── */}
         <Header
           title="Vehicle Stock Load"
@@ -269,7 +277,10 @@ export const MorningStockLoadModal: React.FC<MorningStockLoadModalProps> = ({
         <FlatList
           data={filteredProducts}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: 110 + insets.bottom },
+          ]}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const preOrdered = preOrderedMap[item.id]?.qty || 0;
@@ -404,7 +415,12 @@ export const MorningStockLoadModal: React.FC<MorningStockLoadModalProps> = ({
         />
 
         {/* ── Bottom Floating Load Order Bar (Matching Vendor Catalog) ─ */}
-        <View style={styles.floatingBar}>
+        <View
+          style={[
+            styles.floatingBar,
+            { paddingBottom: Math.max(spacing.md, insets.bottom + 8) },
+          ]}
+        >
           <View style={styles.barSummary}>
             <View style={styles.barTopSummary}>
               <Text style={styles.barMainCount}>{summary.totalLoaded} Units in Van</Text>
