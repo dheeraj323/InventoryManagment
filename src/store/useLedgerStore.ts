@@ -86,7 +86,8 @@ export const useLedgerStore = create<LedgerState>((set, get) => ({
     set({ entries: [newEntry, ...get().entries] });
 
     try {
-      await ledgerService.addEntry(entryData);
+      // Pass the pre-computed runningBalance so the service skips its getLedgerForParty read.
+      await ledgerService.addEntry(entryData, newRunningBalance);
     } catch (err) {
       console.error('Error adding ledger entry to Firestore:', err);
     }

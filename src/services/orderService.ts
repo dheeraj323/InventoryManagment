@@ -207,8 +207,34 @@ export const orderService = {
   },
 
   // Update Order Status
-  updateOrderStatus: async (orderId: string, status: OrderStatus): Promise<void> => {
+  updateOrderStatus: async (orderId: string, status: OrderStatus, resolvedContext?: {
+    assignedStaffId?: string;
+    assignedStaffName?: string;
+    assignedStaffPhone?: string;
+    routeId?: string;
+    routeName?: string;
+  }): Promise<void> => {
     const docRef = doc(db, ORDERS_COLLECTION, orderId);
+
+    // ── FAST PATH ─────────────────────────────────────────────────────────────
+    // If the calling store (useOrderStore) already resolved route + staff from its
+    // in-memory data, skip ALL secondary reads and write directly. This avoids up
+    // to 5 serial getDoc/getDocs calls for the common APPROVED/OUT_FOR_DELIVERY path.
+    if (
+      (status === 'APPROVED' || status === 'OUT_FOR_DELIVERY') &&
+      resolvedContext?.assignedStaffId
+    ) {
+      await updateDoc(docRef, {
+        status,
+        assignedStaffId: resolvedContext.assignedStaffId,
+        assignedStaffName: resolvedContext.assignedStaffName || 'Delivery Staff',
+        assignedStaffPhone: resolvedContext.assignedStaffPhone || '',
+        ...(resolvedContext.routeId ? { routeId: resolvedContext.routeId } : {}),
+        ...(resolvedContext.routeName ? { routeName: resolvedContext.routeName } : {}),
+        updatedAt: serverTimestamp(),
+      });
+      return;
+    }
 
     if (status === 'APPROVED' || status === 'OUT_FOR_DELIVERY') {
       try {

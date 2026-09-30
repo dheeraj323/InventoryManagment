@@ -76,16 +76,26 @@ export const ledgerService = {
     });
   },
 
-  // Add a new ledger entry with running balance calculation
+  // Add a new ledger entry with running balance calculation.
+  // Pass preComputedRunningBalance when the caller has already computed it locally
+  // (e.g. useLedgerStore.addEntry) to skip the getLedgerForParty getDocs read.
   addEntry: async (
-    entryData: Omit<LedgerEntry, 'id' | 'runningBalance'>
+    entryData: Omit<LedgerEntry, 'id' | 'runningBalance'>,
+    preComputedRunningBalance?: number
   ): Promise<LedgerEntry> => {
     const entryRef = doc(collection(db, LEDGER_COLLECTION));
-    const partyEntries = await ledgerService.getLedgerForParty(entryData.partyId);
-    const prevBalance = partyEntries.length > 0 ? partyEntries[0].runningBalance : 0;
 
-    const delta = entryData.type === 'DEBIT' ? entryData.amount : -entryData.amount;
-    const runningBalance = prevBalance + delta;
+    let runningBalance: number;
+    if (preComputedRunningBalance !== undefined) {
+      // Caller already computed the balance from in-memory state — no read needed.
+      runningBalance = preComputedRunningBalance;
+    } else {
+      // Fallback: fetch ledger history to derive the running balance.
+      const partyEntries = await ledgerService.getLedgerForParty(entryData.partyId);
+      const prevBalance = partyEntries.length > 0 ? partyEntries[0].runningBalance : 0;
+      const delta = entryData.type === 'DEBIT' ? entryData.amount : -entryData.amount;
+      runningBalance = prevBalance + delta;
+    }
 
     const newEntry: LedgerEntry = {
       ...entryData,

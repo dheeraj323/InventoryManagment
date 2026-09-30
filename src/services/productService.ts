@@ -13,6 +13,7 @@ import {
   where,
   orderBy,
   serverTimestamp,
+  increment,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Product } from '../types';
@@ -42,26 +43,22 @@ export const productService = {
     }
   },
 
-  // Bump the productsVersion in system/metadata when catalog is modified
-  bumpProductsVersion: async (): Promise<number> => {
+  // Bump the productsVersion in system/metadata when catalog is modified.
+  // Uses Firestore increment() — atomic field-level increment with NO preceding read.
+  bumpProductsVersion: async (): Promise<void> => {
     try {
       const metaRef = doc(db, SYSTEM_COLLECTION, METADATA_DOC);
-      const snapshot = await getDoc(metaRef);
-      const currentVersion = snapshot.exists() ? (snapshot.data().productsVersion || 1) : 1;
-      const nextVersion = currentVersion + 1;
       await setDoc(
         metaRef,
         {
-          productsVersion: nextVersion,
+          productsVersion: increment(1),
           lastUpdated: new Date().toISOString(),
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
-      return nextVersion;
     } catch (error) {
       console.warn('Error bumping products version in metadata:', error);
-      return 1;
     }
   },
 

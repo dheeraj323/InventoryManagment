@@ -95,6 +95,9 @@ export const financialTransactionService = {
     paidAmount: number,
     notes?: string
   ): Promise<void> => {
+    // Capture assignedStaffId from the transaction read to avoid a second getDoc afterward.
+    let capturedStaffId: string | undefined;
+
     await runTransaction(db, async (transaction) => {
       // ────────────────────────────────────────────────────────────────────
       // PHASE 1: ALL READS FIRST (Firestore transaction requirement)
@@ -118,6 +121,9 @@ export const financialTransactionService = {
         );
         return;
       }
+
+      // Capture staff ID so we can use it after the transaction without a second getDoc.
+      capturedStaffId = existingOrder.assignedStaffId;
 
       const vendorRef = doc(db, VENDORS_COLLECTION, existingOrder.vendorId);
       const vendorSnap = await transaction.get(vendorRef);
@@ -444,27 +450,21 @@ export const financialTransactionService = {
       });
     });
 
-    // 8. Update staff's on-hand vehicle stock session for today
+    // 8. Update staff's on-hand vehicle stock session for today.
+    // capturedStaffId was read inside the transaction — no second getDoc needed.
     try {
-      const deliveredPayload = updatedItems.map((it) => ({
-        productId: it.productId,
-        deliveredQty: it.deliveredQty || 0,
-        damagedQty: it.damagedQty || 0,
-      }));
-
-      // We read the order to get the assigned staff ID
-      const orderRef = doc(db, ORDERS_COLLECTION, orderId);
-      const orderDoc = await import('firebase/firestore').then((m) => m.getDoc(orderRef));
-      if (orderDoc.exists()) {
-        const orderData = orderDoc.data() as Order;
-        if (orderData.assignedStaffId) {
-          await staffStockService.recordDeliveredUnits(
-            orderData.assignedStaffId,
-            deliveredPayload,
-            undefined,
-            orderId  // idempotency key: prevents double-counting if store already applied it
-          );
-        }
+      if (capturedStaffId) {
+        const deliveredPayload = updatedItems.map((it) => ({
+          productId: it.productId,
+          deliveredQty: it.deliveredQty || 0,
+          damagedQty: it.damagedQty || 0,
+        }));
+        await staffStockService.recordDeliveredUnits(
+          capturedStaffId,
+          deliveredPayload,
+          undefined,
+          orderId // idempotency key: prevents double-counting if store already applied it
+        );
       }
     } catch (stockErr) {
       console.warn('[financialTransactionService] Could not update staff vehicle stock session:', stockErr);

@@ -159,7 +159,14 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     }
 
     try {
-      await orderService.updateOrderStatus(orderId, status);
+      // Pass already-resolved staff/route context to avoid secondary reads in the service layer.
+      await orderService.updateOrderStatus(orderId, status, {
+        assignedStaffId: autoStaffId,
+        assignedStaffName: autoStaffName,
+        assignedStaffPhone: autoStaffPhone,
+        routeId: targetRouteId,
+        routeName: targetRouteName,
+      });
     } catch (err) {
       console.error(`Error updating status for order ${orderId}:`, err);
     }
@@ -232,10 +239,16 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       console.warn('Error syncing out for delivery stock on dispatchAllStaffOrders:', err);
     });
 
-    // Update orders in Firestore
+    // Update orders in Firestore — pass staffId context to activate the fast-path (no secondary reads)
     for (const ord of ordersToDispatch) {
       try {
-        await orderService.updateOrderStatus(ord.id, 'OUT_FOR_DELIVERY');
+        await orderService.updateOrderStatus(ord.id, 'OUT_FOR_DELIVERY', {
+          assignedStaffId: ord.assignedStaffId || staffId,
+          assignedStaffName: ord.assignedStaffName,
+          assignedStaffPhone: ord.assignedStaffPhone,
+          routeId: ord.routeId,
+          routeName: ord.routeName,
+        });
       } catch (err) {
         console.warn(`Error dispatching order ${ord.id} to OUT_FOR_DELIVERY:`, err);
       }

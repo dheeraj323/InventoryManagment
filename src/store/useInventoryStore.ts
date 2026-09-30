@@ -217,8 +217,29 @@ export const useInventoryStore = create<InventoryState>((set, get) => ({
 
   // 6. Real-time inventory subscription (Products + Stock Map + Suppliers)
   subscribeInventory: () => {
-    // 1. Immediately read from cache if available so UI has data without delay
-    get().initInventoryCache();
+    // 1. Immediately populate UI from local AsyncStorage cache — zero Firestore cost.
+    // We skip the full initInventoryCache (metadata check + conditional getDocs) here
+    // because the real-time onSnapshot listener below fires immediately with the
+    // authoritative product list, making the pre-fetch redundant.
+    AsyncStorage.multiGet([CACHE_KEY_PRODUCTS, CACHE_KEY_VERSION, CACHE_KEY_TIMESTAMP])
+      .then(([[, cachedProdsJson], [, cachedVerStr], [, lastSync]]) => {
+        if (cachedProdsJson) {
+          try {
+            const parsed = JSON.parse(cachedProdsJson) as Product[];
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const localVersion = cachedVerStr ? parseInt(cachedVerStr, 10) || 0 : 0;
+              set({
+                products: parsed,
+                cachedVersion: localVersion,
+                lastSyncTime: lastSync || null,
+              });
+            }
+          } catch (_) {
+            // ignore parse errors; snapshot will deliver authoritative data
+          }
+        }
+      })
+      .catch(() => {});
 
     // 2. Real-time listener for products catalog
     const unsubProducts = productService.subscribeProducts((prods) => {
