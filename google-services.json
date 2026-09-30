@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "866893924545",
+    "project_id": "panihaarmilkdairy",
+    "storage_bucket": "panihaarmilkdairy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:866893924545:android:ad1cc673ab93892920ac40",
+        "android_client_info": {
+          "package_name": "com.dheeraj33.panihaarmilkdairy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyClNXxM8Z5dkaAKow_cG8MaQZYoXuODqPs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

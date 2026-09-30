@@ -205,8 +205,8 @@ render.experimental.xml
 *.jks
 *.keystore
 
-# Google Services (e.g. APIs or Firebase)
-google-services.json
+# Google Services (tracked for EAS Build)
+!google-services.json
 
 # Android Profiling
 *.hprof
