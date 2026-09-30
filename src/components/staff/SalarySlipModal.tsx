@@ -17,6 +17,7 @@ import { Staff, StaffSalarySlip, MonthlyAttendanceSummary } from '../../types';
 import { Button } from '../common/Button';
 import { useStaffPayrollStore } from '../../store/useStaffPayrollStore';
 import { colors, typography, spacing, shadows } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 interface SalarySlipModalProps {
   visible: boolean;
@@ -189,7 +190,7 @@ export const SalarySlipModal: React.FC<SalarySlipModalProps> = ({
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save salary slip.');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to save salary slip. Please try again.'));
     } finally {
       setSaving(false);
     }

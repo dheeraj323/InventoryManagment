@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { User, UserRole } from '../types';
 import { authService } from '../services/authService';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 
 interface AuthState {
   currentUser: User | null;
@@ -97,16 +98,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
     } catch (err: any) {
       console.error('Login error:', err);
-      let message = 'Failed to sign in. Please check your credentials.';
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-        message = 'Invalid email or password.';
-      } else if (err.code === 'auth/invalid-email') {
-        message = 'Please enter a valid email address.';
-      } else if (err.code === 'auth/too-many-requests') {
-        message = 'Too many attempts. Please try again later.';
-      } else if (err.message) {
-        message = err.message;
-      }
+      const message = getFriendlyErrorMessage(err, 'Failed to sign in. Please check your credentials.');
       set({ isLoading: false, authError: message });
       throw new Error(message);
     }
@@ -125,14 +117,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
     } catch (err: any) {
       console.error('Vendor registration error:', err);
-      let message = 'Registration failed. Please try again.';
-      if (err.code === 'auth/email-already-in-use') {
-        message = 'This email is already registered. Please sign in instead.';
-      } else if (err.code === 'auth/weak-password') {
-        message = 'Password must be at least 6 characters.';
-      } else if (err.message) {
-        message = err.message;
-      }
+      const message = getFriendlyErrorMessage(err, 'Registration failed. Please try again.');
       set({ isLoading: false, authError: message });
       throw new Error(message);
     }
@@ -151,14 +136,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
     } catch (err: any) {
       console.error('Staff registration error:', err);
-      let message = 'Registration failed. Please try again.';
-      if (err.code === 'auth/email-already-in-use') {
-        message = 'This email is already registered. Please sign in instead.';
-      } else if (err.code === 'auth/weak-password') {
-        message = 'Password must be at least 6 characters.';
-      } else if (err.message) {
-        message = err.message;
-      }
+      const message = getFriendlyErrorMessage(err, 'Registration failed. Please try again.');
       set({ isLoading: false, authError: message });
       throw new Error(message);
     }
@@ -171,14 +149,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false, authError: null });
     } catch (err: any) {
       console.error('Password reset error:', err);
-      let message = 'Failed to send password reset email.';
-      if (err.code === 'auth/user-not-found') {
-        message = 'No account found with this email address.';
-      } else if (err.code === 'auth/invalid-email') {
-        message = 'Please enter a valid email address.';
-      } else if (err.message) {
-        message = err.message;
-      }
+      const message = getFriendlyErrorMessage(err, 'Failed to send password reset email.');
       set({ isLoading: false, authError: message });
       throw new Error(message);
     }

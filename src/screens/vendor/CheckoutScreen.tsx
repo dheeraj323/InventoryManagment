@@ -23,6 +23,7 @@ import { Order, PaymentMethod } from '../../types';
 import { formatDate } from '../../utils/dateFormatter';
 import { openGoogleMapsView } from '../../utils/locationUtils';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { items, getSubtotal, getTax, getTotal, getItemCount, clearCart } = useCartStore();
@@ -189,7 +190,7 @@ export const CheckoutScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       setPlacedOrder(newOrder);
     } catch (err: any) {
       console.error('Checkout place order error:', err);
-      setErrorMsg(err.message || 'Failed to place order. Please try again.');
+      setErrorMsg(getFriendlyErrorMessage(err, 'Failed to place order. Please try again.'));
       setLoading(false);
     }
   };

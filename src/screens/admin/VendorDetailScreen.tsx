@@ -41,6 +41,7 @@ import {
   OrderStatus,
 } from '../../types';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 type DetailTab =
   | 'OVERVIEW'
@@ -251,7 +252,7 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
         `The login password for ${vendor.shopName} has been successfully updated.`
       );
     } catch (err: any) {
-      setPasswordError(err.message || 'Failed to update vendor password.');
+      setPasswordError(getFriendlyErrorMessage(err, 'Failed to update vendor password.'));
     } finally {
       setSavingPassword(false);
     }
@@ -288,7 +289,7 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
       setShowRouteModal(false);
       Alert.alert('Route Updated', `Distribution route updated for ${vendor.shopName}.`);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update vendor route.');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to update vendor route.'));
     } finally {
       setSavingRoute(false);
     }
@@ -488,7 +489,7 @@ export const VendorDetailScreen: React.FC<{ route: any; navigation: any }> = ({
                       });
                       Alert.alert('Success', 'Vendor Google Maps location updated.');
                     } catch (err: any) {
-                      Alert.alert('Error', err.message || 'Could not update vendor location.');
+                      Alert.alert('Error', getFriendlyErrorMessage(err, 'Could not update vendor location.'));
                     }
                   }}
                 />

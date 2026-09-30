@@ -17,6 +17,7 @@ import { StaffAdvance } from '../../types';
 import { Button } from '../common/Button';
 import { useStaffPayrollStore, getTodayDateString } from '../../store/useStaffPayrollStore';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 interface RepayAdvanceModalProps {
   visible: boolean;
@@ -105,7 +106,7 @@ export const RepayAdvanceModal: React.FC<RepayAdvanceModalProps> = ({
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Failed to record repayment.');
+      setError(getFriendlyErrorMessage(err, 'Failed to record repayment. Please try again.'));
     } finally {
       setLoading(false);
     }

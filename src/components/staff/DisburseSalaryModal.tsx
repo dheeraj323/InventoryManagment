@@ -16,6 +16,7 @@ import { StaffSalarySlip } from '../../types';
 import { Button } from '../common/Button';
 import { useStaffPayrollStore, getTodayDateString } from '../../store/useStaffPayrollStore';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 interface DisburseSalaryModalProps {
   visible: boolean;
@@ -82,7 +83,7 @@ export const DisburseSalaryModal: React.FC<DisburseSalaryModalProps> = ({
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to record salary payout.');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to record salary payout. Please try again.'));
     } finally {
       setLoading(false);
     }

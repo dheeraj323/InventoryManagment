@@ -24,6 +24,7 @@ import { Input } from '../../components/common/Input';
 import { ConfirmationModal } from '../../components/common/ConfirmationModal';
 import { Supplier, SupplierBill } from '../../types';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 type TabType = 'OVERVIEW' | 'BILLS';
 type FilterType = 'ALL' | 'THIS_MONTH' | 'THIS_YEAR' | 'PAID' | 'PENDING';
@@ -144,7 +145,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
       });
       setShowEditModal(false);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update supplier');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to update supplier details.'));
     } finally {
       setEditLoading(false);
     }
@@ -169,7 +170,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
       setShowPaymentModal(false);
       Alert.alert('Payment Recorded', `Payment of ₹${num.toLocaleString('en-IN')} recorded successfully.`);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to record payment');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to record payment.'));
     } finally {
       setPaymentLoading(false);
     }
@@ -181,7 +182,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
       setShowDeleteModal(false);
       navigation.goBack();
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to delete supplier');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to delete supplier.'));
     }
   };
 

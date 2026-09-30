@@ -15,6 +15,7 @@ import { Input } from '../common/Input';
 import { Button } from '../common/Button';
 import { Vendor, PaymentMethod } from '../../types';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 export interface RecordPaymentModalProps {
   visible: boolean;
@@ -98,7 +99,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
       setNotes('');
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Failed to record payment.');
+      setError(getFriendlyErrorMessage(err, 'Failed to record payment. Please try again.'));
     } finally {
       setLoading(false);
     }

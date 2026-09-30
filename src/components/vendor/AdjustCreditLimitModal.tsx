@@ -4,6 +4,7 @@ import { ConfirmationModal } from '../common/ConfirmationModal';
 import { Input } from '../common/Input';
 import { Vendor } from '../../types';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 export interface AdjustCreditLimitModalProps {
   visible: boolean;
@@ -48,7 +49,7 @@ export const AdjustCreditLimitModal: React.FC<AdjustCreditLimitModalProps> = ({
       await onSave(vendor.id, num, reason.trim());
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Failed to update credit limit.');
+      setError(getFriendlyErrorMessage(err, 'Failed to update credit limit. Please try again.'));
     } finally {
       setLoading(false);
     }

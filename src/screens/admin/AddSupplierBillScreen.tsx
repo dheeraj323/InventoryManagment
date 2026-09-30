@@ -26,6 +26,7 @@ import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { colors, typography, spacing } from '../../theme';
 import { compressBillImage, formatFileSize } from '../../utils/compressImage';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 interface AttachmentState {
   uri: string;
@@ -140,7 +141,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
         );
       }
     } catch (err: any) {
-      Alert.alert('Camera Error', err.message || 'Unable to open camera');
+      Alert.alert('Camera Error', getFriendlyErrorMessage(err, 'Unable to capture photo.'));
     }
   };
 
@@ -168,7 +169,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
         );
       }
     } catch (err: any) {
-      Alert.alert('Gallery Error', err.message || 'Unable to select photo');
+      Alert.alert('Gallery Error', getFriendlyErrorMessage(err, 'Unable to select photo.'));
     }
   };
 
@@ -282,7 +283,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
       );
     } catch (err: any) {
       console.error('Save bill error:', err);
-      Alert.alert('Save Failed', err.message || 'An error occurred while saving the bill');
+      Alert.alert('Save Failed', getFriendlyErrorMessage(err, 'An error occurred while saving the bill. Please try again.'));
     } finally {
       setIsSaving(false);
       setSaveStepText('');

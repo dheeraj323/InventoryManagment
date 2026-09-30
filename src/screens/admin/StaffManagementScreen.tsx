@@ -34,6 +34,7 @@ import {
   StaffVehicleStockPanel,
 } from '../../components/staff';
 import { colors, typography, spacing, shadows } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 type MainTab = 'ROSTER' | 'ATTENDANCE' | 'PAYROLL' | 'ADVANCES' | 'VEHICLE_STOCK';
 
@@ -200,7 +201,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
       setIsAddModalVisible(false);
       Alert.alert('Added', `${newName} has been added and activated.`);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to add staff member.');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to add staff member.'));
     } finally { setActionLoading(false); }
   };
 
@@ -227,7 +228,7 @@ export const StaffManagementScreen: React.FC<{ navigation: any }> = ({ navigatio
       setIsManageModalVisible(false);
       Alert.alert('Saved', 'Staff profile updated.');
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update profile.');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to update profile.'));
     } finally { setActionLoading(false); }
   };
 

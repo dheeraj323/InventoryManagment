@@ -184,11 +184,11 @@ export const cloudinaryService = {
       try {
         data = JSON.parse(responseText);
       } catch {
-        throw new Error(`Cloudinary upload failed: ${responseText}`);
+        throw new Error('Failed to process upload response. Please try again.');
       }
 
       if (!response.ok || data.error) {
-        throw new Error(data.error?.message || 'Failed to upload bill attachment to Cloudinary');
+        throw new Error(data.error?.message || 'Failed to upload attachment. Please try again.');
       }
 
       return {
@@ -203,8 +203,8 @@ export const cloudinaryService = {
         height: data.height,
       };
     } catch (error: any) {
-      console.error('Cloudinary upload error:', error);
-      throw new Error(error.message || 'Error uploading file to Cloudinary');
+      console.error('Attachment upload error:', error);
+      throw new Error(error.message || 'Failed to upload attachment. Please check your connection and try again.');
     }
   },
 };

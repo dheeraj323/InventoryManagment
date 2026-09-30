@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StaffDailyStockSession } from '../../types';
 import { useStaffStockStore } from '../../store/useStaffStockStore';
 import { colors, typography, spacing, shadows } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 interface EveningStockReturnModalProps {
   visible: boolean;
@@ -183,7 +184,7 @@ export const EveningStockReturnModal: React.FC<EveningStockReturnModalProps> = (
         ]
       );
     } catch (err: any) {
-      Alert.alert('Return Error', err.message || 'Failed to submit evening stock return.');
+      Alert.alert('Return Error', getFriendlyErrorMessage(err, 'Failed to submit evening stock return. Please try again.'));
     }
   };
 

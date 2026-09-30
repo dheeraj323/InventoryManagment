@@ -10,6 +10,7 @@ import {
   CloudinaryUploadResult,
   UploadBillAttachmentParams,
 } from '../services/cloudinaryService';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 
 export interface SupplierPurchasedProductSummary {
   productName: string;
@@ -135,7 +136,7 @@ export const useSupplierBillStore = create<SupplierBillState>((set, get) => ({
       return deduped;
     } catch (err: any) {
       console.error('Error in fetchSupplierBills:', err);
-      set({ error: err.message || 'Failed to load bills', isLoading: false });
+      set({ error: getFriendlyErrorMessage(err, 'Failed to load bills'), isLoading: false });
       return [];
     }
   },
@@ -150,7 +151,7 @@ export const useSupplierBillStore = create<SupplierBillState>((set, get) => ({
       return bill;
     } catch (err: any) {
       console.error('Error in fetchBillDetails:', err);
-      set({ error: err.message || 'Failed to load bill details', isLoading: false });
+      set({ error: getFriendlyErrorMessage(err, 'Failed to load bill details'), isLoading: false });
       return null;
     }
   },
@@ -176,8 +177,9 @@ export const useSupplierBillStore = create<SupplierBillState>((set, get) => ({
       return createdBill;
     } catch (err: any) {
       console.error('Error creating bill:', err);
-      set({ error: err.message || 'Failed to create bill', isLoading: false });
-      throw err;
+      const friendlyMsg = getFriendlyErrorMessage(err, 'Failed to create bill');
+      set({ error: friendlyMsg, isLoading: false });
+      throw new Error(friendlyMsg);
     }
   },
 
@@ -205,8 +207,9 @@ export const useSupplierBillStore = create<SupplierBillState>((set, get) => ({
       }));
     } catch (err: any) {
       console.error('Error updating bill:', err);
-      set({ error: err.message || 'Failed to update bill', isLoading: false });
-      throw err;
+      const friendlyMsg = getFriendlyErrorMessage(err, 'Failed to update bill');
+      set({ error: friendlyMsg, isLoading: false });
+      throw new Error(friendlyMsg);
     }
   },
 
@@ -239,8 +242,9 @@ export const useSupplierBillStore = create<SupplierBillState>((set, get) => ({
       }));
     } catch (err: any) {
       console.error('Error replacing attachment:', err);
-      set({ error: err.message || 'Failed to replace attachment', isLoading: false });
-      throw err;
+      const friendlyMsg = getFriendlyErrorMessage(err, 'Failed to replace attachment');
+      set({ error: friendlyMsg, isLoading: false });
+      throw new Error(friendlyMsg);
     }
   },
 
@@ -262,8 +266,9 @@ export const useSupplierBillStore = create<SupplierBillState>((set, get) => ({
       }));
     } catch (err: any) {
       console.error('Error soft-deleting bill:', err);
-      set({ error: err.message || 'Failed to delete bill', isLoading: false });
-      throw err;
+      const friendlyMsg = getFriendlyErrorMessage(err, 'Failed to delete bill');
+      set({ error: friendlyMsg, isLoading: false });
+      throw new Error(friendlyMsg);
     }
   },
 
@@ -274,9 +279,10 @@ export const useSupplierBillStore = create<SupplierBillState>((set, get) => ({
       set({ isUploading: false });
       return result;
     } catch (err: any) {
-      console.error('Error uploading to Cloudinary:', err);
-      set({ error: err.message || 'Cloudinary upload failed', isUploading: false });
-      throw err;
+      console.error('Error uploading attachment:', err);
+      const friendlyMsg = getFriendlyErrorMessage(err, 'Failed to upload attachment');
+      set({ error: friendlyMsg, isUploading: false });
+      throw new Error(friendlyMsg);
     }
   },
 

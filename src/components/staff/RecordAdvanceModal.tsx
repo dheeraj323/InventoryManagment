@@ -17,6 +17,7 @@ import { Staff } from '../../types';
 import { Button } from '../common/Button';
 import { useStaffPayrollStore, getTodayDateString } from '../../store/useStaffPayrollStore';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 interface RecordAdvanceModalProps {
   visible: boolean;
@@ -133,7 +134,7 @@ export const RecordAdvanceModal: React.FC<RecordAdvanceModalProps> = ({
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Failed to record advance.');
+      setError(getFriendlyErrorMessage(err, 'Failed to record advance. Please try again.'));
     } finally {
       setLoading(false);
     }

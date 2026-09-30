@@ -27,6 +27,7 @@ import { ConfirmationModal } from '../../components/common/ConfirmationModal';
 import { SupplierBill, BillAuditRecord, BillPaymentStatus } from '../../types';
 import { colors, typography, spacing } from '../../theme';
 import { compressBillImage, formatFileSize } from '../../utils/compressImage';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }> = ({ navigation, route }) => {
   const { supplierId, billId } = route.params || {};
@@ -191,7 +192,7 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
       setShowEditModal(false);
       Alert.alert('Success', 'Bill updated and audit history recorded');
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update bill');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to update bill'));
     } finally {
       setEditLoading(false);
     }
@@ -221,7 +222,7 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
         }
       );
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update payment status');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to update payment status'));
     }
   };
 
@@ -274,7 +275,7 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
         'New attachment uploaded successfully.'
       );
     } catch (err: any) {
-      Alert.alert('Upload Error', err.message || 'Failed to upload replacement attachment');
+      Alert.alert('Upload Error', getFriendlyErrorMessage(err, 'Failed to upload replacement attachment'));
     } finally {
       setIsReplacing(false);
       setReplaceStepText('Optimizing & uploading attachment...');
@@ -304,7 +305,7 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
         );
       }
     } catch (err: any) {
-      Alert.alert('Camera Error', err.message);
+      Alert.alert('Camera Error', getFriendlyErrorMessage(err, 'Unable to capture photo.'));
     }
   };
 
@@ -330,7 +331,7 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
         );
       }
     } catch (err: any) {
-      Alert.alert('Gallery Error', err.message);
+      Alert.alert('Gallery Error', getFriendlyErrorMessage(err, 'Unable to select photo.'));
     }
   };
 
@@ -350,7 +351,7 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
         );
       }
     } catch (err: any) {
-      Alert.alert('Document Error', err.message);
+      Alert.alert('Document Error', getFriendlyErrorMessage(err, 'Unable to select document.'));
     }
   };
 
@@ -391,7 +392,7 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to delete bill');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to delete bill'));
     }
   };
 

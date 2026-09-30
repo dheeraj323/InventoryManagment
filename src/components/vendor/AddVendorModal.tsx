@@ -18,6 +18,7 @@ import { GoogleMapsLocationPicker } from '../common/GoogleMapsLocationPicker';
 import { Vendor, VendorStatus } from '../../types';
 import { useRouteStore } from '../../store/useRouteStore';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 export interface AddVendorModalProps {
   visible: boolean;
@@ -139,7 +140,7 @@ export const AddVendorModal: React.FC<AddVendorModalProps> = ({
       setErrors({});
       onClose();
     } catch (err: any) {
-      setErrors({ form: err.message || 'Failed to create vendor record.' });
+      setErrors({ form: getFriendlyErrorMessage(err, 'Failed to create vendor record. Please try again.') });
     } finally {
       setLoading(false);
     }

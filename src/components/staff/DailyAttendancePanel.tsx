@@ -20,6 +20,7 @@ import {
 import { formatDate } from '../../utils/dateFormatter';
 import { StaffMonthlyAttendanceModal } from './StaffMonthlyAttendanceModal';
 import { colors, typography, spacing, shadows } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 interface DailyAttendancePanelProps {
   staffList: Staff[];
@@ -276,7 +277,7 @@ export const DailyAttendancePanel: React.FC<DailyAttendancePanelProps> = ({
         status,
       });
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update attendance.');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to update attendance. Please try again.'));
     } finally {
       setMarkingStaffId(null);
     }
@@ -295,7 +296,7 @@ export const DailyAttendancePanel: React.FC<DailyAttendancePanelProps> = ({
               await batchMarkAttendance(activeStaff, 'PRESENT', selectedDate);
               Alert.alert('Success', `All staff marked as present for ${formatDate(selectedDate)}.`);
             } catch (err: any) {
-              Alert.alert('Error', err.message || 'Failed to batch mark attendance.');
+              Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to batch mark attendance. Please try again.'));
             }
           },
         },

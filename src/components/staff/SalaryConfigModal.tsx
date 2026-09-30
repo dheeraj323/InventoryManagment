@@ -16,6 +16,7 @@ import { Staff } from '../../types';
 import { Button } from '../common/Button';
 import { useStaffPayrollStore } from '../../store/useStaffPayrollStore';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 interface SalaryConfigModalProps {
   visible: boolean;
@@ -82,7 +83,7 @@ export const SalaryConfigModal: React.FC<SalaryConfigModalProps> = ({
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update salary configuration.');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to update salary configuration. Please try again.'));
     } finally {
       setLoading(false);
     }

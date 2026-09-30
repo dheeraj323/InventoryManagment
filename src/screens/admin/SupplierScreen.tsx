@@ -23,6 +23,7 @@ import { Input } from '../../components/common/Input';
 import { ConfirmationModal } from '../../components/common/ConfirmationModal';
 import { Supplier } from '../../types';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const {
@@ -130,7 +131,7 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       setEmail('');
       setShowAddModal(false);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to add supplier');
+      setErrorMsg(getFriendlyErrorMessage(err, 'Failed to add supplier.'));
     } finally {
       setLoading(false);
     }
@@ -179,7 +180,7 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       }
       setSelectedSupplier(null);
     } catch (err: any) {
-      setActionError(err.message || 'Transaction failed');
+      setActionError(getFriendlyErrorMessage(err, 'Transaction failed. Please try again.'));
     } finally {
       setActionLoading(false);
     }
@@ -204,7 +205,7 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       });
       setSelectedSupplier(null);
     } catch (err: any) {
-      setActionError(err.message || 'Update failed');
+      setActionError(getFriendlyErrorMessage(err, 'Update failed. Please try again.'));
     } finally {
       setActionLoading(false);
     }
@@ -223,7 +224,7 @@ export const SupplierScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
       setShowDeleteModal(false);
       setSelectedSupplier(null);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to delete supplier');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to delete supplier.'));
     } finally {
       setIsDeleting(false);
     }

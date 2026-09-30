@@ -20,6 +20,7 @@ import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { PaymentMethod, OrderItem } from '../../types';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
   route,
@@ -124,7 +125,7 @@ export const ActualPaymentScreen: React.FC<{ route: any; navigation: any }> = ({
     } catch (err: any) {
       console.error('[ActualPaymentScreen] Delivery finalization error:', err);
       setErrorMsg(
-        err.message || 'Failed to record delivery. Please try again.'
+        getFriendlyErrorMessage(err, 'Failed to record delivery. Please try again.')
       );
       setLoading(false);
     }

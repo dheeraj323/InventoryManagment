@@ -19,6 +19,7 @@ import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import { GoogleMapsLocationPicker } from '../../components/common/GoogleMapsLocationPicker';
 import { colors, spacing, typography } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 export const ProfileScreen: React.FC = () => {
   const { currentUser, activeVendorId, updateProfile, logout, sendPasswordReset } =
@@ -131,7 +132,7 @@ export const ProfileScreen: React.FC = () => {
       setIsEditing(false);
       showToast('Profile and delivery route updated successfully!', 'success');
     } catch (err: any) {
-      showToast(err.message || 'Could not save profile changes.', 'error');
+      showToast(getFriendlyErrorMessage(err, 'Could not save profile changes.'), 'error');
     } finally {
       setSaving(false);
     }
@@ -176,7 +177,7 @@ export const ProfileScreen: React.FC = () => {
               await sendPasswordReset(currentUser.email!);
               showToast(`Reset link sent to ${currentUser.email}`, 'success');
             } catch (err: any) {
-              showToast(err.message || 'Failed to send reset email.', 'error');
+              showToast(getFriendlyErrorMessage(err, 'Failed to send reset email.'), 'error');
             }
           },
         },

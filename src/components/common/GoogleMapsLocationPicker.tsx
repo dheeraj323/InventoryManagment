@@ -18,6 +18,7 @@ import {
   isValidLatLng,
 } from '../../utils/locationUtils';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 export interface LocationData {
   address?: string;
@@ -85,7 +86,7 @@ export const GoogleMapsLocationPicker: React.FC<GoogleMapsLocationPickerProps> =
       console.error('GPS fetch error:', err);
       Alert.alert(
         'GPS Location Error',
-        err.message || 'Could not fetch device location. You can paste a Google Maps link or enter coordinates manually.'
+        getFriendlyErrorMessage(err, 'Could not fetch device location. You can paste a Google Maps link or enter coordinates manually.')
       );
     } finally {
       setFetchingGPS(false);

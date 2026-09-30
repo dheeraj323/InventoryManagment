@@ -25,6 +25,7 @@ import { Input } from '../../components/common/Input';
 import { Vendor, Product, PaymentMethod, Order } from '../../types';
 import { BUSINESS_RULES, PAYMENT_METHOD_LABELS } from '../../constants/rules';
 import { colors, typography, spacing, shadows } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 interface SelectedProductItem {
   product: Product;
@@ -258,7 +259,7 @@ export const DirectDeliveryScreen: React.FC<{ navigation: any; route?: any }> = 
             } catch (err: any) {
               setIsSubmitting(false);
               console.error('Error recording direct delivery:', err);
-              Alert.alert('Delivery Error', err.message || 'Failed to record spot delivery.');
+              Alert.alert('Delivery Error', getFriendlyErrorMessage(err, 'Failed to record spot delivery. Please check your connection.'));
             }
           },
         },

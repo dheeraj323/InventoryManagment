@@ -16,6 +16,7 @@ import { Header } from '../../components/common/Header';
 import { Input } from '../../components/common/Input';
 import { Button } from '../../components/common/Button';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 export const AdminProfileScreen: React.FC = () => {
   const { currentUser, updateProfile, logout, sendPasswordReset } = useAuthStore();
@@ -59,7 +60,7 @@ export const AdminProfileScreen: React.FC = () => {
       setIsEditing(false);
       showToast('Profile updated successfully!', 'success');
     } catch (err: any) {
-      showToast(err.message || 'Could not save profile changes.', 'error');
+      showToast(getFriendlyErrorMessage(err, 'Could not save profile changes.'), 'error');
     } finally {
       setSaving(false);
     }
@@ -85,7 +86,7 @@ export const AdminProfileScreen: React.FC = () => {
               await sendPasswordReset(currentUser.email!);
               showToast(`Reset link sent to ${currentUser.email}`, 'success');
             } catch (err: any) {
-              showToast(err.message || 'Failed to send reset email.', 'error');
+              showToast(getFriendlyErrorMessage(err, 'Failed to send reset email.'), 'error');
             }
           },
         },

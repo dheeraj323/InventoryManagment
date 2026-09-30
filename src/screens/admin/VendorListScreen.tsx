@@ -21,6 +21,7 @@ import { EmptyState } from '../../components/common/EmptyState';
 import { AddVendorModal } from '../../components/vendor/AddVendorModal';
 import { Vendor, VendorStatus } from '../../types';
 import { colors, typography, spacing } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 type FilterKey = 'ALL' | 'WITH_DUES' | 'WITH_ADVANCE';
 
@@ -131,7 +132,7 @@ export const VendorListScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       await addVendor(vendorData);
       setIsAddVendorVisible(false);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to add vendor');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to add vendor.'));
     }
   };
 

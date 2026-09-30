@@ -27,6 +27,7 @@ import { Input } from '../../components/common/Input';
 import { EmptyState } from '../../components/common/EmptyState';
 import { DeliveryRoute, Staff } from '../../types';
 import { colors, typography, spacing, shadows } from '../../theme';
+import { getFriendlyErrorMessage } from '../../utils/errorHandler';
 
 type RouteFilter = 'ALL' | 'ASSIGNED' | 'UNASSIGNED';
 
@@ -185,7 +186,7 @@ export const RouteManagementScreen: React.FC<{ navigation: any; route?: any }> =
 
       setModalVisible(false);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to save route.');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to save route.'));
     } finally {
       setSaving(false);
     }
@@ -221,7 +222,7 @@ export const RouteManagementScreen: React.FC<{ navigation: any; route?: any }> =
       }
       setAssignModalVisible(false);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update route staff assignment.');
+      Alert.alert('Error', getFriendlyErrorMessage(err, 'Failed to update route staff assignment.'));
     } finally {
       setAssigning(false);
     }
@@ -240,7 +241,7 @@ export const RouteManagementScreen: React.FC<{ navigation: any; route?: any }> =
             try {
               await deleteRoute(routeItem.id);
             } catch (err: any) {
-              Alert.alert('Error', err.message || 'Could not delete route.');
+              Alert.alert('Error', getFriendlyErrorMessage(err, 'Could not delete route.'));
             }
           },
         },

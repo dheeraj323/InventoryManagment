@@ -7,6 +7,7 @@ import { useLedgerStore } from './useLedgerStore';
 import { useStaffStockStore } from './useStaffStockStore';
 import { useRouteStore } from './useRouteStore';
 import { useStaffStore } from './useStaffStore';
+import { getFriendlyErrorMessage } from '../utils/errorHandler';
 
 interface OrderState {
   orders: Order[];
@@ -61,7 +62,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       set({ orders: orders || [], isLoading: false });
     } catch (err: any) {
       console.error('Failed to fetch orders:', err);
-      set({ error: err.message || 'Failed to fetch orders', isLoading: false });
+      set({ error: getFriendlyErrorMessage(err, 'Failed to fetch orders. Please check your connection.'), isLoading: false });
     }
   },
 
