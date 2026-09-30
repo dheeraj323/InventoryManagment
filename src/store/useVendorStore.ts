@@ -3,7 +3,6 @@ import { Vendor, VendorStatus, PaymentMethod, LedgerEntry } from '../types';
 import { vendorService } from '../services/vendorService';
 import { paymentService } from '../services/paymentService';
 import { authService } from '../services/authService';
-import { useLedgerStore } from './useLedgerStore';
 
 interface VendorState {
   vendors: Vendor[];
@@ -219,11 +218,17 @@ export const useVendorStore = create<VendorState>((set, get) => ({
       createdAt: payment.paymentDate || new Date().toISOString(),
     };
 
-    const currentEntries = useLedgerStore.getState().entries;
-    const filtered = currentEntries.filter((e) => e.id !== creditEntryId && e.id !== newCreditEntry.id);
-    useLedgerStore.setState({
-      entries: [newCreditEntry, ...filtered],
-    });
+    try {
+      // Lazy load useLedgerStore to break require cycle: useVendorStore <-> useLedgerStore
+      const { useLedgerStore } = require('./useLedgerStore');
+      const currentEntries = useLedgerStore.getState().entries;
+      const filtered = currentEntries.filter((e: LedgerEntry) => e.id !== creditEntryId && e.id !== newCreditEntry.id);
+      useLedgerStore.setState({
+        entries: [newCreditEntry, ...filtered],
+      });
+    } catch (_err) {
+      // Silently continue if store is not available during init
+    }
   },
 
   updatePayLaterAccess: async (vendorId, payLaterEligible) => {
