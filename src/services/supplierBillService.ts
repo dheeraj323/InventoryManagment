@@ -225,37 +225,39 @@ export const supplierBillService = {
     }
   ): Promise<void> => {
     const billRef = doc(db, SUPPLIERS_COLLECTION, supplierId, BILLS_SUBCOLLECTION, billId);
-    const nowIso = new Date().toISOString();
 
-    // 1. Update bill
-    await updateDoc(billRef, {
-      ...updates,
+    // 1. Update bill (strip undefined values)
+    const cleanUpdates: Record<string, any> = {
       updatedAt: serverTimestamp(),
-    });
+    };
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        cleanUpdates[key] = value;
+      }
+    }
+    await updateDoc(billRef, cleanUpdates);
 
-    // 2. Add history record
+    // 2. Add history record (strip undefined values)
     const historyRef = doc(
       collection(db, SUPPLIERS_COLLECTION, supplierId, BILLS_SUBCOLLECTION, billId, HISTORY_SUBCOLLECTION)
     );
 
-    const auditRecord: BillAuditRecord = {
+    const auditRecord: Record<string, any> = {
       id: historyRef.id,
       billId,
       supplierId,
       action: audit.action,
-      field: audit.field,
-      oldValue: audit.oldValue,
-      newValue: audit.newValue,
-      description: audit.description,
+      description: audit.description || '',
       changedBy: audit.changedBy,
       changedByName: audit.changedByName || 'Admin',
-      changedAt: nowIso,
+      changedAt: serverTimestamp(),
     };
 
-    await setDoc(historyRef, {
-      ...auditRecord,
-      changedAt: serverTimestamp(),
-    });
+    if (audit.field !== undefined) auditRecord.field = audit.field;
+    if (audit.oldValue !== undefined) auditRecord.oldValue = audit.oldValue;
+    if (audit.newValue !== undefined) auditRecord.newValue = audit.newValue;
+
+    await setDoc(historyRef, auditRecord);
   },
 
   /**
@@ -321,7 +323,7 @@ export const supplierBillService = {
       collection(db, SUPPLIERS_COLLECTION, supplierId, BILLS_SUBCOLLECTION, billId, HISTORY_SUBCOLLECTION)
     );
 
-    const auditRecord: BillAuditRecord = {
+    const auditRecord: Record<string, any> = {
       id: historyRef.id,
       billId,
       supplierId,
@@ -329,13 +331,10 @@ export const supplierBillService = {
       description: `Bill ${user.invoiceNumber ? `(#${user.invoiceNumber}) ` : ''}soft-deleted from active records`,
       changedBy: user.uid,
       changedByName: user.name || 'Admin',
-      changedAt: nowIso,
+      changedAt: serverTimestamp(),
     };
 
-    await setDoc(historyRef, {
-      ...auditRecord,
-      changedAt: serverTimestamp(),
-    });
+    await setDoc(historyRef, auditRecord);
   },
 
   /**
@@ -354,10 +353,25 @@ export const supplierBillService = {
       const q = query(historyRef, orderBy('changedAt', 'desc'));
       const snapshot = await getDocs(q);
 
-      return snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      })) as BillAuditRecord[];
+      return snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        let changedAtIso = '';
+        if (typeof data.changedAt?.toDate === 'function') {
+          changedAtIso = data.changedAt.toDate().toISOString();
+        } else if (typeof data.changedAt?.seconds === 'number') {
+          changedAtIso = new Date(data.changedAt.seconds * 1000).toISOString();
+        } else if (typeof data.changedAt === 'string') {
+          changedAtIso = data.changedAt;
+        } else {
+          changedAtIso = new Date().toISOString();
+        }
+
+        return {
+          id: docSnap.id,
+          ...data,
+          changedAt: changedAtIso,
+        } as BillAuditRecord;
+      });
     } catch (error) {
       console.error('Error fetching bill history:', error);
       return [];
@@ -385,10 +399,25 @@ export const supplierBillService = {
     return onSnapshot(
       q,
       (snapshot) => {
-        const records = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        })) as BillAuditRecord[];
+        const records = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          let changedAtIso = '';
+          if (typeof data.changedAt?.toDate === 'function') {
+            changedAtIso = data.changedAt.toDate().toISOString();
+          } else if (typeof data.changedAt?.seconds === 'number') {
+            changedAtIso = new Date(data.changedAt.seconds * 1000).toISOString();
+          } else if (typeof data.changedAt === 'string') {
+            changedAtIso = data.changedAt;
+          } else {
+            changedAtIso = new Date().toISOString();
+          }
+
+          return {
+            id: docSnap.id,
+            ...data,
+            changedAt: changedAtIso,
+          } as BillAuditRecord;
+        });
         callback(records);
       },
       (error) => {

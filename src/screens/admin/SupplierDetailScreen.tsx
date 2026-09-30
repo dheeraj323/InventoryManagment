@@ -278,24 +278,13 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
         showBack
         onBackPress={() => navigation.goBack()}
         rightAction={
-          <View style={styles.headerRightRow}>
-            {supplier.phone ? (
-              <TouchableOpacity
-                style={styles.headerIconBtn}
-                onPress={() => handleCall(supplier.phone)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="call" size={18} color={colors.primary} />
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity
-              style={styles.headerIconBtn}
-              onPress={openEditModal}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="create-outline" size={19} color={colors.textPrimary} />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.headerIconBtn}
+            onPress={openEditModal}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="create-outline" size={19} color={colors.textPrimary} />
+          </TouchableOpacity>
         }
       />
 
@@ -331,7 +320,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
           ) : null}
         </View>
 
-        {/* 3 Metrics Strip */}
+        {/* Metrics Strip */}
         <View style={styles.metricsGrid}>
           <View style={styles.metricCell}>
             <Text style={styles.metricLabel}>Total Purchases</Text>
@@ -341,11 +330,6 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
           <View style={styles.metricCell}>
             <Text style={styles.metricLabel}>Total Bills</Text>
             <Text style={styles.metricValue}>{stats.totalBills}</Text>
-          </View>
-
-          <View style={styles.metricCell}>
-            <Text style={styles.metricLabel}>Products</Text>
-            <Text style={styles.metricValue}>{stats.totalProductsCount}</Text>
           </View>
         </View>
 
@@ -528,12 +512,6 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
                       </View>
                     ) : null}
                   </View>
-
-                  <Text style={styles.invoiceItemsSub} numberOfLines={1}>
-                    {b.items && b.items.length > 0
-                      ? b.items.map((i) => `${i.productName} (${i.quantity} ${i.unit})`).join(', ')
-                      : 'No items recorded'}
-                  </Text>
                 </View>
               </View>
 
@@ -591,7 +569,7 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
             <View style={styles.searchRow}>
               <View style={{ flex: 1 }}>
                 <Input
-                  placeholder="Search invoice #, product, notes..."
+                  placeholder="Search..."
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   leftIcon={<Ionicons name="search-outline" size={17} color={colors.textMuted} />}
@@ -692,14 +670,6 @@ export const SupplierDetailScreen: React.FC<{ route: any; navigation: any }> = (
                         </View>
                       ) : null}
                     </View>
-
-                    <Text style={styles.billProductsListText} numberOfLines={2}>
-                      {item.items && item.items.length > 0
-                        ? item.items
-                            .map((p) => `${p.productName} (${p.quantity} ${p.unit})`)
-                            .join(', ')
-                        : 'No item details'}
-                    </Text>
 
                     {item.notes ? (
                       <Text style={styles.billNotesText} numberOfLines={1}>
@@ -1245,12 +1215,6 @@ const styles = StyleSheet.create({
     padding: 2,
     borderRadius: 3,
   },
-  invoiceItemsSub: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontSize: 11,
-    marginTop: 2,
-  },
   billRowRight: {
     alignItems: 'flex-end',
   },
@@ -1296,77 +1260,6 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
   },
 
-  // Products Tab
-  listContainer: {
-    padding: spacing.screenPadding,
-    paddingBottom: spacing.xxl,
-  },
-  productsSummaryBanner: {
-    marginBottom: spacing.sm,
-  },
-  productsBannerTitle: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13,
-  },
-  productsBannerSub: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 11,
-    marginTop: 1,
-  },
-  productCatalogCard: {
-    padding: spacing.sm + 2,
-    marginBottom: spacing.xs + 2,
-  },
-  productCatalogRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  productIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
-    backgroundColor: colors.surfaceSubtle,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.sm,
-  },
-  productDetailsCol: {
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  productTitleText: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13,
-  },
-  productSubDetails: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontSize: 11,
-    marginTop: 1,
-  },
-  productLastRate: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 10,
-    marginTop: 1,
-  },
-  productSpendCol: {
-    alignItems: 'flex-end',
-  },
-  productSpendLabel: {
-    ...typography.label,
-    color: colors.textMuted,
-    fontSize: 8,
-  },
-  productSpendAmount: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13,
-    marginTop: 1,
-  },
 
   // Bills Tab
   searchBarContainer: {
@@ -1467,12 +1360,6 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontSize: 8.5,
     color: colors.textSecondary,
-  },
-  billProductsListText: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontSize: 11,
-    marginTop: 2,
   },
   billNotesText: {
     ...typography.caption,

@@ -97,10 +97,26 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
   const fmt = (n: number) =>
     n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const formatDate = (isoString?: string) => {
-    if (!isoString) return '—';
+  const formatDate = (rawDate?: any) => {
+    if (!rawDate) return '—';
     try {
-      const d = new Date(isoString);
+      let d: Date;
+      if (typeof rawDate?.toDate === 'function') {
+        d = rawDate.toDate();
+      } else if (typeof rawDate?.seconds === 'number') {
+        d = new Date(rawDate.seconds * 1000);
+      } else if (rawDate instanceof Date) {
+        d = rawDate;
+      } else if (typeof rawDate === 'string' || typeof rawDate === 'number') {
+        d = new Date(rawDate);
+      } else {
+        d = new Date(String(rawDate));
+      }
+
+      if (isNaN(d.getTime())) {
+        return '—';
+      }
+
       return d.toLocaleDateString('en-IN', {
         day: '2-digit',
         month: 'short',
@@ -109,7 +125,7 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
         minute: '2-digit',
       });
     } catch {
-      return isoString;
+      return '—';
     }
   };
 
@@ -220,7 +236,7 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
       // 1. Client-side compression
       const compressed = await compressBillImage(rawUri, rawName, rawMimeType, rawSize);
 
-      setReplaceStepText('Uploading optimized file to Cloudinary...');
+      setReplaceStepText('Uploading attachment...');
       const uploadResult = await uploadToCloudinary({
         uri: compressed.uri,
         base64: compressed.base64,
@@ -255,7 +271,7 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
 
       Alert.alert(
         'Attachment Replaced',
-        `New file (${formatFileSize(uploadResult.fileSize)}) optimized and uploaded to Cloudinary successfully.`
+        'New attachment uploaded successfully.'
       );
     } catch (err: any) {
       Alert.alert('Upload Error', err.message || 'Failed to upload replacement attachment');
@@ -485,49 +501,8 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
           </View>
         </Card>
 
-        {/* ── Products Line Items Table ───────────────────────────── */}
-        <Text style={styles.sectionTitle}>PURCHASED PRODUCTS</Text>
-        <Card style={styles.itemsCard} outlined>
-          <View style={styles.tableHeaderRow}>
-            <Text style={[styles.tableColHeader, { flex: 2 }]}>PRODUCT</Text>
-            <Text style={[styles.tableColHeader, { flex: 1.2, textAlign: 'center' }]}>QTY × RATE</Text>
-            <Text style={[styles.tableColHeader, { flex: 1.2, textAlign: 'right' }]}>AMOUNT</Text>
-          </View>
-
-          {bill.items && bill.items.length > 0 ? (
-            bill.items.map((item, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.tableRow,
-                  index === bill.items.length - 1 && { borderBottomWidth: 0 },
-                ]}
-              >
-                <View style={{ flex: 2 }}>
-                  <Text style={styles.itemProductName}>{item.productName}</Text>
-                  <Text style={styles.itemProductUnit}>{item.unit || 'unit'}</Text>
-                </View>
-
-                <View style={{ flex: 1.2, alignItems: 'center' }}>
-                  <Text style={styles.itemQtyRate}>
-                    {item.quantity} × ₹{fmt(item.unitPrice)}
-                  </Text>
-                </View>
-
-                <View style={{ flex: 1.2, alignItems: 'flex-end' }}>
-                  <Text style={styles.itemAmount}>₹{fmt(item.amount)}</Text>
-                </View>
-              </View>
-            ))
-          ) : (
-            <View style={{ padding: spacing.sm, alignItems: 'center' }}>
-              <Text style={{ ...typography.caption, color: colors.textMuted }}>No item lines</Text>
-            </View>
-          )}
-        </Card>
-
         {/* ── Financial Summary ───────────────────────────────────── */}
-        <Text style={[styles.sectionTitle, { marginTop: spacing.md }]}>FINANCIAL SUMMARY</Text>
+        <Text style={styles.sectionTitle}>FINANCIAL SUMMARY</Text>
         <Card style={styles.summaryCard} outlined>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
@@ -552,44 +527,29 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
 
         {/* ── Attachment Section ──────────────────────────────────── */}
         <Text style={[styles.sectionTitle, { marginTop: spacing.md }]}>
-          BILL ATTACHMENT (CLOUDINARY)
+          BILL ATTACHMENT
         </Text>
         <Card style={styles.attachmentCard} outlined>
           {bill.cloudinaryUrl ? (
-            <View>
-              <View style={styles.attachmentRow}>
-                {isImageAttachment ? (
-                  <TouchableOpacity onPress={handleOpenFullBill} activeOpacity={0.8}>
-                    <Image source={{ uri: bill.cloudinaryUrl }} style={styles.thumbImage} />
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.thumbPdfBox}>
-                    <Ionicons name="document-text" size={28} color={colors.primary} />
-                  </View>
-                )}
-
-                <View style={styles.attachmentInfoCol}>
-                  <Text style={styles.attachmentTitle} numberOfLines={1}>
-                    {bill.fileName || 'Invoice Attachment'}
-                  </Text>
-                  <Text style={styles.attachmentMeta}>
-                    {bill.fileSize ? `${(bill.fileSize / 1024).toFixed(1)} KB · ` : ''}
-                    {bill.fileType || 'Document'}
-                  </Text>
-                  <Text style={styles.attachmentCloudinaryTag}>
-                    <Ionicons name="cloud-done" size={11} color={colors.brandGreen} /> Stored on Cloudinary
-                  </Text>
+            <View style={styles.attachmentRow}>
+              {isImageAttachment ? (
+                <TouchableOpacity onPress={handleOpenFullBill} activeOpacity={0.8}>
+                  <Image source={{ uri: bill.cloudinaryUrl }} style={styles.thumbImage} />
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.thumbPdfBox}>
+                  <Ionicons name="document-text" size={28} color={colors.primary} />
                 </View>
-              </View>
+              )}
 
-              <View style={styles.attachmentActionButtonsRow}>
+              <View style={styles.attachmentButtonsInline}>
                 <TouchableOpacity
                   style={styles.attachmentActionBtn}
                   onPress={handleOpenFullBill}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="eye-outline" size={16} color={colors.primary} />
-                  <Text style={styles.attachmentActionBtnText}>Open Full Bill</Text>
+                  <Text style={styles.attachmentActionBtnText}>Open</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -598,7 +558,7 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
                   activeOpacity={0.8}
                 >
                   <Ionicons name="repeat-outline" size={16} color={colors.textSecondary} />
-                  <Text style={styles.attachmentActionBtnTextSec}>Replace File</Text>
+                  <Text style={styles.attachmentActionBtnTextSec}>Replace</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -708,7 +668,7 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
             }}
           >
             <Ionicons name="open-outline" size={16} color="#FFFFFF" />
-            <Text style={styles.openBrowserLinkText}>Open Full Quality in Browser</Text>
+            <Text style={styles.openBrowserLinkText}>Open in Browser</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -730,7 +690,7 @@ export const SupplierBillDetailScreen: React.FC<{ route: any; navigation: any }>
             </View>
 
             <Text style={styles.replaceSubtitle}>
-              Select a new file. The replacement will be saved to Cloudinary and tracked in the audit trail.
+              Select a new file to replace the current attachment.
             </Text>
 
             <View style={styles.replaceOptionsGrid}>
@@ -965,50 +925,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
 
-  // Table
-  itemsCard: {
-    padding: spacing.sm + 2,
-    marginBottom: spacing.sm,
-  },
-  tableHeaderRow: {
-    flexDirection: 'row',
-    paddingBottom: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  tableColHeader: {
-    ...typography.label,
-    color: colors.textMuted,
-    fontSize: 9,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 9,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
-  },
-  itemProductName: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13,
-  },
-  itemProductUnit: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 10,
-    marginTop: 1,
-  },
-  itemQtyRate: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontSize: 11.5,
-  },
-  itemAmount: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13,
-  },
 
   // Summary
   summaryCard: {
@@ -1072,39 +988,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: spacing.sm,
   },
-  attachmentInfoCol: {
+  attachmentButtonsInline: {
     flex: 1,
-  },
-  attachmentTitle: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13,
-  },
-  attachmentMeta: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 11,
-    marginTop: 1,
-  },
-  attachmentCloudinaryTag: {
-    ...typography.captionBold,
-    color: colors.brandGreen,
-    fontSize: 10,
-    marginTop: 2,
-  },
-  attachmentActionButtonsRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-    paddingTop: spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: colors.divider,
   },
   attachmentActionBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: spacing.borderRadiusSm,
     backgroundColor: colors.surfaceSubtle,
     gap: 4,
@@ -1112,12 +1006,12 @@ const styles = StyleSheet.create({
   attachmentActionBtnText: {
     ...typography.captionBold,
     color: colors.primary,
-    fontSize: 11.5,
+    fontSize: 12,
   },
   attachmentActionBtnTextSec: {
     ...typography.captionBold,
     color: colors.textSecondary,
-    fontSize: 11.5,
+    fontSize: 12,
   },
   noAttachmentBox: {
     alignItems: 'center',

@@ -26,7 +26,6 @@ import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { colors, typography, spacing } from '../../theme';
 import { compressBillImage, formatFileSize } from '../../utils/compressImage';
-import { SupplierBillItem } from '../../types';
 
 interface AttachmentState {
   uri: string;
@@ -39,18 +38,11 @@ interface AttachmentState {
   wasCompressed?: boolean;
 }
 
-interface SelectedProduct {
-  productId: string;
-  productName: string;
-  unit: string;
-  quantity: string;
-  unitPrice: string;
-}
 
 export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = ({ navigation, route }) => {
   const { supplierId } = route.params || {};
 
-  const { suppliers, products } = useInventoryStore();
+  const { suppliers } = useInventoryStore();
   const { currentUser } = useAuthStore();
   const { createBill, uploadToCloudinary } = useSupplierBillStore();
 
@@ -63,11 +55,6 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
   const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
   const [totalBillAmount, setTotalBillAmount] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'PAID' | 'PENDING'>('PAID');
-
-  // Selected products
-  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
-  const [showProductModal, setShowProductModal] = useState(false);
-  const [productSearch, setProductSearch] = useState('');
 
   // Attachment & Compression State
   const [attachment, setAttachment] = useState<AttachmentState | null>(null);
@@ -87,56 +74,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
   const fmt = (n: number) =>
     n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Filtered products for the selection modal
-  const filteredProducts = useMemo(() => {
-    const q = productSearch.trim().toLowerCase();
-    const alreadySelectedIds = new Set(selectedProducts.map((sp) => sp.productId));
-    let list = products.filter((p) => !alreadySelectedIds.has(p.id));
-    if (q) {
-      list = list.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          (p.sku || '').toLowerCase().includes(q) ||
-          (p.category || '').toLowerCase().includes(q)
-      );
-    }
-    return list;
-  }, [products, productSearch, selectedProducts]);
 
-  // Add product to selected list
-  const handleSelectProduct = (product: { id: string; name: string; unit: string; purchasePrice?: number; price?: number }) => {
-    setSelectedProducts((prev) => [
-      ...prev,
-      {
-        productId: product.id,
-        productName: product.name,
-        unit: product.unit || 'unit',
-        quantity: '1',
-        unitPrice: String(product.purchasePrice || product.price || 0),
-      },
-    ]);
-    setShowProductModal(false);
-    setProductSearch('');
-  };
-
-  // Remove product from selected list
-  const handleRemoveProduct = (index: number) => {
-    setSelectedProducts((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  // Update product quantity
-  const handleUpdateProductQty = (index: number, qty: string) => {
-    setSelectedProducts((prev) =>
-      prev.map((p, i) => (i === index ? { ...p, quantity: qty } : p))
-    );
-  };
-
-  // Update product unit price
-  const handleUpdateProductPrice = (index: number, price: string) => {
-    setSelectedProducts((prev) =>
-      prev.map((p, i) => (i === index ? { ...p, unitPrice: price } : p))
-    );
-  };
 
   /**
    * Processes chosen attachment with client-side compression before staging
@@ -148,7 +86,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
     rawSize?: number
   ) => {
     setIsCompressing(true);
-    setCompressMessage('Compressing & optimizing bill image...');
+    setCompressMessage('Processing photo...');
 
     try {
       const compressed = await compressBillImage(rawUri, rawName, rawMimeType, rawSize);
@@ -264,9 +202,9 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
       let fileType = '';
       let fileSize = 0;
 
-      // 1. Upload attachment to Cloudinary if selected
+      // 1. Upload attachment if selected
       if (attachment) {
-        setSaveStepText('Uploading bill attachment to Cloudinary...');
+        setSaveStepText('Uploading bill attachment...');
         const tempBillId = `bill_${Date.now()}`;
         const uploadResult = await uploadToCloudinary({
           uri: attachment.uri,
@@ -286,21 +224,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
         fileSize = uploadResult.fileSize;
       }
 
-      // 2. Build items array from selected products
-      const billItems: SupplierBillItem[] = selectedProducts.map((sp) => {
-        const qty = parseFloat(sp.quantity) || 0;
-        const price = parseFloat(sp.unitPrice) || 0;
-        return {
-          productId: sp.productId,
-          productName: sp.productName,
-          quantity: qty,
-          unit: sp.unit,
-          unitPrice: price,
-          amount: qty * price,
-        };
-      });
-
-      // 3. Save bill record to Firestore
+      // 2. Save bill record to Firestore
       setSaveStepText('Saving bill and recording audit trail in Firestore...');
       const finalInvoiceNumber = invoiceNumber.trim() || `BILL-${Date.now().toString().slice(-6)}`;
       const createdBill = await createBill(
@@ -324,7 +248,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
           fileType,
           fileSize,
           notes: '',
-          items: billItems,
+          items: [],
         },
         {
           uid: currentUser?.id || currentUser?.uid || 'admin',
@@ -494,76 +418,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
             )}
           </Card>
 
-          {/* ── Products Purchased ──────────────────────────────────── */}
-          <Text style={[styles.sectionTitle, { marginTop: spacing.md }]}>
-            PRODUCTS PURCHASED (Optional)
-          </Text>
 
-          {selectedProducts.map((sp, idx) => (
-            <Card key={`selected-product-${sp.productId}-${idx}`} style={styles.selectedProductCard} outlined>
-              <View style={styles.selectedProductHeader}>
-                <View style={styles.selectedProductNameRow}>
-                  <View style={styles.prodIconCircle}>
-                    <Ionicons name="cube" size={14} color={colors.primary} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.selectedProductName} numberOfLines={1}>
-                      {sp.productName}
-                    </Text>
-                    <Text style={styles.selectedProductUnit}>{sp.unit}</Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => handleRemoveProduct(idx)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="close-circle" size={20} color={colors.danger} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.selectedProductFields}>
-                <View style={styles.productFieldCol}>
-                  <Text style={styles.productFieldLabel}>Quantity</Text>
-                  <TextInput
-                    style={styles.productFieldInput}
-                    keyboardType="numeric"
-                    value={sp.quantity}
-                    onChangeText={(val) => handleUpdateProductQty(idx, val)}
-                    placeholder="0"
-                    placeholderTextColor={colors.textMuted}
-                  />
-                </View>
-
-                <View style={styles.productFieldCol}>
-                  <Text style={styles.productFieldLabel}>Unit Price (₹)</Text>
-                  <TextInput
-                    style={styles.productFieldInput}
-                    keyboardType="numeric"
-                    value={sp.unitPrice}
-                    onChangeText={(val) => handleUpdateProductPrice(idx, val)}
-                    placeholder="0.00"
-                    placeholderTextColor={colors.textMuted}
-                  />
-                </View>
-
-                <View style={styles.productFieldCol}>
-                  <Text style={styles.productFieldLabel}>Amount</Text>
-                  <Text style={styles.productAmountText}>
-                    ₹{fmt((parseFloat(sp.quantity) || 0) * (parseFloat(sp.unitPrice) || 0))}
-                  </Text>
-                </View>
-              </View>
-            </Card>
-          ))}
-
-          <TouchableOpacity
-            style={styles.addProductBtn}
-            onPress={() => setShowProductModal(true)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
-            <Text style={styles.addProductBtnText}>Add Product</Text>
-          </TouchableOpacity>
 
           {/* ── Bill Attachment (Photos Only) ──────────────────────── */}
           <Text style={[styles.sectionTitle, { marginTop: spacing.md }]}>
@@ -574,10 +429,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
             <Card style={styles.compressingCard} outlined>
               <ActivityIndicator size="small" color={colors.primary} />
               <View style={{ flex: 1, marginLeft: spacing.sm }}>
-                <Text style={styles.compressingTitle}>{compressMessage}</Text>
-                <Text style={styles.compressingSub}>
-                  Optimizing file size while preserving razor-sharp text clarity
-                </Text>
+                <Text style={styles.compressingTitle}>{compressMessage || 'Processing photo...'}</Text>
               </View>
             </Card>
           ) : attachment ? (
@@ -586,29 +438,8 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
                 <Image source={{ uri: attachment.uri }} style={styles.attachmentThumb} />
 
                 <View style={styles.attachmentMetaCol}>
-                  <Text style={styles.attachmentFileName} numberOfLines={1}>
-                    {attachment.name}
-                  </Text>
-
-                  {attachment.wasCompressed && attachment.originalSize ? (
-                    <View>
-                      <Text style={styles.compressionStatsText}>
-                        Size: {formatFileSize(attachment.size)} (Original:{' '}
-                        {formatFileSize(attachment.originalSize)} · Saved{' '}
-                        {attachment.savedPercentage}%)
-                      </Text>
-                      <View style={styles.optimizedBadgeRow}>
-                        <Ionicons name="checkmark-circle" size={11} color={colors.brandGreen} />
-                        <Text style={styles.optimizedBadgeText}>
-                          Optimized for clear invoice readability
-                        </Text>
-                      </View>
-                    </View>
-                  ) : (
-                    <Text style={styles.attachmentFileSize}>
-                      {formatFileSize(attachment.size)} · {attachment.mimeType}
-                    </Text>
-                  )}
+                  <Text style={styles.attachmentAttachedTitle}>Bill Photo Attached</Text>
+                  <Text style={styles.attachmentAttachedSub}>Ready to save with bill</Text>
                 </View>
 
                 <TouchableOpacity
@@ -655,74 +486,7 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* ── PRODUCT SELECTION MODAL ─────────────────────────────────── */}
-      <Modal
-        visible={showProductModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowProductModal(false)}
-      >
-        <View style={styles.productModalOverlay}>
-          <View style={styles.productModalSheet}>
-            <View style={styles.productModalHeader}>
-              <Text style={styles.productModalTitle}>Select Product</Text>
-              <TouchableOpacity onPress={() => { setShowProductModal(false); setProductSearch(''); }}>
-                <Ionicons name="close" size={22} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
 
-            <View style={styles.productSearchBox}>
-              <Ionicons name="search-outline" size={17} color={colors.textMuted} />
-              <TextInput
-                style={styles.productSearchInput}
-                placeholder="Search products by name, SKU, category..."
-                placeholderTextColor={colors.textMuted}
-                value={productSearch}
-                onChangeText={setProductSearch}
-                autoFocus
-              />
-              {productSearch.length > 0 && (
-                <TouchableOpacity onPress={() => setProductSearch('')}>
-                  <Ionicons name="close-circle" size={17} color={colors.textMuted} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <FlatList
-              data={filteredProducts}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={{ paddingBottom: spacing.lg }}
-              showsVerticalScrollIndicator={false}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.productListItem}
-                  onPress={() => handleSelectProduct(item)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.prodIconCircle}>
-                    <Ionicons name="cube" size={16} color={colors.primary} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.productListName}>{item.name}</Text>
-                    <Text style={styles.productListSub}>
-                      {item.category} · {item.unit} · ₹{item.purchasePrice || item.price || 0}
-                    </Text>
-                  </View>
-                  <Ionicons name="add-circle-outline" size={22} color={colors.primary} />
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <View style={styles.productListEmpty}>
-                  <Ionicons name="cube-outline" size={36} color={colors.textMuted} />
-                  <Text style={styles.productListEmptyText}>
-                    {productSearch ? 'No matching products found' : 'No products available'}
-                  </Text>
-                </View>
-              }
-            />
-          </View>
-        </View>
-      </Modal>
 
       {/* ── BILL SUMMARY CONFIRMATION MODAL ───────────────────────── */}
       <Modal
@@ -777,27 +541,11 @@ export const AddSupplierBillScreen: React.FC<{ route: any; navigation: any }> = 
                   </View>
                 </View>
 
-                {selectedProducts.length > 0 && (
-                  <View style={{ marginTop: spacing.sm }}>
-                    <Text style={[styles.summaryDetailLabel, { marginBottom: 4 }]}>
-                      Products ({selectedProducts.length}):
-                    </Text>
-                    {selectedProducts.map((sp, idx) => {
-                      const qty = parseFloat(sp.quantity) || 0;
-                      const price = parseFloat(sp.unitPrice) || 0;
-                      return (
-                        <Text key={`summary-prod-${idx}`} style={styles.summaryProductLine}>
-                          • {sp.productName} — {qty} {sp.unit} × ₹{price} = ₹{fmt(qty * price)}
-                        </Text>
-                      );
-                    })}
-                  </View>
-                )}
 
                 <View style={styles.summaryDetailRow}>
                   <Text style={styles.summaryDetailLabel}>Attachment:</Text>
                   <Text style={styles.summaryDetailValue}>
-                    {attachment ? attachment.name : 'No file attached'}
+                    {attachment ? 'Photo Attached' : 'No file attached'}
                   </Text>
                 </View>
 
@@ -960,163 +708,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Products
-  selectedProductCard: {
-    padding: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  selectedProductHeader: {
-    marginBottom: spacing.xs,
-  },
-  selectedProductNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  prodIconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectedProductName: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13,
-  },
-  selectedProductUnit: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 10,
-  },
-  selectedProductFields: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-    marginTop: spacing.xs,
-  },
-  productFieldCol: {
-    flex: 1,
-  },
-  productFieldLabel: {
-    ...typography.label,
-    color: colors.textMuted,
-    fontSize: 9,
-    letterSpacing: 0.3,
-    marginBottom: 3,
-  },
-  productFieldInput: {
-    backgroundColor: colors.surfaceSubtle,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: spacing.borderRadiusSm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: Platform.OS === 'ios' ? 8 : 5,
-    fontSize: 13,
-    color: colors.textPrimary,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  productAmountText: {
-    ...typography.bodyBold,
-    color: colors.primary,
-    fontSize: 13,
-    textAlign: 'center',
-    paddingVertical: Platform.OS === 'ios' ? 8 : 5,
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: spacing.borderRadiusSm,
-    overflow: 'hidden',
-  },
-  addProductBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: spacing.borderRadiusMd,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    borderStyle: 'dashed',
-    backgroundColor: colors.surface,
-    gap: 6,
-    marginBottom: spacing.sm,
-  },
-  addProductBtnText: {
-    ...typography.bodyBold,
-    color: colors.primary,
-    fontSize: 13,
-  },
-
-  // Product Selection Modal
-  productModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  productModalSheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: spacing.borderRadiusLg,
-    borderTopRightRadius: spacing.borderRadiusLg,
-    paddingTop: spacing.md,
-    paddingHorizontal: spacing.screenPadding,
-    maxHeight: '75%',
-  },
-  productModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  productModalTitle: {
-    ...typography.h3,
-    color: colors.textPrimary,
-  },
-  productSearchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceSubtle,
-    borderRadius: spacing.borderRadiusMd,
-    paddingHorizontal: spacing.sm,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 6,
-  },
-  productSearchInput: {
-    flex: 1,
-    paddingVertical: Platform.OS === 'ios' ? 10 : 7,
-    fontSize: 13,
-    color: colors.textPrimary,
-  },
-  productListItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap: spacing.sm,
-  },
-  productListName: {
-    ...typography.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 13,
-  },
-  productListSub: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 11,
-    marginTop: 1,
-  },
-  productListEmpty: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl,
-    gap: spacing.sm,
-  },
-  productListEmptyText: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 12,
-  },
 
   // Attachment
   attachmentPickerGrid: {
@@ -1158,34 +749,16 @@ const styles = StyleSheet.create({
   attachmentMetaCol: {
     flex: 1,
   },
-  attachmentFileName: {
+  attachmentAttachedTitle: {
     ...typography.bodyBold,
     color: colors.textPrimary,
-    fontSize: 12.5,
+    fontSize: 13,
   },
-  attachmentFileSize: {
+  attachmentAttachedSub: {
     ...typography.caption,
     color: colors.textMuted,
-    fontSize: 10.5,
+    fontSize: 11,
     marginTop: 2,
-  },
-  compressionStatsText: {
-    ...typography.captionBold,
-    color: colors.primary,
-    fontSize: 10.5,
-    marginTop: 1,
-  },
-  optimizedBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 2,
-  },
-  optimizedBadgeText: {
-    ...typography.caption,
-    color: colors.brandGreen,
-    fontSize: 9.5,
-    fontWeight: '600',
   },
   compressingCard: {
     flexDirection: 'row',
@@ -1199,12 +772,6 @@ const styles = StyleSheet.create({
     ...typography.captionBold,
     color: colors.primary,
     fontSize: 12,
-  },
-  compressingSub: {
-    ...typography.caption,
-    color: colors.textMuted,
-    fontSize: 10,
-    marginTop: 2,
   },
   removeAttachmentBtn: {
     padding: spacing.xs,
@@ -1268,12 +835,6 @@ const styles = StyleSheet.create({
   summaryStatusText: {
     ...typography.captionBold,
     fontSize: 10.5,
-  },
-  summaryProductLine: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontSize: 11,
-    marginBottom: 2,
   },
   summaryTotalRow: {
     flexDirection: 'row',
